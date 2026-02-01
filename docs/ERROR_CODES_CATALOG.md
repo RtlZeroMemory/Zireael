@@ -19,9 +19,9 @@ Defined in `src/util/zr_result.h`:
 - `ZR_ERR_LIMIT (-3)`: output buffer too small or cap/limit exceeded
 - `ZR_ERR_UNSUPPORTED (-4)`: unsupported version/feature/opcode
 - `ZR_ERR_FORMAT (-5)`: malformed input bytes / framing violation
+- `ZR_ERR_PLATFORM (-6)`: platform/backend failure (OS call failed; terminal/PTY not available; I/O wait/wake failed)
 
 ## Notes
 
 - Parsers MUST be deterministic: the same invalid input must yield the same error code regardless of platform.
 - If an API supports truncation as a success mode (currently: packed event batches), it MUST only emit complete records; no partial record bytes may be written.
-

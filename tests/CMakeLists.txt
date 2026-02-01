@@ -5,12 +5,16 @@ add_executable(zireael_unit_tests
   unit/test_arena.c
   unit/test_bytes.c
   unit/test_checked.c
+  unit/test_diff_color_quant.c
   unit/test_diff_spans.c
   unit/test_drawlist_execute.c
   unit/test_drawlist_validate.c
+  unit/test_event_pack.c
+  unit/test_event_queue.c
   unit/test_limits.c
   unit/test_ring.c
   unit/test_string_builder.c
+  unit/test_user_event_injection.c
   unit/test_vec.c
   golden/zr_golden.c
   golden/golden_diff_renderer.c
@@ -54,3 +58,11 @@ target_link_libraries(zireael_fuzz_drawlist_parser PRIVATE zireael_build_setting
 target_link_libraries(zireael_fuzz_drawlist_parser PRIVATE zireael)
 add_test(NAME zireael.fuzz.drawlist.parser COMMAND zireael_fuzz_drawlist_parser)
 set_tests_properties(zireael.fuzz.drawlist.parser PROPERTIES TIMEOUT 5)
+
+add_executable(zireael_fuzz_input_parser
+  fuzz/fuzz_input_parser.c
+)
+target_link_libraries(zireael_fuzz_input_parser PRIVATE zireael_build_settings)
+target_link_libraries(zireael_fuzz_input_parser PRIVATE zireael)
+add_test(NAME zireael.fuzz.input.parser COMMAND zireael_fuzz_input_parser)
+set_tests_properties(zireael.fuzz.input.parser PROPERTIES TIMEOUT 5)

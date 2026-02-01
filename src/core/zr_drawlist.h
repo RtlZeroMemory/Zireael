@@ -100,7 +100,16 @@ typedef struct zr_dl_cmd_draw_text_run_t {
   uint32_t reserved0; /* must be 0 in v1 */
 } zr_dl_cmd_draw_text_run_t;
 
-/* Engine-internal validated view. */
+/*
+  zr_dl_view_t (engine-internal validated view):
+    - All pointers are borrowed views into the caller-provided drawlist byte
+      buffer passed to zr_dl_validate().
+    - Ownership: the engine does not allocate or copy drawlist payload; the
+      caller retains ownership of `bytes`.
+    - Lifetime: `bytes` (and therefore all derived pointers) must remain valid
+      and unchanged for the duration of any use of this view (typically until
+      zr_dl_execute() completes).
+*/
 typedef struct zr_dl_view_t {
   zr_dl_header_t hdr; /* host-endian copy */
 
@@ -126,4 +135,3 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
 zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim);
 
 #endif /* ZR_CORE_ZR_DRAWLIST_H_INCLUDED */
-

@@ -20,6 +20,12 @@ typedef struct zr_style_t {
 } zr_style_t;
 
 typedef struct zr_fb_cell_t {
+  /*
+    glyph:
+      - UTF-8 bytes for a single codepoint (1..4 bytes) as emitted/consumed by
+        the framebuffer's decode policy.
+      - Note: this is a placeholder until full grapheme-aware rendering lands.
+  */
   uint8_t   glyph[4];
   uint8_t   glyph_len;
   uint8_t   flags;
@@ -32,7 +38,13 @@ typedef struct zr_fb_cell_t {
 typedef struct zr_fb_t {
   uint32_t     cols;
   uint32_t     rows;
-  zr_fb_cell_t* cells; /* length == cols*rows */
+  /*
+    cells:
+      - Caller-owned backing store; zr_fb_init() never allocates.
+      - Length is exactly cols*rows (in row-major order).
+      - Must remain valid for the lifetime of the zr_fb_t.
+  */
+  zr_fb_cell_t* cells;
 } zr_fb_t;
 
 typedef struct zr_fb_rect_i32_t {

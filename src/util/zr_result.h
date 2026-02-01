@@ -21,6 +21,6 @@ typedef int zr_result_t;
 #define ZR_ERR_OOM ((zr_result_t)-2)
 #define ZR_ERR_LIMIT ((zr_result_t)-3)
 #define ZR_ERR_UNSUPPORTED ((zr_result_t)-4)
+#define ZR_ERR_FORMAT ((zr_result_t)-5)
 
 #endif /* ZR_UTIL_ZR_RESULT_H_INCLUDED */
-

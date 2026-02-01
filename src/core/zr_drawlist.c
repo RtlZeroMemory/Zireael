@@ -739,18 +739,6 @@ static zr_style_t zr_style_from_dl(zr_dl_style_t s) {
 
 static zr_result_t zr_dl_exec_clear(zr_fb_t* dst) { return zr_fb_clear(dst, NULL); }
 
-static bool zr_rect_contains_i32(zr_rect_t r, int32_t x, int32_t y) {
-  if (r.w <= 0 || r.h <= 0) {
-    return false;
-  }
-  if (x < r.x || y < r.y) {
-    return false;
-  }
-  const int64_t x2 = (int64_t)r.x + (int64_t)r.w;
-  const int64_t y2 = (int64_t)r.y + (int64_t)r.h;
-  return ((int64_t)x < x2) && ((int64_t)y < y2);
-}
-
 /*
  * Draw UTF-8 bytes into the framebuffer by grapheme iteration.
  *
@@ -780,23 +768,16 @@ static zr_result_t zr_dl_draw_text_utf8(zr_fb_painter_t* p,
       continue;
     }
 
-    uint8_t adv = w;
-    if (w == 2u) {
-      /*
-        Replacement policy: if the wide glyph cannot fully fit within the
-        current clip, it is rendered as U+FFFD (width 1).
-      */
-      const zr_rect_t clip = p->clip_stack[p->clip_len - 1u];
-      if (!zr_rect_contains_i32(clip, cx, y) || !zr_rect_contains_i32(clip, cx + 1, y)) {
-        adv = 1u;
-      }
-    }
-
+    /*
+      Important: cursor advancement must not depend on clipping. The framebuffer
+      primitive handles "no half glyph" replacement internally; drawlist text
+      maintains logical positions by always advancing by the original width.
+    */
     (void)zr_fb_put_grapheme(p, cx, y, gb, gl, w, style);
-    if (cx > (INT32_MAX - (int32_t)adv)) {
+    if (cx > (INT32_MAX - (int32_t)w)) {
       return ZR_ERR_LIMIT;
     }
-    cx += (int32_t)adv;
+    cx += (int32_t)w;
   }
 
   *inout_x = cx;

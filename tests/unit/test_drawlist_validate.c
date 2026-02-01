@@ -89,13 +89,40 @@ const uint8_t zr_test_dl_fixture3[] = {
 
 const size_t zr_test_dl_fixture3_len = sizeof(zr_test_dl_fixture3);
 
-ZR_TEST_UNIT(drawlist_validate_fixtures_1_2_3_ok) {
+/* Fixture 4: clip must not affect cursor advancement for wide glyphs. */
+const uint8_t zr_test_dl_fixture4[] = {
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u), ZR_U32LE(64u), ZR_U32LE(164u),
+    ZR_U32LE(64u), ZR_U32LE(88u), ZR_U32LE(4u),
+    ZR_U32LE(152u), ZR_U32LE(1u), ZR_U32LE(160u), ZR_U32LE(4u),
+    ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u),
+    ZR_U32LE(0u),
+
+    /* cmd stream @ 64 */
+    ZR_DL_CMD_HDR(ZR_DL_OP_CLEAR, 8u),
+    ZR_DL_CMD_HDR(ZR_DL_OP_PUSH_CLIP, 24u), ZR_I32LE(1), ZR_I32LE(0), ZR_I32LE(1), ZR_I32LE(1),
+    ZR_DL_CMD_HDR(ZR_DL_OP_DRAW_TEXT, 48u),
+    ZR_I32LE(0), ZR_I32LE(0), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(4u),
+    ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u),
+    ZR_U32LE(0u),
+    ZR_DL_CMD_HDR(ZR_DL_OP_POP_CLIP, 8u),
+
+    /* strings span table @ 152 */
+    ZR_U32LE(0u), ZR_U32LE(4u),
+
+    /* strings bytes @ 160 (len=4): U+754C '界' + 'A' */
+    0xE7u, 0x95u, 0x8Cu, (uint8_t)'A',
+};
+
+const size_t zr_test_dl_fixture4_len = sizeof(zr_test_dl_fixture4);
+
+ZR_TEST_UNIT(drawlist_validate_fixtures_1_2_3_4_ok) {
   zr_limits_t lim = zr_limits_default();
 
   zr_dl_view_t v;
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture1, zr_test_dl_fixture1_len, &lim, &v), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture2, zr_test_dl_fixture2_len, &lim, &v), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture3, zr_test_dl_fixture3_len, &lim, &v), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture4, zr_test_dl_fixture4_len, &lim, &v), ZR_OK);
 }
 
 ZR_TEST_UNIT(drawlist_validate_rejects_empty_table_rule) {
@@ -168,4 +195,3 @@ ZR_TEST_UNIT(drawlist_validate_enforces_caps) {
   lim.dl_max_text_run_segments = 1u;
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture3, zr_test_dl_fixture3_len, &lim, &v), ZR_ERR_LIMIT);
 }
-

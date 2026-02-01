@@ -63,3 +63,9 @@ create a state where a continuation cell exists without a valid lead cell immedi
   - If `width == 2` but cannot write both cells within bounds+clip, writes `U+FFFD` width `1` (never half glyphs).
 - `zr_fb_draw_text_bytes` — draws UTF-8 text by iterating graphemes and calling `zr_fb_put_grapheme`.
 - `zr_fb_blit_rect` — overlap-safe rectangle copy (memmove-like semantics) that preserves wide-glyph invariants.
+
+## Layout and clipping
+
+Clipping MUST NOT affect cursor advancement. When a wide glyph cannot be fully written within the current clip, the
+draw is replaced with `U+FFFD` (width `1`) but the logical cursor advance remains `2`. This prevents clip-dependent text
+shifts where subsequent glyphs move into/out of the visible region.

@@ -893,6 +893,9 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
       Replacement policy: a wide glyph must either write both cells or be
       replaced with U+FFFD (width 1). Clipping/bounds may therefore reduce the
       on-screen width to 1 when the lead cell is drawable but the continuation is not.
+
+      Important: cursor advancement must not depend on clipping; layout stays stable even
+      when the drawn glyph is replaced.
     */
     if (out_w == 2u) {
       out_adv = 2u;
@@ -904,11 +907,11 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
           /* Fully clipped/outside: draw nothing, keep logical advance 2. */
           out_w = 0u;
         } else if (!zr_painter_can_touch(p, ix + 1, y)) {
-          /* Lead visible but wide can't fit: replace and advance 1. */
+          /* Lead visible but wide can't fit: replace, keep logical advance 2. */
           out_bytes = ZR_UTF8_REPLACEMENT;
           out_len = ZR_UTF8_REPLACEMENT_LEN;
           out_w = 1u;
-          out_adv = 1u;
+          out_adv = 2u;
         }
       } else {
         /* Off-range: draw nothing, keep logical advance 2. */

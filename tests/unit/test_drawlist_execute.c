@@ -13,6 +13,8 @@ extern const uint8_t zr_test_dl_fixture2[];
 extern const size_t zr_test_dl_fixture2_len;
 extern const uint8_t zr_test_dl_fixture3[];
 extern const size_t zr_test_dl_fixture3_len;
+extern const uint8_t zr_test_dl_fixture4[];
+extern const size_t zr_test_dl_fixture4_len;
 
 static void zr_assert_cell_glyph(zr_test_ctx_t* ctx, const zr_cell_t* c, uint8_t byte) {
   ZR_ASSERT_TRUE(c != NULL);
@@ -82,6 +84,31 @@ ZR_TEST_UNIT(drawlist_execute_fixture3_text_run_segments) {
   zr_assert_cell_glyph(ctx, d, (uint8_t)'D');
   ZR_ASSERT_EQ_U32(a->style.fg_rgb, 1u);
   ZR_ASSERT_EQ_U32(d->style.fg_rgb, 3u);
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(drawlist_execute_clip_does_not_change_wide_cursor_advance) {
+  zr_limits_t lim = zr_limits_default();
+  zr_dl_view_t v;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture4, zr_test_dl_fixture4_len, &lim, &v), ZR_OK);
+
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim), ZR_OK);
+
+  /*
+    The clip only includes x==1. The drawlist places a wide glyph starting at x==0
+    followed by 'A'. If wide-glyph advance were reduced to 1 due to clipping,
+    'A' would be drawn into the visible cell x==1.
+  */
+  const zr_cell_t* c = zr_fb_cell_const(&fb, 1u, 0u);
+  ZR_ASSERT_TRUE(c != NULL);
+  ZR_ASSERT_EQ_U32(c->width, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph_len, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph[0], (uint8_t)' ');
 
   zr_fb_release(&fb);
 }

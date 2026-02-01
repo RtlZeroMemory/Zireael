@@ -39,13 +39,34 @@ target_link_libraries(zireael_unit_tests PRIVATE zireael)
 add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)
 
-add_executable(zireael_integration_tests
-  integration/zr_integration_smoke.c
-)
-target_link_libraries(zireael_integration_tests PRIVATE zireael_build_settings)
-target_link_libraries(zireael_integration_tests PRIVATE zireael)
-add_test(NAME zireael.integration COMMAND zireael_integration_tests)
-set_tests_properties(zireael.integration PROPERTIES SKIP_RETURN_CODE 77)
+if (WIN32)
+  add_executable(zireael_integration_tests
+    integration/zr_integration_smoke.c
+  )
+  target_link_libraries(zireael_integration_tests PRIVATE zireael_build_settings)
+  target_link_libraries(zireael_integration_tests PRIVATE zireael)
+  add_test(NAME zireael.integration COMMAND zireael_integration_tests)
+  set_tests_properties(zireael.integration PROPERTIES SKIP_RETURN_CODE 77)
+else ()
+  find_package(Threads REQUIRED)
+
+  add_executable(zireael_integration_posix_pty_rawmode
+    integration/posix_pty_rawmode.c
+  )
+  target_link_libraries(zireael_integration_posix_pty_rawmode PRIVATE zireael_build_settings)
+  target_link_libraries(zireael_integration_posix_pty_rawmode PRIVATE zireael)
+  add_test(NAME zireael.integration.posix.pty.rawmode COMMAND zireael_integration_posix_pty_rawmode)
+  set_tests_properties(zireael.integration.posix.pty.rawmode PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+  add_executable(zireael_integration_posix_pty_wake
+    integration/posix_pty_wake.c
+  )
+  target_link_libraries(zireael_integration_posix_pty_wake PRIVATE zireael_build_settings)
+  target_link_libraries(zireael_integration_posix_pty_wake PRIVATE zireael)
+  target_link_libraries(zireael_integration_posix_pty_wake PRIVATE Threads::Threads)
+  add_test(NAME zireael.integration.posix.pty.wake COMMAND zireael_integration_posix_pty_wake)
+  set_tests_properties(zireael.integration.posix.pty.wake PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+endif ()
 
 add_executable(zireael_fuzz_smoke
   fuzz/zr_fuzz_smoke.c

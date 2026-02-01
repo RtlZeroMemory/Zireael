@@ -75,7 +75,7 @@ if (WIN32)
   )
 else ()
   list(APPEND ZIREAEL_SOURCES
-    src/platform/posix/zr_plat_posix_stub.c
+    src/platform/posix/zr_plat_posix.c
   )
 endif ()
 

@@ -26,6 +26,7 @@ add_library(zireael_unit_lib STATIC
 
 target_link_libraries(zireael_unit_lib PRIVATE zireael_build_settings)
 target_include_directories(zireael_unit_lib PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
         ${PROJECT_SOURCE_DIR}/tests
 )
@@ -70,6 +71,7 @@ add_executable(zireael_unit_tests
 )
 
 target_include_directories(zireael_unit_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/tests
 )
 
@@ -88,6 +90,9 @@ if (WIN32)
             integration/win32_conpty_rawmode.c
             ${PROJECT_SOURCE_DIR}/src/platform/win32/zr_win32_conpty_test.c
     )
+    target_include_directories(zireael_integration_win32_conpty_rawmode PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
     target_link_libraries(zireael_integration_win32_conpty_rawmode PRIVATE zireael_build_settings)
     target_link_libraries(zireael_integration_win32_conpty_rawmode PRIVATE zireael)
     add_test(NAME zireael.integration.win32.conpty.rawmode COMMAND zireael_integration_win32_conpty_rawmode)
@@ -96,6 +101,9 @@ if (WIN32)
     add_executable(zireael_integration_win32_conpty_wake
             integration/win32_conpty_wake.c
             ${PROJECT_SOURCE_DIR}/src/platform/win32/zr_win32_conpty_test.c
+    )
+    target_include_directories(zireael_integration_win32_conpty_wake PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
     )
     target_link_libraries(zireael_integration_win32_conpty_wake PRIVATE zireael_build_settings)
     target_link_libraries(zireael_integration_win32_conpty_wake PRIVATE zireael)
@@ -107,6 +115,9 @@ else ()
     add_executable(zireael_integration_posix_pty_rawmode
             integration/posix_pty_rawmode.c
     )
+    target_include_directories(zireael_integration_posix_pty_rawmode PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
     target_link_libraries(zireael_integration_posix_pty_rawmode PRIVATE zireael_build_settings)
     target_link_libraries(zireael_integration_posix_pty_rawmode PRIVATE zireael)
     add_test(NAME zireael.integration.posix.pty.rawmode COMMAND zireael_integration_posix_pty_rawmode)
@@ -114,6 +125,9 @@ else ()
 
     add_executable(zireael_integration_posix_pty_wake
             integration/posix_pty_wake.c
+    )
+    target_include_directories(zireael_integration_posix_pty_wake PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
     )
     target_link_libraries(zireael_integration_posix_pty_wake PRIVATE zireael_build_settings)
     target_link_libraries(zireael_integration_posix_pty_wake PRIVATE zireael)
@@ -125,6 +139,9 @@ endif ()
 add_executable(zireael_fuzz_smoke
         fuzz/zr_fuzz_smoke.c
 )
+target_include_directories(zireael_fuzz_smoke PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
 target_link_libraries(zireael_fuzz_smoke PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_smoke PRIVATE zireael)
 add_test(NAME zireael.fuzz.smoke COMMAND zireael_fuzz_smoke)
@@ -132,6 +149,9 @@ set_tests_properties(zireael.fuzz.smoke PROPERTIES TIMEOUT 5)
 
 add_executable(zireael_fuzz_drawlist_parser
         fuzz/fuzz_drawlist_parser.c
+)
+target_include_directories(zireael_fuzz_drawlist_parser PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
 )
 target_link_libraries(zireael_fuzz_drawlist_parser PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_drawlist_parser PRIVATE zireael)
@@ -141,6 +161,9 @@ set_tests_properties(zireael.fuzz.drawlist.parser PROPERTIES TIMEOUT 5)
 add_executable(zireael_fuzz_input_parser
         fuzz/fuzz_input_parser.c
 )
+target_include_directories(zireael_fuzz_input_parser PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
 target_link_libraries(zireael_fuzz_input_parser PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_input_parser PRIVATE zireael)
 add_test(NAME zireael.fuzz.input.parser COMMAND zireael_fuzz_input_parser)
@@ -149,6 +172,9 @@ set_tests_properties(zireael.fuzz.input.parser PROPERTIES TIMEOUT 5)
 add_executable(zireael_fuzz_utf8_decode
         fuzz/fuzz_utf8_decode.c
 )
+target_include_directories(zireael_fuzz_utf8_decode PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
 target_link_libraries(zireael_fuzz_utf8_decode PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_utf8_decode PRIVATE zireael)
 add_test(NAME zireael.fuzz.utf8.decode COMMAND zireael_fuzz_utf8_decode)
@@ -156,6 +182,9 @@ set_tests_properties(zireael.fuzz.utf8.decode PROPERTIES TIMEOUT 5)
 
 add_executable(zireael_fuzz_grapheme_iter
         fuzz/fuzz_grapheme_iter.c
+)
+target_include_directories(zireael_fuzz_grapheme_iter PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
 )
 target_link_libraries(zireael_fuzz_grapheme_iter PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_grapheme_iter PRIVATE zireael)

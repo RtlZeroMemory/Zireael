@@ -11,7 +11,7 @@ Zireael exposes a stable C ABI surface and versioned binary formats for wrapper 
 See also:
 
 - `docs/VERSION_PINS.md`
-- `docs/HEADER_SKELETON_PLAN.md`
+- `docs/HEADER_LAYERING.md`
 - `docs/ERROR_CODES_CATALOG.md`
 - `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
 - `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`
@@ -102,6 +102,7 @@ Notes:
 
 - `width_policy` is encoded as a fixed-width integer for ABI stability; its values correspond to `zr_width_policy_t`
   enumerators in `src/unicode/zr_width.h` (currently: `ZR_WIDTH_EMOJI_NARROW` or `ZR_WIDTH_EMOJI_WIDE`).
+- `enable_replay_recording` is currently a reserved toggle (accepted as 0/1 in v1) and does not change runtime behavior.
 
 ## Defaults and validation
 

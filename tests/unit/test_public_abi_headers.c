@@ -7,10 +7,10 @@
 
 #include "zr_test.h"
 
-#include "core/zr_engine.h"
-#include "core/zr_event.h"
-#include "core/zr_drawlist.h"
-#include "core/zr_version.h"
+#include "zr/zr_engine.h"
+#include "zr/zr_event.h"
+#include "zr/zr_drawlist.h"
+#include "zr/zr_version.h"
 
 #include "unit/mock_platform.h"
 

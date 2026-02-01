@@ -2,9 +2,14 @@
 
 Zireael is a cross-platform **terminal UI core engine** for Windows / Linux / macOS.
 
-It is designed to be embedded: you drive it by submitting a **binary drawlist** and you read back a **packed event batch
-**. The engine owns terminal I/O (raw mode, output emission, input bytes) and provides a deterministic, cap-bounded core
+It is designed to be embedded: you drive it by submitting a **binary drawlist** and you read back a **packed event
+batch**. The engine owns terminal I/O (raw mode, output emission, input bytes) and provides a deterministic, cap-bounded core
 suitable for wrappers in other languages.
+
+## Documentation
+
+- User docs (GitHub Pages): https://rtlzeromemory.github.io/Zireael/
+- Internal engine specs (normative): `docs/00_INDEX.md`
 
 ## Overview
 
@@ -83,15 +88,18 @@ examples/
 
 Headers:
 
-- `src/core/zr_engine.h` (primary entrypoints)
-- `src/core/zr_config.h` (configuration)
-- `src/core/zr_event.h` (packed event ABI types)
-- `src/core/zr_drawlist.h` (drawlist ABI types)
-- `src/platform/zr_platform.h` (core-facing platform boundary; OS-header-free)
+- `include/zr/zr_engine.h` (primary entrypoints)
+- `include/zr/zr_config.h` (configuration)
+- `include/zr/zr_metrics.h` (metrics snapshot)
+- `include/zr/zr_version.h` (pinned ABI/format versions)
+- `include/zr/zr_event.h` (packed event ABI types)
+- `include/zr/zr_drawlist.h` (drawlist ABI types)
 
 Core entrypoints (summary):
 
 ```c
+#include <zr/zr_engine.h>
+
 typedef struct zr_engine_t zr_engine_t;
 typedef int zr_result_t;
 
@@ -241,6 +249,8 @@ target_link_libraries(my_app PRIVATE Zireael::zireael)
 ## Usage (typical loop)
 
 ```c
+#include <zr/zr_engine.h>
+
 zr_engine_config_t cfg = zr_engine_config_default();
 cfg.requested_engine_abi_major = ZR_ENGINE_ABI_MAJOR;
 cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
@@ -289,6 +299,16 @@ ctest --test-dir out/build/<preset> --output-on-failure
 - Treat drawlist/event bytes as untrusted input: validate bounds and overflow before use.
 - Prefer fixed-size, caller-provided buffers on the ABI boundary.
 - Avoid per-frame heap churn; use arenas and bounded containers.
+
+See `CONTRIBUTING.md` for details.
+
+## Security
+
+See `SECURITY.md`.
+
+## Changelog
+
+See `CHANGELOG.md`.
 
 ## License
 

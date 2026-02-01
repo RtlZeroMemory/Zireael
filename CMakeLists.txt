@@ -96,7 +96,10 @@ set_target_properties(zireael PROPERTIES
 
 target_link_libraries(zireael PRIVATE zireael_build_settings)
 
-target_include_directories(zireael PUBLIC
+target_include_directories(zireael
+        PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+        PRIVATE
         ${PROJECT_SOURCE_DIR}/src
 )
 
@@ -115,7 +118,10 @@ if (ZIREAEL_BUILD_SHARED)
 
     target_link_libraries(zireael_shared PRIVATE zireael_build_settings)
 
-    target_include_directories(zireael_shared PUBLIC
+    target_include_directories(zireael_shared
+            PUBLIC
+            ${PROJECT_SOURCE_DIR}/include
+            PRIVATE
             ${PROJECT_SOURCE_DIR}/src
     )
 endif ()

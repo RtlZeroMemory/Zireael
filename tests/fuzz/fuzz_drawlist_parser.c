@@ -4,7 +4,6 @@
 
 #include "core/zr_drawlist.h"
 
-#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 

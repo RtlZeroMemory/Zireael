@@ -5,7 +5,6 @@
 #include "core/zr_event_pack.h"
 #include "core/zr_input_parser.h"
 
-#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 

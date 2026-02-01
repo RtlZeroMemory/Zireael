@@ -8,7 +8,6 @@
 
 #include "util/zr_checked.h"
 
-#include <limits.h>
 #include <string.h>
 
 static zr_style_t zr_style_default(void) {

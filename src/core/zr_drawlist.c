@@ -9,7 +9,6 @@
 #include "util/zr_bytes.h"
 #include "util/zr_checked.h"
 
-#include <limits.h>
 #include <string.h>
 
 /* Drawlist v1 format identifiers. */

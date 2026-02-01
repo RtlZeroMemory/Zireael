@@ -12,7 +12,6 @@
 #include "util/zr_result.h"
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdatomic.h>
 #include <stdint.h>
 

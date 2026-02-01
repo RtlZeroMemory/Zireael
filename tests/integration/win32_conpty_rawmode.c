@@ -8,7 +8,6 @@
 #include "platform/zr_platform.h"
 #include "platform/win32/zr_win32_conpty_test.h"
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

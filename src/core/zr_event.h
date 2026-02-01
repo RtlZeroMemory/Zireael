@@ -8,7 +8,6 @@
 #ifndef ZR_CORE_ZR_EVENT_H_INCLUDED
 #define ZR_CORE_ZR_EVENT_H_INCLUDED
 
-#include <stddef.h>
 #include <stdint.h>
 
 /* Little-endian u32 for bytes {'Z','R','E','V'}. */

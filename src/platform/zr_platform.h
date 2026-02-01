@@ -10,8 +10,6 @@
 
 #include "util/zr_result.h"
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 /* Opaque platform handle. Implemented by the platform backend. */

@@ -9,7 +9,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #ifndef ZR_TESTS_DIR
 /* Fallback for ad-hoc runs; CMake should define this for CTest determinism. */

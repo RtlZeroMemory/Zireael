@@ -14,6 +14,7 @@
 #include <stddef.h>
 
 typedef struct zr_ring_t {
+  /* Caller-owned backing buffer (capacity is fixed at init). */
   unsigned char* data;
   size_t cap;
   size_t len;
@@ -34,4 +35,3 @@ zr_result_t zr_ring_push(zr_ring_t* r, const void* elem);
 bool        zr_ring_pop(zr_ring_t* r, void* out_elem);
 
 #endif /* ZR_UTIL_ZR_RING_H_INCLUDED */
-

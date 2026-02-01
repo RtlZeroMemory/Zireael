@@ -13,6 +13,7 @@
 #include <stddef.h>
 
 typedef struct zr_vec_t {
+  /* Caller-owned backing buffer (capacity is fixed at init). */
   unsigned char* data;
   size_t len;
   size_t cap;
@@ -32,4 +33,3 @@ zr_result_t zr_vec_push(zr_vec_t* v, const void* elem);
 zr_result_t zr_vec_pop(zr_vec_t* v, void* out_elem);
 
 #endif /* ZR_UTIL_ZR_VEC_H_INCLUDED */
-

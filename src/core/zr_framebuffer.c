@@ -896,22 +896,27 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
     */
     if (out_w == 2u) {
       out_adv = 2u;
-      if (!zr_i64_fits_i32(cx) || !zr_i64_fits_i32(cx + 1)) {
-        /* Off-range: no draw, but keep logical advance. */
-      } else {
+      const int64_t cx1 = cx + 1;
+      if (zr_i64_fits_i32(cx) && zr_i64_fits_i32(cx1)) {
         const int32_t ix = (int32_t)cx;
         const bool lead_touch = zr_painter_can_touch(p, ix, y);
-        const bool wide_touch = lead_touch && zr_painter_can_touch(p, ix + 1, y);
-        if (!wide_touch && lead_touch) {
+        if (!lead_touch) {
+          /* Fully clipped/outside: draw nothing, keep logical advance 2. */
+          out_w = 0u;
+        } else if (!zr_painter_can_touch(p, ix + 1, y)) {
+          /* Lead visible but wide can't fit: replace and advance 1. */
           out_bytes = ZR_UTF8_REPLACEMENT;
           out_len = ZR_UTF8_REPLACEMENT_LEN;
           out_w = 1u;
           out_adv = 1u;
         }
+      } else {
+        /* Off-range: draw nothing, keep logical advance 2. */
+        out_w = 0u;
       }
     }
 
-    if (zr_i64_fits_i32(cx)) {
+    if (out_w != 0u && zr_i64_fits_i32(cx)) {
       (void)zr_fb_put_grapheme(p, (int32_t)cx, y, out_bytes, out_len, out_w, style);
     }
 

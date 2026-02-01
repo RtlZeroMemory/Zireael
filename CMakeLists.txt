@@ -50,7 +50,10 @@ endif ()
 set(ZIREAEL_SOURCES
   src/core/zr_diff.c
   src/core/zr_drawlist.c
+  src/core/zr_event_pack.c
+  src/core/zr_event_queue.c
   src/core/zr_fb.c
+  src/core/zr_input_parser.c
   src/core/zr_placeholder.c
   src/platform/zr_platform_select.c
   src/util/zr_arena.c

@@ -1,5 +1,8 @@
 # Zireael — C Core Terminal Engine
 
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/000b7a71-50ca-4d9f-9ef1-fd3cde6173d1" />
+
+
 Zireael is a cross-platform **terminal UI core engine** for Windows / Linux / macOS.
 
 It is designed to be embedded: you drive it by submitting a **binary drawlist** and you read back a **packed event

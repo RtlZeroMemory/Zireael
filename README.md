@@ -215,7 +215,7 @@ bash scripts/guardrails.sh
 
 Code standards (readability + safety):
 
-- `CODE_STANDARDS.md`
+- `docs/CODE_STANDARDS.md`
 
 CMake options:
 

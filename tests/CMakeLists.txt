@@ -12,6 +12,7 @@ add_executable(zireael_unit_tests
         unit/test_event_pack.c
         unit/test_event_queue.c
         unit/test_limits.c
+        unit/test_public_abi_headers.c
         unit/test_ring.c
         unit/test_string_builder.c
         unit/test_user_event_injection.c

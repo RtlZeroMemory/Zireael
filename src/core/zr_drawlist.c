@@ -1,10 +1,17 @@
 /*
   src/core/zr_drawlist.c — Drawlist v1 validator + executor.
+
+  Why: Validates wrapper-provided drawlist bytes (bounds/caps/version) and
+  executes deterministic drawing into the framebuffer without UB.
+  Invariants:
+    - Offsets/sizes validated before any derived pointer is created.
+    - Unaligned reads use safe helpers (no type-punning casts).
 */
 
 #include "core/zr_drawlist.h"
 
 #include "core/zr_fb.h"
+#include "core/zr_version.h"
 
 #include "util/zr_bytes.h"
 #include "util/zr_checked.h"
@@ -14,7 +21,6 @@
 
 /* Drawlist v1 format identifiers. */
 #define ZR_DL_MAGIC      0x4C44525Au /* 'ZRDL' as little-endian u32 */
-#define ZR_DL_VERSION_V1 1u
 
 /* Alignment requirement for drawlist sections. */
 #define ZR_DL_ALIGNMENT 4u
@@ -281,7 +287,7 @@ static zr_result_t zr_dl_validate_header_v1(const zr_dl_header_t* hdr, size_t by
   if (hdr->magic != ZR_DL_MAGIC) {
     return ZR_ERR_FORMAT;
   }
-  if (hdr->version != ZR_DL_VERSION_V1) {
+  if (hdr->version != ZR_DRAWLIST_VERSION_V1) {
     return ZR_ERR_UNSUPPORTED;
   }
   if (hdr->header_size != (uint32_t)sizeof(zr_dl_header_t)) {

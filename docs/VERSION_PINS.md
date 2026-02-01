@@ -24,8 +24,7 @@ All on-buffer/on-wire formats are:
 
 ### Packed event batches
 
-Defined in `src/core/zr_event.h`:
+Defined in `src/core/zr_event.h` (version pins are centralized in `src/core/zr_version.h`):
 
 - Magic: `ZR_EV_MAGIC = 0x5645525A` (`'Z''R''E''V'` in little-endian u32)
 - Version: `ZR_EVENT_BATCH_VERSION_V1 = 1`
-

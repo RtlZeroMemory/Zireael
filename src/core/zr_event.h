@@ -8,14 +8,13 @@
 #ifndef ZR_CORE_ZR_EVENT_H_INCLUDED
 #define ZR_CORE_ZR_EVENT_H_INCLUDED
 
+#include "core/zr_version.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
 /* Little-endian u32 for bytes {'Z','R','E','V'}. */
 #define ZR_EV_MAGIC (0x5645525Au)
-
-/* Pinned packed event batch version. */
-#define ZR_EVENT_BATCH_VERSION_V1 (1u)
 
 /* zr_evbatch_header_t.flags bits. */
 #define ZR_EV_BATCH_TRUNCATED (1u << 0u)
@@ -173,4 +172,3 @@ typedef struct zr_ev_user_t {
 } zr_ev_user_t;
 
 #endif /* ZR_CORE_ZR_EVENT_H_INCLUDED */
-

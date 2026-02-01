@@ -76,6 +76,9 @@ static inline size_t zr_byte_reader_remaining(const zr_byte_reader_t* r) {
   if (!r) {
     return 0u;
   }
+  if (!r->bytes) {
+    return 0u;
+  }
   if (r->off > r->len) {
     return 0u;
   }
@@ -151,4 +154,3 @@ static inline bool zr_byte_reader_read_u64le(zr_byte_reader_t* r, uint64_t* out)
 }
 
 #endif /* ZR_UTIL_ZR_BYTES_H_INCLUDED */
-

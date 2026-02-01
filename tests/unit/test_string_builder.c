@@ -37,3 +37,16 @@ ZR_TEST_UNIT(sb_write_bytes_overflow_sets_truncated) {
   ZR_ASSERT_EQ_U32((uint32_t)zr_sb_len(&sb), 0u);
 }
 
+ZR_TEST_UNIT(sb_guard_len_over_cap) {
+  uint8_t buf[4] = {0u, 0u, 0u, 0u};
+  zr_sb_t sb;
+  zr_sb_init(&sb, buf, sizeof(buf));
+
+  /* Corrupt state: ensure we don't underflow and write out of bounds. */
+  sb.len = 5u;
+  ZR_ASSERT_TRUE(!zr_sb_write_u8(&sb, 0x11u));
+  ZR_ASSERT_TRUE(zr_sb_truncated(&sb));
+
+  const uint8_t expect[4] = {0u, 0u, 0u, 0u};
+  ZR_ASSERT_MEMEQ(buf, expect, sizeof(expect));
+}

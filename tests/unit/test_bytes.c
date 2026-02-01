@@ -41,3 +41,14 @@ ZR_TEST_UNIT(bytes_reader_never_advances_on_failure) {
   ZR_ASSERT_EQ_U32((uint32_t)r.off, 4u);
 }
 
+ZR_TEST_UNIT(bytes_reader_null_bytes_never_reads_or_skips) {
+  zr_byte_reader_t r;
+  zr_byte_reader_init(&r, NULL, 4u);
+
+  uint8_t v8 = 0u;
+  ZR_ASSERT_TRUE(!zr_byte_reader_read_u8(&r, &v8));
+  ZR_ASSERT_EQ_U32((uint32_t)r.off, 0u);
+
+  ZR_ASSERT_TRUE(!zr_byte_reader_skip(&r, 1u));
+  ZR_ASSERT_EQ_U32((uint32_t)r.off, 0u);
+}

@@ -51,3 +51,12 @@ ZR_TEST_UNIT(vec_pop) {
   ZR_ASSERT_TRUE(zr_vec_pop(&v, &out) != ZR_OK);
 }
 
+ZR_TEST_UNIT(vec_zero_cap_allows_null_backing) {
+  zr_vec_t v;
+  ZR_ASSERT_EQ_U32(zr_vec_init(&v, NULL, 0u, sizeof(uint32_t)), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_vec_len(&v), 0u);
+  ZR_ASSERT_EQ_U32(zr_vec_cap(&v), 0u);
+
+  const uint32_t x = 1u;
+  ZR_ASSERT_EQ_U32(zr_vec_push(&v, &x), ZR_ERR_LIMIT);
+}

@@ -40,6 +40,9 @@ static bool zr_sb__can_write(const zr_sb_t* sb, size_t n) {
   if (!sb || (!sb->buf && sb->cap != 0u)) {
     return false;
   }
+  if (sb->len > sb->cap) {
+    return false;
+  }
   if (n > (sb->cap - sb->len)) {
     return false;
   }
@@ -84,4 +87,3 @@ bool zr_sb_write_u64le(zr_sb_t* sb, uint64_t v) {
   zr_store_u64le(tmp, v);
   return zr_sb_write_bytes(sb, tmp, sizeof(tmp));
 }
-

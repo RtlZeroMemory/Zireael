@@ -63,3 +63,15 @@ ZR_TEST_UNIT(ring_wraparound) {
   ZR_ASSERT_EQ_U32(out, 30u);
 }
 
+ZR_TEST_UNIT(ring_zero_cap_allows_null_backing) {
+  zr_ring_t r;
+  ZR_ASSERT_EQ_U32(zr_ring_init(&r, NULL, 0u, sizeof(uint32_t)), ZR_OK);
+  ZR_ASSERT_TRUE(zr_ring_is_empty(&r));
+  ZR_ASSERT_TRUE(!zr_ring_is_full(&r));
+
+  const uint32_t x = 1u;
+  ZR_ASSERT_EQ_U32(zr_ring_push(&r, &x), ZR_ERR_LIMIT);
+
+  uint32_t out = 0u;
+  ZR_ASSERT_TRUE(!zr_ring_pop(&r, &out));
+}

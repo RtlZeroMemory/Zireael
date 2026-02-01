@@ -12,10 +12,10 @@
 #include <string.h>
 
 zr_result_t zr_ring_init(zr_ring_t* r, void* backing_buf, size_t cap_elems, size_t elem_size) {
-  if (!r || !backing_buf || elem_size == 0u) {
+  if (!r || elem_size == 0u || (cap_elems != 0u && !backing_buf)) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  r->data = (unsigned char*)backing_buf;
+  r->data = (cap_elems != 0u) ? (unsigned char*)backing_buf : NULL;
   r->cap = cap_elems;
   r->len = 0u;
   r->head = 0u;
@@ -94,4 +94,3 @@ bool zr_ring_pop(zr_ring_t* r, void* out_elem) {
   r->len--;
   return true;
 }
-

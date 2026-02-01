@@ -49,7 +49,7 @@ Follow `docs/CODE_STANDARDS.md`. Key points:
 - Add ASCII diagrams for complex data structures (ring buffers, etc.)
 - Add section markers in long functions (`/* --- Section Name --- */`)
 
-Use skill `$zireael-code-style` for detailed guidance.
+See `.codex/skills/zireael-code-style/SKILL.md` for detailed guidance.
 
 ## Repo layout (high level)
 
@@ -72,11 +72,22 @@ Use skill `$zireael-code-style` for detailed guidance.
 This repo defines project skills under `.codex/skills/` (checked in).
 
 - Skill index: `SKILLS.md`
-- Invoke in Codex: `$<skill-name>` or `/skills`
+- Read the relevant skill file before starting domain-specific work
 
-**Recommended starting skill for any task:** `$zireael-spec-guardian`
+**Recommended skills by task:**
 
-**For code style/comments:** `$zireael-code-style`
+| Task                  | Skill to Read                                       |
+|-----------------------|-----------------------------------------------------|
+| Any task (start here) | `.codex/skills/zireael-spec-guardian/SKILL.md`      |
+| Code style/comments   | `.codex/skills/zireael-code-style/SKILL.md`         |
+| Platform code         | `.codex/skills/zireael-platform-boundary/SKILL.md`  |
+| Unicode/text          | `.codex/skills/zireael-unicode-text/SKILL.md`       |
+| ABI/formats           | `.codex/skills/zireael-abi-formats/SKILL.md`        |
+| Error handling        | `.codex/skills/zireael-error-contracts/SKILL.md`    |
+| Diff renderer         | `.codex/skills/zireael-rendering-diff/SKILL.md`     |
+| Golden tests          | `.codex/skills/zireael-golden-fixtures/SKILL.md`    |
+| Headers/includes      | `.codex/skills/zireael-header-layering/SKILL.md`    |
+| Build/CI/tests        | `.codex/skills/zireael-build-test-ci/SKILL.md`      |
 
 ## Quick navigation
 

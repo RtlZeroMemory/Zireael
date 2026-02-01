@@ -33,9 +33,32 @@ Every `.c`/`.h` file MUST start with:
 */
 ```
 
-## Function-level comments (when needed)
+## Function-level comments (required for non-trivial functions)
 
-Add comments for:
+**MUST have a function-level comment when:**
+
+- Public API function (appears in header, called by other modules)
+- Function is > 20 lines with non-obvious behavior
+- Function has subtle behavior (coalescing, tie-breaking, capability downgrading)
+- Internal helper called from multiple places
+
+**Function comment format (1-3 lines):**
+
+```c
+/* Map 24-bit RGB to nearest xterm 256-color index, comparing both
+ * the 6x6x6 color cube and grayscale ramp to find the best match. */
+static uint8_t zr_rgb_to_xterm256(uint32_t rgb) {
+```
+
+**DO NOT need function-level comment:**
+
+- Trivial one-liners (e.g., `zr_rgb_r()`, `zr_style_default()`)
+- Simple getters/setters with self-explanatory names
+- Static helpers < 10 lines with obvious intent
+
+### Inside-function comments (strategic)
+
+Add comments inside functions for:
 
 - Complex algorithms (brief overview, not line-by-line)
 - State machines (what each state variable tracks)
@@ -128,19 +151,21 @@ if (ptr == NULL) return ZR_ERR_INVALID_ARGUMENT;
 
 ## Naming conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Functions | `module_action_noun()` | `arena_alloc_aligned()` |
-| Variables | `snake_case` descriptive | `bytes_remaining` |
-| Constants | `ZR_MODULE_NAME` | `ZR_DL_MAGIC` |
-| Types | `zr_name_t` | `zr_arena_t` |
+| Type      | Convention               | Example                 |
+|-----------|--------------------------|-------------------------|
+| Functions | `module_action_noun()`   | `arena_alloc_aligned()` |
+| Variables | `snake_case` descriptive | `bytes_remaining`       |
+| Constants | `ZR_MODULE_NAME`         | `ZR_DL_MAGIC`           |
+| Types     | `zr_name_t`              | `zr_arena_t`            |
 
 ## Review checklist
 
 Before finalizing code:
 
 - [ ] File has header comment with "Why"
-- [ ] Complex functions have brief overview comment
+- [ ] Non-trivial functions (> 20 lines or subtle behavior) have function-level comment
+- [ ] Public API functions have function-level comment
+- [ ] Complex logic inside functions has strategic comments (diagrams, state tracking, invariants)
 - [ ] Magic numbers extracted to named constants
 - [ ] NULL checks use `!ptr` style
 - [ ] Functions under 50 lines

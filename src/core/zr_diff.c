@@ -78,6 +78,7 @@ static bool zr_style_eq(zr_style_t a, zr_style_t b) {
   return a.fg == b.fg && a.bg == b.bg && a.attrs == b.attrs;
 }
 
+/* Compare two framebuffer cells for equality (glyph, flags, and style). */
 static bool zr_cell_eq(const zr_fb_cell_t* a, const zr_fb_cell_t* b) {
   if (!a || !b) {
     return false;
@@ -101,6 +102,7 @@ static bool zr_cell_is_continuation(const zr_fb_cell_t* c) {
   return c && (c->flags & ZR_FB_CELL_FLAG_CONTINUATION) != 0u;
 }
 
+/* Return display width of cell at (x,y): 0 for continuation, 2 for wide, 1 otherwise. */
 static uint8_t zr_cell_width_in_next(const zr_fb_t* fb, uint32_t x, uint32_t y) {
   const zr_fb_cell_t* c = zr_fb_cell_at_const(fb, x, y);
   if (!c) {
@@ -122,6 +124,7 @@ static uint8_t zr_rgb_r(uint32_t rgb) { return (uint8_t)((rgb >> ZR_RGB_R_SHIFT)
 static uint8_t zr_rgb_g(uint32_t rgb) { return (uint8_t)((rgb >> ZR_RGB_G_SHIFT) & ZR_RGB_MASK); }
 static uint8_t zr_rgb_b(uint32_t rgb) { return (uint8_t)(rgb & ZR_RGB_MASK); }
 
+/* Compute squared Euclidean distance between two RGB colors. */
 static uint32_t zr_dist2_u8(uint8_t ar, uint8_t ag, uint8_t ab, uint8_t br, uint8_t bg, uint8_t bb) {
   const int32_t dr = (int32_t)ar - (int32_t)br;
   const int32_t dg = (int32_t)ag - (int32_t)bg;
@@ -129,6 +132,7 @@ static uint32_t zr_dist2_u8(uint8_t ar, uint8_t ag, uint8_t ab, uint8_t br, uint
   return (uint32_t)(dr * dr + dg * dg + db * db);
 }
 
+/* Find the nearest xterm 256-color cube level (0-5) for a single RGB component. */
 static uint8_t zr_xterm256_component_level(uint8_t v) {
   uint8_t best_i = 0u;
   uint32_t best_d = 0xFFFFFFFFu;
@@ -189,6 +193,7 @@ static uint8_t zr_rgb_to_xterm256(uint32_t rgb) {
   return (gray_idx < cube_idx) ? gray_idx : cube_idx;
 }
 
+/* Map 24-bit RGB to nearest ANSI 16-color index (0-15). */
 static uint8_t zr_rgb_to_ansi16(uint32_t rgb) {
   const uint8_t r = zr_rgb_r(rgb);
   const uint8_t g = zr_rgb_g(rgb);
@@ -209,6 +214,7 @@ static uint8_t zr_rgb_to_ansi16(uint32_t rgb) {
   return best;
 }
 
+/* Downgrade style colors/attrs based on terminal capabilities (RGB → 256 → 16). */
 static zr_style_t zr_style_apply_caps(zr_style_t in, const plat_caps_t* caps) {
   zr_style_t out = in;
   if (!caps) {
@@ -236,6 +242,7 @@ static zr_style_t zr_style_apply_caps(zr_style_t in, const plat_caps_t* caps) {
   return out;
 }
 
+/* Write u32 as decimal ASCII digits to string builder. */
 static bool zr_sb_write_u32_dec(zr_sb_t* sb, uint32_t v) {
   char tmp[10];
   size_t n = 0u;
@@ -253,6 +260,7 @@ static bool zr_sb_write_u32_dec(zr_sb_t* sb, uint32_t v) {
   return true;
 }
 
+/* Emit CUP (cursor position) escape sequence if cursor is not already at (x,y). */
 static bool zr_emit_cup(zr_sb_t* sb, zr_term_state_t* ts, uint32_t x, uint32_t y) {
   if (!sb || !ts) {
     return false;
@@ -273,6 +281,7 @@ static bool zr_emit_cup(zr_sb_t* sb, zr_term_state_t* ts, uint32_t x, uint32_t y
   return true;
 }
 
+/* Emit full SGR sequence (reset + attrs + colors) if style differs from current. */
 static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t desired, const plat_caps_t* caps) {
   if (!sb || !ts) {
     return false;
@@ -376,6 +385,8 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
   return true;
 }
 
+/* Check if cell at (x,y) differs between prev and next framebuffers.
+ * Also returns true if wide-glyph continuation cell changed. */
 static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t x, uint32_t y) {
   const zr_fb_cell_t* a = zr_fb_cell_at_const(prev, x, y);
   const zr_fb_cell_t* b = zr_fb_cell_at_const(next, x, y);
@@ -435,6 +446,7 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
   return ZR_OK;
 }
 
+/* Render a contiguous span of dirty cells [start, end] on row y. */
 static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t start, uint32_t end) {
   if (!ctx || !ctx->prev || !ctx->next) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -472,6 +484,7 @@ static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t 
   return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
 }
 
+/* Scan row y for dirty spans and render each one. */
 static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
   if (!ctx || !ctx->prev || !ctx->next) {
     return ZR_ERR_INVALID_ARGUMENT;

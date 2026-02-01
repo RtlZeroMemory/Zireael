@@ -49,6 +49,7 @@ static bool zr_sb__can_write(const zr_sb_t* sb, size_t n) {
   return true;
 }
 
+/* Write bytes to builder; sets truncated flag and returns false if no space. */
 bool zr_sb_write_bytes(zr_sb_t* sb, const void* bytes, size_t len) {
   if (!sb || (!bytes && len != 0u)) {
     return false;

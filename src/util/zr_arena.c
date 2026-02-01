@@ -31,6 +31,7 @@ static bool zr__is_valid_align(size_t align) {
   return align != 0u && zr_is_pow2_size(align) && align <= ZR_ARENA_MAX_ALIGN;
 }
 
+/* Allocate a single arena block with aligned payload area; returns NULL on failure. */
 static zr_arena_block_t* zr__block_alloc(size_t cap, size_t base_align) {
   if (cap == 0u) {
     cap = 1u;
@@ -154,6 +155,7 @@ void zr_arena_release(zr_arena_t* a) {
   zr__arena_zero(a);
 }
 
+/* Try to allocate within an existing block; returns NULL if insufficient space. */
 static void* zr__arena_alloc_in_block(zr_arena_block_t* b, size_t size, size_t align) {
   ZR_ASSERT(b);
   const uintptr_t base = (uintptr_t)b->data;
@@ -181,6 +183,7 @@ static void* zr__arena_alloc_in_block(zr_arena_block_t* b, size_t size, size_t a
   return p;
 }
 
+/* Add a new block to the arena (doubling strategy) when current block is exhausted. */
 static zr_result_t zr__arena_grow(zr_arena_t* a, size_t min_bytes) {
   ZR_ASSERT(a);
   if (!a->cur) {
@@ -218,6 +221,7 @@ static zr_result_t zr__arena_grow(zr_arena_t* a, size_t min_bytes) {
   return ZR_OK;
 }
 
+/* Allocate memory from the arena with specified alignment; grows arena if needed. */
 void* zr_arena_alloc(zr_arena_t* a, size_t size, size_t align) {
   if (!a) {
     return NULL;
@@ -262,6 +266,7 @@ void* zr_arena_alloc_zeroed(zr_arena_t* a, size_t size, size_t align) {
   return p;
 }
 
+/* Capture current allocation state for later rewind; returns zeroed mark if arena is empty. */
 zr_arena_mark_t zr_arena_mark(const zr_arena_t* a) {
   zr_arena_mark_t m;
   m.block = NULL;

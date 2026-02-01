@@ -23,6 +23,7 @@ static bool zr_fb_has_backing(const zr_fb_t* fb) {
   return fb && fb->cells && fb->cols != 0u && fb->rows != 0u;
 }
 
+/* Convert (x,y) coordinates to linear cell index with overflow-safe arithmetic. */
 static bool zr_fb_cell_index(const zr_fb_t* fb, uint32_t x, uint32_t y, size_t* out_idx) {
   if (!out_idx) {
     return false;
@@ -96,6 +97,7 @@ zr_fb_rect_i32_t zr_fb_full_clip(const zr_fb_t* fb) {
 static int32_t zr_i32_max(int32_t a, int32_t b) { return (a > b) ? a : b; }
 static int64_t zr_i64_min(int64_t a, int64_t b) { return (a < b) ? a : b; }
 
+/* Compute the intersection of two clip rectangles; returns empty rect if no overlap. */
 zr_fb_rect_i32_t zr_fb_clip_intersect(zr_fb_rect_i32_t a, zr_fb_rect_i32_t b) {
   const int64_t ax2 = (a.w > 0) ? ((int64_t)a.x + (int64_t)a.w) : (int64_t)a.x;
   const int64_t ay2 = (a.h > 0) ? ((int64_t)a.y + (int64_t)a.h) : (int64_t)a.y;
@@ -179,6 +181,7 @@ zr_result_t zr_fb_clear(zr_fb_t* fb, const zr_style_t* style) {
   return ZR_OK;
 }
 
+/* Fill a rectangle with spaces in the given style, respecting clip bounds. */
 zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* style,
                             zr_fb_rect_i32_t clip) {
   if (!fb || !style) {
@@ -245,6 +248,7 @@ static size_t zr_fb_decode_one_utf8(const uint8_t* s, size_t len, uint8_t out[4]
   return (size_t)r.size;
 }
 
+/* Count the number of terminal cells (codepoints) in a UTF-8 string. */
 size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
   if (!bytes || len == 0u) {
     return 0u;
@@ -277,6 +281,7 @@ static bool zr_fb_can_draw_at(const zr_fb_t* fb, int64_t x, int32_t y, zr_fb_rec
   return zr_fb_in_clip((int32_t)x, y, clip);
 }
 
+/* Draw UTF-8 text at (x,y) with given style, one codepoint per cell, respecting clip. */
 zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8_t* bytes,
                                   size_t len, const zr_style_t* style, zr_fb_rect_i32_t clip) {
   if (!fb || !bytes || !style) {

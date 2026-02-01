@@ -6,6 +6,7 @@
 
 #include "util/zr_caps.h"
 
+/* Return sensible default limits for arena, drawlist, and clip depth. */
 zr_limits_t zr_limits_default(void) {
   zr_limits_t l;
   l.arena_max_total_bytes = 4u * 1024u * 1024u;
@@ -19,6 +20,7 @@ zr_limits_t zr_limits_default(void) {
   return l;
 }
 
+/* Validate that all limits are non-zero and internally consistent. */
 zr_result_t zr_limits_validate(const zr_limits_t* limits) {
   if (!limits) {
     return ZR_ERR_INVALID_ARGUMENT;

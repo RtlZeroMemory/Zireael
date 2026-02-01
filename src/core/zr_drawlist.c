@@ -223,6 +223,7 @@ typedef struct zr_dl_range_t {
 
 static bool zr_dl_range_is_empty(zr_dl_range_t r) { return r.len == 0u; }
 
+/* Validate that a byte range [off, off+len) fits within the buffer. */
 static zr_result_t zr_dl_range_validate(zr_dl_range_t r, size_t bytes_len) {
   size_t end = 0u;
   if (!zr_checked_add_u32_to_size(r.off, r.len, &end)) {
@@ -234,6 +235,7 @@ static zr_result_t zr_dl_range_validate(zr_dl_range_t r, size_t bytes_len) {
   return ZR_OK;
 }
 
+/* Check if two byte ranges overlap (empty ranges never overlap). */
 static bool zr_dl_ranges_overlap(zr_dl_range_t a, zr_dl_range_t b) {
   if (zr_dl_range_is_empty(a) || zr_dl_range_is_empty(b)) {
     return false;
@@ -269,6 +271,7 @@ typedef struct zr_dl_v1_ranges_t {
   zr_dl_range_t blobs_bytes;
 } zr_dl_v1_ranges_t;
 
+/* Validate drawlist v1 header: magic, version, alignment, caps, and section offsets. */
 static zr_result_t zr_dl_validate_header_v1(const zr_dl_header_t* hdr, size_t bytes_len,
                                             const zr_limits_t* lim) {
   if (!hdr || !lim) {
@@ -327,6 +330,7 @@ static zr_result_t zr_dl_validate_header_v1(const zr_dl_header_t* hdr, size_t by
   return ZR_OK;
 }
 
+/* Build the set of byte ranges for each drawlist section from the header. */
 static zr_result_t zr_dl_build_ranges_v1(const zr_dl_header_t* hdr, uint32_t strings_span_bytes,
                                         uint32_t blobs_span_bytes, zr_dl_v1_ranges_t* out) {
   if (!hdr || !out) {
@@ -354,6 +358,7 @@ static zr_result_t zr_dl_build_ranges_v1(const zr_dl_header_t* hdr, uint32_t str
   return ZR_OK;
 }
 
+/* Ensure all section ranges fit in buffer and none overlap with each other. */
 static zr_result_t zr_dl_validate_ranges_v1(const zr_dl_v1_ranges_t* r, size_t bytes_len) {
   if (!r) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -384,6 +389,7 @@ static zr_result_t zr_dl_validate_ranges_v1(const zr_dl_v1_ranges_t* r, size_t b
   return ZR_OK;
 }
 
+/* Validate that all spans in a span table fit within the payload section. */
 static zr_result_t zr_dl_validate_span_table_v1(const uint8_t* bytes, uint32_t span_table_offset,
                                                uint32_t span_count, uint32_t payload_bytes_len) {
   if (!bytes) {
@@ -407,6 +413,7 @@ static zr_result_t zr_dl_validate_span_table_v1(const uint8_t* bytes, uint32_t s
   return ZR_OK;
 }
 
+/* Initialize a validated view structure with pointers into the drawlist buffer. */
 static void zr_dl_view_init_v1(zr_dl_view_t* view, const zr_dl_header_t* hdr, const uint8_t* bytes,
                                size_t bytes_len) {
   memset(view, 0, sizeof(*view));
@@ -425,6 +432,7 @@ static void zr_dl_view_init_v1(zr_dl_view_t* view, const zr_dl_header_t* hdr, co
   view->blobs_bytes_len = (size_t)hdr->blobs_bytes_len;
 }
 
+/* Walk and validate every command in the command stream (framing, opcodes, indices). */
 static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const zr_limits_t* lim) {
   if (!view || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -558,6 +566,7 @@ static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const 
   return ZR_OK;
 }
 
+/* Validate a text run blob: segment count, alignment, and all string references. */
 static zr_result_t zr_dl_validate_text_run_blob(const zr_dl_view_t* v, uint32_t blob_index,
                                                 const zr_limits_t* lim) {
   if (!v || !lim) {
@@ -645,6 +654,8 @@ static zr_result_t zr_dl_validate_text_run_blob(const zr_dl_view_t* v, uint32_t 
   return ZR_OK;
 }
 
+/* Fully validate a drawlist buffer and produce a view for execution.
+ * Checks header, section ranges, span tables, and all command stream contents. */
 zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limits_t* lim,
                            zr_dl_view_t* out_view) {
   if (!bytes || !lim || !out_view) {
@@ -869,6 +880,7 @@ static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_vie
   return ZR_OK;
 }
 
+/* Execute a validated drawlist into the framebuffer; assumes view came from zr_dl_validate. */
 zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim) {
   if (!v || !dst || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;

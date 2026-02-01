@@ -16,6 +16,7 @@ static bool zr_width_is_ascii_control(uint32_t scalar) {
   return scalar < 0x20u || scalar == 0x7Fu;
 }
 
+/* Return terminal column width of a single codepoint (0, 1, or 2). */
 uint8_t zr_width_codepoint(uint32_t scalar) {
   if (zr_width_is_ascii_control(scalar)) {
     return 0u;
@@ -36,6 +37,7 @@ uint8_t zr_width_codepoint(uint32_t scalar) {
   return 1u;
 }
 
+/* Return terminal column width of a grapheme cluster, applying emoji width policy. */
 uint8_t zr_width_grapheme_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t policy) {
   if (len == 0u || !bytes) {
     return 0u;

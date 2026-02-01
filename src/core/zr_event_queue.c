@@ -162,6 +162,7 @@ static bool zr_evq_user_alloc_locked(zr_event_queue_t* q, uint32_t n, uint32_t* 
   return false;
 }
 
+/* Free user payload bytes at ring buffer head when an event is consumed. */
 static void zr_evq_user_free_head_locked(zr_event_queue_t* q, uint32_t off, uint32_t n) {
   if (!q || n == 0u) {
     return;
@@ -180,6 +181,7 @@ static void zr_evq_user_free_head_locked(zr_event_queue_t* q, uint32_t off, uint
   }
 }
 
+/* Drop the oldest event when the queue is full; frees any user payload. */
 static void zr_evq_drop_head_locked(zr_event_queue_t* q) {
   if (!q || q->count == 0u) {
     return;
@@ -219,6 +221,7 @@ zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_
   return ZR_OK;
 }
 
+/* Push an event, coalescing RESIZE/MOUSE_MOVE if possible, or dropping oldest if full. */
 zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev) {
   if (!q || !ev || !q->events || q->cap == 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -243,6 +246,7 @@ zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev) {
   return ZR_OK;
 }
 
+/* Post a user-defined event with optional payload; returns ZR_ERR_LIMIT if no space. */
 zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag,
                                      const uint8_t* payload, uint32_t payload_len) {
   if (!q || !q->events || q->cap == 0u || (!payload && payload_len != 0u)) {
@@ -330,6 +334,7 @@ bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev) {
   return true;
 }
 
+/* Get a read-only view into a user event's payload bytes; valid until event is popped. */
 bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
                                       const uint8_t** out_bytes, uint32_t* out_len) {
   if (!q || !q->events || q->cap == 0u || !ev || !out_bytes || !out_len) {

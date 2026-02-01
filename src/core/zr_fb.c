@@ -17,6 +17,58 @@ static zr_style_t zr_style_default(void) {
   return s;
 }
 
+static bool zr_fb_has_backing(const zr_fb_t* fb) {
+  return fb && fb->cells && fb->cols != 0u && fb->rows != 0u;
+}
+
+static bool zr_fb_cell_index(const zr_fb_t* fb, uint32_t x, uint32_t y, size_t* out_idx) {
+  if (!out_idx) {
+    return false;
+  }
+  if (!zr_fb_has_backing(fb)) {
+    return false;
+  }
+  if (x >= fb->cols || y >= fb->rows) {
+    return false;
+  }
+
+  /* idx = (y * cols) + x; do the math with checked helpers. */
+  size_t row_start = 0u;
+  if (!zr_checked_mul_size((size_t)y, (size_t)fb->cols, &row_start)) {
+    return false;
+  }
+  if (!zr_checked_add_size(row_start, (size_t)x, &row_start)) {
+    return false;
+  }
+  *out_idx = row_start;
+  return true;
+}
+
+static void zr_fb_cell_set_space(zr_fb_cell_t* cell, zr_style_t style) {
+  if (!cell) {
+    return;
+  }
+  memset(cell->glyph, 0, sizeof(cell->glyph));
+  cell->glyph[0] = (uint8_t)' ';
+  cell->glyph_len = 1u;
+  cell->flags = 0u;
+  cell->style = style;
+}
+
+static void zr_fb_cell_set_glyph(zr_fb_cell_t* cell, const uint8_t glyph[4], uint8_t glyph_len,
+                                 zr_style_t style) {
+  if (!cell || !glyph) {
+    return;
+  }
+  memset(cell->glyph, 0, sizeof(cell->glyph));
+  if (glyph_len != 0u) {
+    memcpy(cell->glyph, glyph, (size_t)glyph_len);
+  }
+  cell->glyph_len = glyph_len;
+  cell->flags = 0u;
+  cell->style = style;
+}
+
 zr_result_t zr_fb_init(zr_fb_t* fb, zr_fb_cell_t* backing, uint32_t cols, uint32_t rows) {
   if (!fb || (cols != 0u && rows != 0u && !backing)) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -92,34 +144,16 @@ static bool zr_fb_in_clip(int32_t x, int32_t y, zr_fb_rect_i32_t clip) {
 }
 
 zr_fb_cell_t* zr_fb_cell_at(zr_fb_t* fb, uint32_t x, uint32_t y) {
-  if (!fb || !fb->cells || fb->cols == 0u || fb->rows == 0u) {
-    return NULL;
-  }
-  if (x >= fb->cols || y >= fb->rows) {
-    return NULL;
-  }
   size_t idx = 0u;
-  if (!zr_checked_mul_size((size_t)y, (size_t)fb->cols, &idx)) {
-    return NULL;
-  }
-  if (!zr_checked_add_size(idx, (size_t)x, &idx)) {
+  if (!zr_fb_cell_index(fb, x, y, &idx)) {
     return NULL;
   }
   return &fb->cells[idx];
 }
 
 const zr_fb_cell_t* zr_fb_cell_at_const(const zr_fb_t* fb, uint32_t x, uint32_t y) {
-  if (!fb || !fb->cells || fb->cols == 0u || fb->rows == 0u) {
-    return NULL;
-  }
-  if (x >= fb->cols || y >= fb->rows) {
-    return NULL;
-  }
   size_t idx = 0u;
-  if (!zr_checked_mul_size((size_t)y, (size_t)fb->cols, &idx)) {
-    return NULL;
-  }
-  if (!zr_checked_add_size(idx, (size_t)x, &idx)) {
+  if (!zr_fb_cell_index(fb, x, y, &idx)) {
     return NULL;
   }
   return &fb->cells[idx];
@@ -129,7 +163,7 @@ zr_result_t zr_fb_clear(zr_fb_t* fb, const zr_style_t* style) {
   if (!fb) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (!fb->cells || fb->cols == 0u || fb->rows == 0u) {
+  if (!zr_fb_has_backing(fb)) {
     return ZR_OK;
   }
   size_t total = 0u;
@@ -138,12 +172,7 @@ zr_result_t zr_fb_clear(zr_fb_t* fb, const zr_style_t* style) {
   }
   const zr_style_t s = style ? *style : zr_style_default();
   for (size_t i = 0u; i < total; i++) {
-    zr_fb_cell_t* c = &fb->cells[i];
-    memset(c->glyph, 0, sizeof(c->glyph));
-    c->glyph[0] = (uint8_t)' ';
-    c->glyph_len = 1u;
-    c->flags = 0u;
-    c->style = s;
+    zr_fb_cell_set_space(&fb->cells[i], s);
   }
   return ZR_OK;
 }
@@ -156,7 +185,7 @@ zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* s
   if (r.w <= 0 || r.h <= 0) {
     return ZR_OK;
   }
-  if (!fb->cells || fb->cols == 0u || fb->rows == 0u) {
+  if (!zr_fb_has_backing(fb)) {
     return ZR_OK;
   }
   zr_fb_rect_i32_t full = zr_fb_full_clip(fb);
@@ -176,14 +205,96 @@ zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* s
       if (!c) {
         continue;
       }
-      memset(c->glyph, 0, sizeof(c->glyph));
-      c->glyph[0] = (uint8_t)' ';
-      c->glyph_len = 1u;
-      c->flags = 0u;
-      c->style = *style;
+      zr_fb_cell_set_space(c, *style);
     }
   }
   return ZR_OK;
+}
+
+static void zr_utf8_emit_replacement(uint8_t out[4], uint8_t* out_len) {
+  /* Invalid UTF-8 policy: emit U+FFFD. */
+  out[0] = 0xEFu;
+  out[1] = 0xBFu;
+  out[2] = 0xBDu;
+  out[3] = 0u;
+  *out_len = 3u;
+}
+
+static size_t zr_utf8_decode_2byte(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
+  if (len < 2u) {
+    return 0u;
+  }
+  const uint8_t b0 = s[0];
+  const uint8_t b1 = s[1];
+  if ((b1 & 0xC0u) != 0x80u) {
+    return 0u;
+  }
+  /* Reject overlong encodings (U+0000..U+007F). */
+  if (b0 < 0xC2u) {
+    return 0u;
+  }
+  out[0] = b0;
+  out[1] = b1;
+  out[2] = 0u;
+  out[3] = 0u;
+  *out_len = 2u;
+  return 2u;
+}
+
+static size_t zr_utf8_decode_3byte(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
+  if (len < 3u) {
+    return 0u;
+  }
+  const uint8_t b0 = s[0];
+  const uint8_t b1 = s[1];
+  const uint8_t b2 = s[2];
+  if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u) {
+    return 0u;
+  }
+  /* Reject overlong encodings (U+0000..U+07FF). */
+  if (b0 == 0xE0u && b1 < 0xA0u) {
+    return 0u;
+  }
+  /* Reject UTF-16 surrogate halves (U+D800..U+DFFF). */
+  if (b0 == 0xEDu && b1 >= 0xA0u) {
+    return 0u;
+  }
+  out[0] = b0;
+  out[1] = b1;
+  out[2] = b2;
+  out[3] = 0u;
+  *out_len = 3u;
+  return 3u;
+}
+
+static size_t zr_utf8_decode_4byte(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
+  if (len < 4u) {
+    return 0u;
+  }
+  const uint8_t b0 = s[0];
+  const uint8_t b1 = s[1];
+  const uint8_t b2 = s[2];
+  const uint8_t b3 = s[3];
+  if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u || (b3 & 0xC0u) != 0x80u) {
+    return 0u;
+  }
+  /* Reject overlong encodings (U+0000..U+FFFF). */
+  if (b0 == 0xF0u && b1 < 0x90u) {
+    return 0u;
+  }
+  /* Reject codepoints above U+10FFFF. */
+  if (b0 == 0xF4u && b1 > 0x8Fu) {
+    return 0u;
+  }
+  if (b0 > 0xF4u) {
+    return 0u;
+  }
+  out[0] = b0;
+  out[1] = b1;
+  out[2] = b2;
+  out[3] = b3;
+  *out_len = 4u;
+  return 4u;
 }
 
 static size_t zr_utf8_decode_one(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
@@ -194,87 +305,41 @@ static size_t zr_utf8_decode_one(const uint8_t* s, size_t len, uint8_t out[4], u
   const uint8_t b0 = s[0];
   if (b0 < 0x80u) {
     out[0] = b0;
+    out[1] = 0u;
+    out[2] = 0u;
+    out[3] = 0u;
     *out_len = 1u;
     return 1u;
   }
 
-  /* 2-byte */
   if ((b0 & 0xE0u) == 0xC0u) {
-    if (len < 2u) {
-      goto invalid;
+    const size_t adv = zr_utf8_decode_2byte(s, len, out, out_len);
+    if (adv != 0u) {
+      return adv;
     }
-    const uint8_t b1 = s[1];
-    if ((b1 & 0xC0u) != 0x80u) {
-      goto invalid;
-    }
-    /* Reject overlong encodings (U+0000..U+007F). */
-    if (b0 < 0xC2u) {
-      goto invalid;
-    }
-    out[0] = b0;
-    out[1] = b1;
-    *out_len = 2u;
-    return 2u;
+    zr_utf8_emit_replacement(out, out_len);
+    return 1u;
   }
 
-  /* 3-byte */
   if ((b0 & 0xF0u) == 0xE0u) {
-    if (len < 3u) {
-      goto invalid;
+    const size_t adv = zr_utf8_decode_3byte(s, len, out, out_len);
+    if (adv != 0u) {
+      return adv;
     }
-    const uint8_t b1 = s[1];
-    const uint8_t b2 = s[2];
-    if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u) {
-      goto invalid;
-    }
-    if (b0 == 0xE0u && b1 < 0xA0u) {
-      goto invalid;
-    }
-    /* UTF-16 surrogate halves */
-    if (b0 == 0xEDu && b1 >= 0xA0u) {
-      goto invalid;
-    }
-    out[0] = b0;
-    out[1] = b1;
-    out[2] = b2;
-    *out_len = 3u;
-    return 3u;
+    zr_utf8_emit_replacement(out, out_len);
+    return 1u;
   }
 
-  /* 4-byte */
   if ((b0 & 0xF8u) == 0xF0u) {
-    if (len < 4u) {
-      goto invalid;
+    const size_t adv = zr_utf8_decode_4byte(s, len, out, out_len);
+    if (adv != 0u) {
+      return adv;
     }
-    const uint8_t b1 = s[1];
-    const uint8_t b2 = s[2];
-    const uint8_t b3 = s[3];
-    if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u || (b3 & 0xC0u) != 0x80u) {
-      goto invalid;
-    }
-    if (b0 == 0xF0u && b1 < 0x90u) {
-      goto invalid;
-    }
-    if (b0 == 0xF4u && b1 > 0x8Fu) {
-      goto invalid;
-    }
-    if (b0 > 0xF4u) {
-      goto invalid;
-    }
-    out[0] = b0;
-    out[1] = b1;
-    out[2] = b2;
-    out[3] = b3;
-    *out_len = 4u;
-    return 4u;
+    zr_utf8_emit_replacement(out, out_len);
+    return 1u;
   }
 
-invalid:
-  /* Invalid UTF-8 policy: emit U+FFFD and consume 1 byte. */
-  out[0] = 0xEFu;
-  out[1] = 0xBFu;
-  out[2] = 0xBDu;
-  *out_len = 3u;
+  zr_utf8_emit_replacement(out, out_len);
   return 1u;
 }
 
@@ -297,12 +362,25 @@ size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
   return cells;
 }
 
+static bool zr_fb_can_draw_at(const zr_fb_t* fb, int64_t x, int32_t y, zr_fb_rect_i32_t clip) {
+  if (!zr_fb_has_backing(fb)) {
+    return false;
+  }
+  if (x < 0 || y < 0) {
+    return false;
+  }
+  if (x >= (int64_t)fb->cols || (int64_t)y >= (int64_t)fb->rows) {
+    return false;
+  }
+  return zr_fb_in_clip((int32_t)x, y, clip);
+}
+
 zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8_t* bytes,
                                   size_t len, const zr_style_t* style, zr_fb_rect_i32_t clip) {
   if (!fb || !bytes || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (!fb->cells || fb->cols == 0u || fb->rows == 0u) {
+  if (!zr_fb_has_backing(fb)) {
     return ZR_OK;
   }
   zr_fb_rect_i32_t full = zr_fb_full_clip(fb);
@@ -318,15 +396,10 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8
       break;
     }
 
-    if (cx >= 0 && (int64_t)y >= 0 && cx < (int64_t)fb->cols && (int64_t)y < (int64_t)fb->rows &&
-        zr_fb_in_clip((int32_t)cx, y, clip)) {
+    if (zr_fb_can_draw_at(fb, cx, y, clip)) {
       zr_fb_cell_t* c = zr_fb_cell_at(fb, (uint32_t)cx, (uint32_t)y);
       if (c) {
-        memset(c->glyph, 0, sizeof(c->glyph));
-        memcpy(c->glyph, glyph, (size_t)glyph_len);
-        c->glyph_len = glyph_len;
-        c->flags = 0u;
-        c->style = *style;
+        zr_fb_cell_set_glyph(c, glyph, glyph_len, *style);
       }
     }
 

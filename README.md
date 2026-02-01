@@ -213,6 +213,10 @@ Guardrails (platform boundary + libc policy):
 bash scripts/guardrails.sh
 ```
 
+Code standards (readability + safety):
+
+- `CODE_STANDARDS.md`
+
 CMake options:
 
 - `ZIREAEL_BUILD_SHARED` (default: OFF)

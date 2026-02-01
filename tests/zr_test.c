@@ -170,57 +170,73 @@ static int zr_parse_list_flag(int argc, char** argv) {
   return 0;
 }
 
-int zr_test_run_all(int argc, char** argv) {
-  const char* prefix = zr_parse_prefix_arg(argc, argv);
-  if (zr_parse_list_flag(argc, argv)) {
-    qsort(g_tests, g_test_count, sizeof(g_tests[0]), zr_test_case_cmp_by_name);
-    for (size_t i = 0; i < g_test_count; i++) {
-      if (!prefix || zr_has_prefix(g_tests[i].name, prefix)) {
-        fprintf(stdout, "%s\n", g_tests[i].name);
-      }
+static void zr_test_sort_registry(void) {
+  qsort(g_tests, g_test_count, sizeof(g_tests[0]), zr_test_case_cmp_by_name);
+}
+
+static int zr_test_matches_prefix(const zr_test_case_t* t, const char* prefix) {
+  if (!t || !t->name || !t->fn) {
+    return 0;
+  }
+  if (!prefix) {
+    return 1;
+  }
+  return zr_has_prefix(t->name, prefix);
+}
+
+static int zr_test_list_all(const char* prefix) {
+  zr_test_sort_registry();
+  for (size_t i = 0; i < g_test_count; i++) {
+    if (zr_test_matches_prefix(&g_tests[i], prefix)) {
+      fprintf(stdout, "%s\n", g_tests[i].name);
     }
+  }
+  return 0;
+}
+
+static int zr_test_validate_args(int argc, char** argv) {
+  if (argc <= 1) {
     return 0;
   }
 
-  if (argc > 1) {
-    /* Accept only the flags we explicitly support. */
-    for (int i = 1; i < argc; i++) {
-      const char* a = argv[i];
-      if (!a) {
-        continue;
-      }
-      if (strcmp(a, "--list") == 0) {
-        continue;
-      }
-      if (strcmp(a, "--prefix") == 0) {
-        i++; /* consume value */
-        continue;
-      }
-      if (zr_has_prefix(a, "--prefix=")) {
-        continue;
-      }
-      if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
-        zr_print_usage(stdout);
-        return 0;
-      }
-      fprintf(stderr, "zr_test: unknown arg: %s\n", a);
-      zr_print_usage(stderr);
-      return 2;
+  /* Accept only the flags we explicitly support. */
+  for (int i = 1; i < argc; i++) {
+    const char* a = argv[i];
+    if (!a) {
+      continue;
     }
+    if (strcmp(a, "--list") == 0) {
+      continue;
+    }
+    if (strcmp(a, "--prefix") == 0) {
+      i++; /* consume value (even if missing; keep behavior permissive) */
+      continue;
+    }
+    if (zr_has_prefix(a, "--prefix=")) {
+      continue;
+    }
+    if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
+      zr_print_usage(stdout);
+      return 1;
+    }
+    fprintf(stderr, "zr_test: unknown arg: %s\n", a);
+    zr_print_usage(stderr);
+    return 2;
   }
 
-  qsort(g_tests, g_test_count, sizeof(g_tests[0]), zr_test_case_cmp_by_name);
+  return 0;
+}
 
-  int failed = 0;
+static void zr_test_run_all_matching(const char* prefix, int* out_ran, int* out_failed, int* out_skipped) {
   int ran = 0;
+  int failed = 0;
   int skipped = 0;
+
+  zr_test_sort_registry();
 
   for (size_t i = 0; i < g_test_count; i++) {
     const zr_test_case_t* t = &g_tests[i];
-    if (!t->name || !t->fn) {
-      continue;
-    }
-    if (prefix && !zr_has_prefix(t->name, prefix)) {
+    if (!zr_test_matches_prefix(t, prefix)) {
       continue;
     }
 
@@ -241,6 +257,36 @@ int zr_test_run_all(int argc, char** argv) {
       fprintf(stdout, "OK: %s\n", t->name);
     }
   }
+
+  if (out_ran) {
+    *out_ran = ran;
+  }
+  if (out_failed) {
+    *out_failed = failed;
+  }
+  if (out_skipped) {
+    *out_skipped = skipped;
+  }
+}
+
+int zr_test_run_all(int argc, char** argv) {
+  const char* prefix = zr_parse_prefix_arg(argc, argv);
+  if (zr_parse_list_flag(argc, argv)) {
+    return zr_test_list_all(prefix);
+  }
+
+  const int arg_rc = zr_test_validate_args(argc, argv);
+  if (arg_rc == 1) {
+    return 0;
+  }
+  if (arg_rc != 0) {
+    return arg_rc;
+  }
+
+  int ran = 0;
+  int failed = 0;
+  int skipped = 0;
+  zr_test_run_all_matching(prefix, &ran, &failed, &skipped);
 
   fprintf(stdout, "SUMMARY: ran=%d failed=%d skipped=%d\n", ran, failed, skipped);
   return failed ? 1 : 0;

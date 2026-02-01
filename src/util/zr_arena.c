@@ -16,7 +16,7 @@
 
 struct zr_arena_block_t {
   struct zr_arena_block_t* next;
-  uint8_t* data;
+  uint8_t* data; /* points inside this block's allocation (not separately allocated) */
   size_t cap;
   size_t used;
 };
@@ -277,11 +277,9 @@ void zr_arena_rewind(zr_arena_t* a, zr_arena_mark_t mark) {
     return;
   }
 
-  /* Walk to mark.block, tracking the previous pointer. */
-  zr_arena_block_t* prev = NULL;
+  /* Walk to mark.block. */
   zr_arena_block_t* cur = a->head;
   while (cur && cur != mark.block) {
-    prev = cur;
     cur = cur->next;
   }
   if (!cur) {
@@ -313,6 +311,4 @@ void zr_arena_rewind(zr_arena_t* a, zr_arena_mark_t mark) {
     total = next_total;
   }
   a->total_bytes = total;
-
-  (void)prev;
 }

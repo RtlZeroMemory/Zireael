@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: cmake --build --preset posix-clang-debug
       - name: Test
-        run: ctest --test-dir out/build/posix-clang-debug --output-on-failure
+        run: ctest --test-dir out/build/posix-clang-debug --no-tests=ignore --output-on-failure
 
   linux-gcc-debug:
     name: linux / gcc / Debug
@@ -44,7 +44,7 @@ jobs:
       - name: Build
         run: cmake --build --preset posix-gcc-debug
       - name: Test
-        run: ctest --test-dir out/build/posix-gcc-debug --output-on-failure
+        run: ctest --test-dir out/build/posix-gcc-debug --no-tests=ignore --output-on-failure
 
   linux-clang-asan-ubsan:
     name: linux / clang / Debug + ASan+UBSan
@@ -61,7 +61,7 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=0
           UBSAN_OPTIONS: print_stacktrace=1
-        run: ctest --test-dir out/build/posix-clang-asan-ubsan --output-on-failure
+        run: ctest --test-dir out/build/posix-clang-asan-ubsan --no-tests=ignore --output-on-failure
 
   macos-appleclang-debug:
     name: macos / AppleClang / Debug
@@ -75,7 +75,7 @@ jobs:
       - name: Build
         run: cmake --build --preset posix-clang-debug
       - name: Test
-        run: ctest --test-dir out/build/posix-clang-debug --output-on-failure
+        run: ctest --test-dir out/build/posix-clang-debug --no-tests=ignore --output-on-failure
 
   windows-clangcl-debug:
     name: windows / clang-cl / Debug
@@ -91,4 +91,4 @@ jobs:
       - name: Build
         run: cmake --build --preset windows-clangcl-debug
       - name: Test
-        run: ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
+        run: ctest --test-dir out/build/windows-clangcl-debug --no-tests=ignore --output-on-failure

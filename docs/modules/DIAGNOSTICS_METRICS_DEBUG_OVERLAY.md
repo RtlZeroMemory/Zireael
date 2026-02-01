@@ -45,7 +45,8 @@ Defined in `src/core/zr_debug_overlay.h` / `src/core/zr_debug_overlay.c`.
 ### Wide-glyph safety
 
 The framebuffer stores wide glyphs as a **lead cell** followed by a **continuation cell**
-(`ZR_FB_CELL_FLAG_CONTINUATION`). The overlay MUST NOT split a wide glyph across the overlay boundary:
+(`width == 2` lead, then `width == 0` continuation with `glyph_len == 0`). The overlay MUST NOT split a wide glyph across
+the overlay boundary:
 
 - If writing into a continuation cell, the overlay clears the lead + continuation together (when both are within the
   overlay region).
@@ -53,4 +54,3 @@ The framebuffer stores wide glyphs as a **lead cell** followed by a **continuati
   within the overlay region).
 - If a write would split a wide glyph across the right edge of the overlay region, the overlay skips that write and
   leaves the glyph intact.
-

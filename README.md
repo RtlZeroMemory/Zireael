@@ -20,6 +20,8 @@
 
 Zireael is a low-level terminal rendering engine for embedding in TUI frameworks. It handles terminal I/O, input parsing, diff-based rendering, and Unicode grapheme handling.
 
+This engine is the foundation for **Zireael-UI**, a TypeScript TUI framework (coming soon).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Your TUI Framework (TypeScript, Rust, Go, ...)             │

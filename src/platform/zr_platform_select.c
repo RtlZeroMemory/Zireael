@@ -17,10 +17,10 @@ zr_result_t plat_create(plat_t** out_plat, const plat_config_t* cfg) {
   if (!out_plat || !cfg) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  *out_plat = NULL;
 #if defined(_WIN32)
   return zr_plat_win32_create(out_plat, cfg);
 #else
   return zr_plat_posix_create(out_plat, cfg);
 #endif
 }
-

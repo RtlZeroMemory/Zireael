@@ -1,5 +1,3 @@
-# Zireael — C Core Terminal Engine
-
 <img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/000b7a71-50ca-4d9f-9ef1-fd3cde6173d1" />
 
 

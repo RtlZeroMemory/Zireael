@@ -8,6 +8,18 @@
 #ifndef ZR_UTIL_ZR_BYTES_H_INCLUDED
 #define ZR_UTIL_ZR_BYTES_H_INCLUDED
 
+/*
+ * Byte-level helpers for portable, unaligned-safe I/O.
+ *
+ * These functions use explicit byte access instead of pointer casts to avoid:
+ *   - Undefined behavior on misaligned access
+ *   - Endianness assumptions
+ *   - Strict aliasing violations
+ *
+ * All multi-byte operations use little-endian byte order (matching x86/ARM
+ * and Zireael's binary format specifications).
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

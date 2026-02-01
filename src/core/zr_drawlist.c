@@ -12,12 +12,14 @@
 #include <limits.h>
 #include <string.h>
 
-enum {
-  ZR_DL_MAGIC = 0x4C44525Au, /* 'Z''R''D''L' */
-  ZR_DL_VERSION_V1 = 1u
-};
+/* Drawlist v1 format identifiers. */
+#define ZR_DL_MAGIC      0x4C44525Au /* 'ZRDL' as little-endian u32 */
+#define ZR_DL_VERSION_V1 1u
 
-static bool zr_is_aligned4_u32(uint32_t v) { return (v & 3u) == 0u; }
+/* Alignment requirement for drawlist sections. */
+#define ZR_DL_ALIGNMENT 4u
+
+static bool zr_is_aligned4_u32(uint32_t v) { return (v & (ZR_DL_ALIGNMENT - 1u)) == 0u; }
 
 static bool zr_checked_add_u32_to_size(uint32_t a, uint32_t b, size_t* out) {
   uint32_t sum = 0u;

@@ -9,6 +9,64 @@
 #include <stdbool.h>
 #include <string.h>
 
+/* --- Color Format Constants --- */
+
+/* RGB color format: 0x00RRGGBB (red in bits 16-23, green 8-15, blue 0-7). */
+#define ZR_RGB_R_SHIFT 16u
+#define ZR_RGB_G_SHIFT 8u
+#define ZR_RGB_MASK    0xFFu
+
+/* xterm 256-color cube: 6 levels per channel (indices 16-231). */
+static const uint8_t ZR_XTERM256_LEVELS[6] = {0u, 95u, 135u, 175u, 215u, 255u};
+#define ZR_XTERM256_CUBE_START 16u
+#define ZR_XTERM256_CUBE_SIZE  6u
+
+/* xterm 256-color grayscale ramp: 24 shades (indices 232-255). */
+#define ZR_XTERM256_GRAY_START 232u
+#define ZR_XTERM256_GRAY_COUNT 24u
+#define ZR_XTERM256_GRAY_BASE  8u  /* First gray level value */
+#define ZR_XTERM256_GRAY_STEP  10u /* Increment per gray level */
+
+/* xterm-compatible 16-color palette (ANSI colors 0-15). */
+static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
+    /* Standard colors (0-7) */
+    {0u, 0u, 0u},       /* 0: Black */
+    {205u, 0u, 0u},     /* 1: Red */
+    {0u, 205u, 0u},     /* 2: Green */
+    {205u, 205u, 0u},   /* 3: Yellow */
+    {0u, 0u, 238u},     /* 4: Blue */
+    {205u, 0u, 205u},   /* 5: Magenta */
+    {0u, 205u, 205u},   /* 6: Cyan */
+    {229u, 229u, 229u}, /* 7: White */
+    /* Bright colors (8-15) */
+    {127u, 127u, 127u}, /* 8: Bright Black (Gray) */
+    {255u, 0u, 0u},     /* 9: Bright Red */
+    {0u, 255u, 0u},     /* 10: Bright Green */
+    {255u, 255u, 0u},   /* 11: Bright Yellow */
+    {92u, 92u, 255u},   /* 12: Bright Blue */
+    {255u, 0u, 255u},   /* 13: Bright Magenta */
+    {0u, 255u, 255u},   /* 14: Bright Cyan */
+    {255u, 255u, 255u}, /* 15: Bright White */
+};
+
+/* SGR (Select Graphic Rendition) codes. */
+#define ZR_SGR_RESET          0u
+#define ZR_SGR_BOLD           1u
+#define ZR_SGR_ITALIC         3u
+#define ZR_SGR_UNDERLINE      4u
+#define ZR_SGR_REVERSE        7u
+#define ZR_SGR_STRIKETHROUGH  9u
+#define ZR_SGR_FG_256         38u /* Extended foreground color */
+#define ZR_SGR_BG_256         48u /* Extended background color */
+#define ZR_SGR_COLOR_MODE_256 5u  /* 256-color mode selector */
+#define ZR_SGR_COLOR_MODE_RGB 2u  /* RGB color mode selector */
+
+/* ANSI 16-color SGR base codes. */
+#define ZR_SGR_FG_BASE   30u  /* FG colors 0-7: 30-37 */
+#define ZR_SGR_FG_BRIGHT 90u  /* FG colors 8-15: 90-97 */
+#define ZR_SGR_BG_BASE   40u  /* BG colors 0-7: 40-47 */
+#define ZR_SGR_BG_BRIGHT 100u /* BG colors 8-15: 100-107 */
+
 /* Style attribute bits (v1). */
 #define ZR_STYLE_ATTR_BOLD      (1u << 0)
 #define ZR_STYLE_ATTR_ITALIC    (1u << 1)
@@ -60,9 +118,9 @@ static uint8_t zr_cell_width_in_next(const zr_fb_t* fb, uint32_t x, uint32_t y) 
   return 1u;
 }
 
-static uint8_t zr_rgb_r(uint32_t rgb) { return (uint8_t)((rgb >> 16) & 0xFFu); }
-static uint8_t zr_rgb_g(uint32_t rgb) { return (uint8_t)((rgb >> 8) & 0xFFu); }
-static uint8_t zr_rgb_b(uint32_t rgb) { return (uint8_t)(rgb & 0xFFu); }
+static uint8_t zr_rgb_r(uint32_t rgb) { return (uint8_t)((rgb >> ZR_RGB_R_SHIFT) & ZR_RGB_MASK); }
+static uint8_t zr_rgb_g(uint32_t rgb) { return (uint8_t)((rgb >> ZR_RGB_G_SHIFT) & ZR_RGB_MASK); }
+static uint8_t zr_rgb_b(uint32_t rgb) { return (uint8_t)(rgb & ZR_RGB_MASK); }
 
 static uint32_t zr_dist2_u8(uint8_t ar, uint8_t ag, uint8_t ab, uint8_t br, uint8_t bg, uint8_t bb) {
   const int32_t dr = (int32_t)ar - (int32_t)br;
@@ -72,12 +130,10 @@ static uint32_t zr_dist2_u8(uint8_t ar, uint8_t ag, uint8_t ab, uint8_t br, uint
 }
 
 static uint8_t zr_xterm256_component_level(uint8_t v) {
-  /* Standard xterm 6x6x6 component levels. */
-  static const uint8_t levels[6] = {0u, 95u, 135u, 175u, 215u, 255u};
   uint8_t best_i = 0u;
   uint32_t best_d = 0xFFFFFFFFu;
-  for (uint8_t i = 0u; i < 6u; i++) {
-    const int32_t diff = (int32_t)v - (int32_t)levels[i];
+  for (uint8_t i = 0u; i < ZR_XTERM256_CUBE_SIZE; i++) {
+    const int32_t diff = (int32_t)v - (int32_t)ZR_XTERM256_LEVELS[i];
     const uint32_t d = (uint32_t)(diff * diff);
     if (d < best_d) {
       best_d = d;
@@ -87,34 +143,40 @@ static uint8_t zr_xterm256_component_level(uint8_t v) {
   return best_i;
 }
 
+/*
+ * Map 24-bit RGB to nearest xterm 256-color index.
+ * Compares against both the 6x6x6 color cube (16-231) and
+ * grayscale ramp (232-255), returning whichever is closer.
+ */
 static uint8_t zr_rgb_to_xterm256(uint32_t rgb) {
   const uint8_t r = zr_rgb_r(rgb);
   const uint8_t g = zr_rgb_g(rgb);
   const uint8_t b = zr_rgb_b(rgb);
 
   /* Color cube candidate (16..231). */
-  static const uint8_t levels[6] = {0u, 95u, 135u, 175u, 215u, 255u};
   const uint8_t ri = zr_xterm256_component_level(r);
   const uint8_t gi = zr_xterm256_component_level(g);
   const uint8_t bi = zr_xterm256_component_level(b);
-  const uint8_t cr = levels[ri];
-  const uint8_t cg = levels[gi];
-  const uint8_t cb = levels[bi];
-  const uint8_t cube_idx = (uint8_t)(16u + 36u * ri + 6u * gi + bi);
+  const uint8_t cr = ZR_XTERM256_LEVELS[ri];
+  const uint8_t cg = ZR_XTERM256_LEVELS[gi];
+  const uint8_t cb = ZR_XTERM256_LEVELS[bi];
+  const uint8_t cube_idx = (uint8_t)(ZR_XTERM256_CUBE_START +
+                                     (ZR_XTERM256_CUBE_SIZE * ZR_XTERM256_CUBE_SIZE) * ri +
+                                     ZR_XTERM256_CUBE_SIZE * gi + bi);
   const uint32_t cube_d = zr_dist2_u8(r, g, b, cr, cg, cb);
 
   /* Grayscale ramp candidate (232..255), levels 8 + 10*i (i=0..23). */
   uint8_t best_gray_i = 0u;
   uint32_t best_gray_d = 0xFFFFFFFFu;
-  for (uint8_t i = 0u; i < 24u; i++) {
-    const uint8_t gv = (uint8_t)(8u + 10u * i);
+  for (uint8_t i = 0u; i < ZR_XTERM256_GRAY_COUNT; i++) {
+    const uint8_t gv = (uint8_t)(ZR_XTERM256_GRAY_BASE + ZR_XTERM256_GRAY_STEP * i);
     const uint32_t d = zr_dist2_u8(r, g, b, gv, gv, gv);
     if (d < best_gray_d) {
       best_gray_d = d;
       best_gray_i = i;
     }
   }
-  const uint8_t gray_idx = (uint8_t)(232u + best_gray_i);
+  const uint8_t gray_idx = (uint8_t)(ZR_XTERM256_GRAY_START + best_gray_i);
   const uint32_t gray_d = best_gray_d;
 
   if (gray_d < cube_d) {
@@ -128,14 +190,6 @@ static uint8_t zr_rgb_to_xterm256(uint32_t rgb) {
 }
 
 static uint8_t zr_rgb_to_ansi16(uint32_t rgb) {
-  /* Locked palette (xterm-ish). Indices: 0..15. */
-  static const uint8_t pal[16][3] = {
-      {0u, 0u, 0u},       {205u, 0u, 0u},     {0u, 205u, 0u},     {205u, 205u, 0u},
-      {0u, 0u, 238u},     {205u, 0u, 205u},   {0u, 205u, 205u},   {229u, 229u, 229u},
-      {127u, 127u, 127u}, {255u, 0u, 0u},     {0u, 255u, 0u},     {255u, 255u, 0u},
-      {92u, 92u, 255u},   {255u, 0u, 255u},   {0u, 255u, 255u},   {255u, 255u, 255u},
-  };
-
   const uint8_t r = zr_rgb_r(rgb);
   const uint8_t g = zr_rgb_g(rgb);
   const uint8_t b = zr_rgb_b(rgb);
@@ -143,7 +197,8 @@ static uint8_t zr_rgb_to_ansi16(uint32_t rgb) {
   uint8_t best = 0u;
   uint32_t best_d = 0xFFFFFFFFu;
   for (uint8_t i = 0u; i < 16u; i++) {
-    const uint32_t d = zr_dist2_u8(r, g, b, pal[i][0], pal[i][1], pal[i][2]);
+    const uint32_t d = zr_dist2_u8(r, g, b, ZR_ANSI16_PALETTE[i][0], ZR_ANSI16_PALETTE[i][1],
+                                   ZR_ANSI16_PALETTE[i][2]);
     if (d < best_d) {
       best_d = d;
       best = i;
@@ -228,12 +283,14 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
   }
 
   const uint8_t esc = 0x1Bu;
+
+  /* --- Begin SGR sequence with reset --- */
   if (!zr_sb_write_u8(sb, esc) || !zr_sb_write_u8(sb, (uint8_t)'[')) {
     return false;
   }
 
   /* Always emit a full absolute SGR with reset (v1 deterministic). */
-  if (!zr_sb_write_u8(sb, (uint8_t)'0')) {
+  if (!zr_sb_write_u32_dec(sb, ZR_SGR_RESET)) {
     return false;
   }
 
@@ -242,13 +299,14 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     uint32_t sgr;
   };
   static const struct attr_map attrs[] = {
-      {ZR_STYLE_ATTR_BOLD, 1u},
-      {ZR_STYLE_ATTR_ITALIC, 3u},
-      {ZR_STYLE_ATTR_UNDERLINE, 4u},
-      {ZR_STYLE_ATTR_REVERSE, 7u},
-      {ZR_STYLE_ATTR_STRIKE, 9u},
+      {ZR_STYLE_ATTR_BOLD, ZR_SGR_BOLD},
+      {ZR_STYLE_ATTR_ITALIC, ZR_SGR_ITALIC},
+      {ZR_STYLE_ATTR_UNDERLINE, ZR_SGR_UNDERLINE},
+      {ZR_STYLE_ATTR_REVERSE, ZR_SGR_REVERSE},
+      {ZR_STYLE_ATTR_STRIKE, ZR_SGR_STRIKETHROUGH},
   };
 
+  /* --- Text attributes (bold, italic, etc.) --- */
   for (size_t i = 0u; i < (sizeof(attrs) / sizeof(attrs[0])); i++) {
     if ((desired.attrs & attrs[i].bit) != 0u) {
       if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, attrs[i].sgr)) {
@@ -257,6 +315,7 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     }
   }
 
+  /* --- Foreground and background colors --- */
   if (caps && caps->color_mode == PLAT_COLOR_MODE_RGB) {
     const uint8_t fr = zr_rgb_r(desired.fg);
     const uint8_t fg = zr_rgb_g(desired.fg);
@@ -265,16 +324,16 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     const uint8_t bg = zr_rgb_g(desired.bg);
     const uint8_t bb = zr_rgb_b(desired.bg);
 
-    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 38u) ||
-        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 2u) ||
+    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_FG_256) ||
+        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_RGB) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, (uint32_t)fr) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, (uint32_t)fg) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, (uint32_t)fb)) {
       return false;
     }
 
-    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 48u) ||
-        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 2u) ||
+    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_BG_256) ||
+        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_RGB) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, (uint32_t)br) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, (uint32_t)bg) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, (uint32_t)bb)) {
@@ -283,13 +342,13 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
   } else if (caps && caps->color_mode == PLAT_COLOR_MODE_256) {
     const uint32_t fg_idx = desired.fg & 0xFFu;
     const uint32_t bg_idx = desired.bg & 0xFFu;
-    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 38u) ||
-        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 5u) ||
+    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_FG_256) ||
+        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_256) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, fg_idx)) {
       return false;
     }
-    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 48u) ||
-        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, 5u) ||
+    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_BG_256) ||
+        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_256) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, bg_idx)) {
       return false;
     }
@@ -297,8 +356,10 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     /* 16-color (or unknown degraded to 16): desired.fg/bg are indices 0..15. */
     const uint8_t fg_idx = (uint8_t)(desired.fg & 0x0Fu);
     const uint8_t bg_idx = (uint8_t)(desired.bg & 0x0Fu);
-    const uint32_t fg_code = (fg_idx < 8u) ? (30u + (uint32_t)fg_idx) : (90u + (uint32_t)(fg_idx - 8u));
-    const uint32_t bg_code = (bg_idx < 8u) ? (40u + (uint32_t)bg_idx) : (100u + (uint32_t)(bg_idx - 8u));
+    const uint32_t fg_code =
+        (fg_idx < 8u) ? (ZR_SGR_FG_BASE + (uint32_t)fg_idx) : (ZR_SGR_FG_BRIGHT + (uint32_t)(fg_idx - 8u));
+    const uint32_t bg_code =
+        (bg_idx < 8u) ? (ZR_SGR_BG_BASE + (uint32_t)bg_idx) : (ZR_SGR_BG_BRIGHT + (uint32_t)(bg_idx - 8u));
 
     if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, fg_code) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, bg_code)) {
@@ -306,6 +367,7 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     }
   }
 
+  /* --- Finalize SGR sequence --- */
   if (!zr_sb_write_u8(sb, (uint8_t)'m')) {
     return false;
   }
@@ -458,6 +520,16 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
                            size_t* out_len,
                            zr_term_state_t* out_final_term_state,
                            zr_diff_stats_t* out_stats) {
+  /*
+   * Render the difference between two framebuffers as VT/ANSI escape sequences.
+   *
+   * Iterates row-by-row, emitting cursor positioning (CUP) and styling (SGR)
+   * only for cells that changed between prev and next. Wide characters are
+   * handled by checking continuation flags.
+   *
+   * On success: writes output to out_buf, updates out_len/out_final_term_state/out_stats.
+   * On failure: zeros all outputs and returns error code (no partial writes).
+   */
   zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
 
   const zr_result_t arg_rc =

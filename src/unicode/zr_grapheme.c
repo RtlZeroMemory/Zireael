@@ -101,7 +101,7 @@ static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_af
 }
 
 void zr_grapheme_iter_init(zr_grapheme_iter_t* it, const uint8_t* bytes, size_t len) {
-  if (it == NULL) {
+  if (!it) {
     return;
   }
   it->bytes = bytes;
@@ -110,13 +110,13 @@ void zr_grapheme_iter_init(zr_grapheme_iter_t* it, const uint8_t* bytes, size_t 
 }
 
 bool zr_grapheme_next(zr_grapheme_iter_t* it, zr_grapheme_t* out) {
-  if (it == NULL || out == NULL) {
+  if (!it || !out) {
     return false;
   }
   if (it->off >= it->len) {
     return false;
   }
-  if (it->bytes == NULL) {
+  if (!it->bytes) {
     return false;
   }
 
@@ -133,6 +133,19 @@ bool zr_grapheme_next(zr_grapheme_iter_t* it, zr_grapheme_t* out) {
 
   uint32_t ri_run = (prev_class == ZR_GCB_REGIONAL_INDICATOR) ? 1u : 0u;
 
+  /*
+   * GB11 state tracking (emoji ZWJ sequences):
+   *
+   * Rule GB11: ExtPict Extend* ZWJ × ExtPict
+   *   "Don't break between ZWJ and Extended_Pictographic when the ZWJ
+   *    is preceded by Extended_Pictographic (ignoring Extend chars)."
+   *
+   * We track:
+   *   - last_non_extend_is_ep: Was the last non-Extend codepoint an ExtPict?
+   *   - prev_zwj_after_ep: Is the previous char ZWJ that came after ExtPict?
+   *
+   * Example: 👨 + Extend + ZWJ + 👩 → single grapheme cluster
+   */
   bool last_non_extend_is_ep = false;
   if (prev_class != ZR_GCB_EXTEND) {
     last_non_extend_is_ep = prev_is_ep;

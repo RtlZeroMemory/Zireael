@@ -1,4 +1,4 @@
-# Zireael — Agent Guide (Repo-Wide)
+# Zireael — Claude Guide (Repo-Wide)
 
 This repository is the **C core engine only**. A TypeScript wrapper/product will live in a separate repo later.
 
@@ -49,7 +49,7 @@ Follow `docs/CODE_STANDARDS.md`. Key points:
 - Add ASCII diagrams for complex data structures (ring buffers, etc.)
 - Add section markers in long functions (`/* --- Section Name --- */`)
 
-Use skill `$zireael-code-style` for detailed guidance.
+See `.claude/skills/zireael-code-style/SKILL.md` for detailed guidance.
 
 ## Repo layout (high level)
 
@@ -67,16 +67,27 @@ Use skill `$zireael-code-style` for detailed guidance.
 - Tests run via CTest (`ctest --output-on-failure`)
 - Windows (clang-cl): run `.\scripts\vsdev.ps1` before cmake
 
-## Codex skills (repo-scoped)
+## Claude skills (repo-scoped)
 
-This repo defines project skills under `.codex/skills/` (checked in).
+This repo defines project skills under `.claude/skills/` (checked in).
 
 - Skill index: `SKILLS.md`
-- Invoke in Codex: `$<skill-name>` or `/skills`
+- Read the relevant skill file before starting domain-specific work
 
-**Recommended starting skill for any task:** `$zireael-spec-guardian`
+**Recommended skills by task:**
 
-**For code style/comments:** `$zireael-code-style`
+| Task | Skill to Read |
+|------|---------------|
+| Any task (start here) | `.claude/skills/zireael-spec-guardian/SKILL.md` |
+| Code style/comments | `.claude/skills/zireael-code-style/SKILL.md` |
+| Platform code | `.claude/skills/zireael-platform-boundary/SKILL.md` |
+| Unicode/text | `.claude/skills/zireael-unicode-text/SKILL.md` |
+| ABI/formats | `.claude/skills/zireael-abi-formats/SKILL.md` |
+| Error handling | `.claude/skills/zireael-error-contracts/SKILL.md` |
+| Diff renderer | `.claude/skills/zireael-rendering-diff/SKILL.md` |
+| Golden tests | `.claude/skills/zireael-golden-fixtures/SKILL.md` |
+| Headers/includes | `.claude/skills/zireael-header-layering/SKILL.md` |
+| Build/CI/tests | `.claude/skills/zireael-build-test-ci/SKILL.md` |
 
 ## Quick navigation
 

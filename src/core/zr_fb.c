@@ -4,6 +4,8 @@
 
 #include "core/zr_fb.h"
 
+#include "unicode/zr_utf8.h"
+
 #include "util/zr_checked.h"
 
 #include <limits.h>
@@ -211,136 +213,36 @@ zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* s
   return ZR_OK;
 }
 
-static void zr_utf8_emit_replacement(uint8_t out[4], uint8_t* out_len) {
-  /* Invalid UTF-8 policy: emit U+FFFD. */
-  out[0] = 0xEFu;
-  out[1] = 0xBFu;
-  out[2] = 0xBDu;
-  out[3] = 0u;
-  *out_len = 3u;
-}
-
-static size_t zr_utf8_decode_2byte(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
-  if (len < 2u) {
-    return 0u;
-  }
-  const uint8_t b0 = s[0];
-  const uint8_t b1 = s[1];
-  if ((b1 & 0xC0u) != 0x80u) {
-    return 0u;
-  }
-  /* Reject overlong encodings (U+0000..U+007F). */
-  if (b0 < 0xC2u) {
-    return 0u;
-  }
-  out[0] = b0;
-  out[1] = b1;
-  out[2] = 0u;
-  out[3] = 0u;
-  *out_len = 2u;
-  return 2u;
-}
-
-static size_t zr_utf8_decode_3byte(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
-  if (len < 3u) {
-    return 0u;
-  }
-  const uint8_t b0 = s[0];
-  const uint8_t b1 = s[1];
-  const uint8_t b2 = s[2];
-  if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u) {
-    return 0u;
-  }
-  /* Reject overlong encodings (U+0000..U+07FF). */
-  if (b0 == 0xE0u && b1 < 0xA0u) {
-    return 0u;
-  }
-  /* Reject UTF-16 surrogate halves (U+D800..U+DFFF). */
-  if (b0 == 0xEDu && b1 >= 0xA0u) {
-    return 0u;
-  }
-  out[0] = b0;
-  out[1] = b1;
-  out[2] = b2;
-  out[3] = 0u;
-  *out_len = 3u;
-  return 3u;
-}
-
-static size_t zr_utf8_decode_4byte(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
-  if (len < 4u) {
-    return 0u;
-  }
-  const uint8_t b0 = s[0];
-  const uint8_t b1 = s[1];
-  const uint8_t b2 = s[2];
-  const uint8_t b3 = s[3];
-  if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u || (b3 & 0xC0u) != 0x80u) {
-    return 0u;
-  }
-  /* Reject overlong encodings (U+0000..U+FFFF). */
-  if (b0 == 0xF0u && b1 < 0x90u) {
-    return 0u;
-  }
-  /* Reject codepoints above U+10FFFF. */
-  if (b0 == 0xF4u && b1 > 0x8Fu) {
-    return 0u;
-  }
-  if (b0 > 0xF4u) {
-    return 0u;
-  }
-  out[0] = b0;
-  out[1] = b1;
-  out[2] = b2;
-  out[3] = b3;
-  *out_len = 4u;
-  return 4u;
-}
-
-static size_t zr_utf8_decode_one(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
+/* Wrapper around canonical UTF-8 decoder for framebuffer text drawing. */
+static size_t zr_fb_decode_one_utf8(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
   if (!s || !out || !out_len || len == 0u) {
     return 0u;
   }
 
-  const uint8_t b0 = s[0];
-  if (b0 < 0x80u) {
-    out[0] = b0;
-    out[1] = 0u;
-    out[2] = 0u;
+  const zr_utf8_decode_result_t r = zr_utf8_decode_one(s, len);
+  if (r.size == 0u) {
+    return 0u;
+  }
+
+  if (r.valid) {
+    /* Copy original bytes for valid sequences. */
+    for (uint8_t i = 0u; i < r.size && i < 4u; i++) {
+      out[i] = s[i];
+    }
+    if (r.size < 4u) {
+      memset(out + r.size, 0, (size_t)(4u - r.size));
+    }
+    *out_len = r.size;
+  } else {
+    /* Invalid UTF-8 policy: emit U+FFFD. */
+    out[0] = 0xEFu;
+    out[1] = 0xBFu;
+    out[2] = 0xBDu;
     out[3] = 0u;
-    *out_len = 1u;
-    return 1u;
+    *out_len = 3u;
   }
 
-  if ((b0 & 0xE0u) == 0xC0u) {
-    const size_t adv = zr_utf8_decode_2byte(s, len, out, out_len);
-    if (adv != 0u) {
-      return adv;
-    }
-    zr_utf8_emit_replacement(out, out_len);
-    return 1u;
-  }
-
-  if ((b0 & 0xF0u) == 0xE0u) {
-    const size_t adv = zr_utf8_decode_3byte(s, len, out, out_len);
-    if (adv != 0u) {
-      return adv;
-    }
-    zr_utf8_emit_replacement(out, out_len);
-    return 1u;
-  }
-
-  if ((b0 & 0xF8u) == 0xF0u) {
-    const size_t adv = zr_utf8_decode_4byte(s, len, out, out_len);
-    if (adv != 0u) {
-      return adv;
-    }
-    zr_utf8_emit_replacement(out, out_len);
-    return 1u;
-  }
-
-  zr_utf8_emit_replacement(out, out_len);
-  return 1u;
+  return (size_t)r.size;
 }
 
 size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
@@ -352,7 +254,7 @@ size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
   while (i < len) {
     uint8_t glyph[4];
     uint8_t glyph_len = 0u;
-    const size_t adv = zr_utf8_decode_one(bytes + i, len - i, glyph, &glyph_len);
+    const size_t adv = zr_fb_decode_one_utf8(bytes + i, len - i, glyph, &glyph_len);
     if (adv == 0u) {
       break;
     }
@@ -391,7 +293,7 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8
   while (i < len) {
     uint8_t glyph[4] = {0u, 0u, 0u, 0u};
     uint8_t glyph_len = 0u;
-    const size_t adv = zr_utf8_decode_one(bytes + i, len - i, glyph, &glyph_len);
+    const size_t adv = zr_fb_decode_one_utf8(bytes + i, len - i, glyph, &glyph_len);
     if (adv == 0u) {
       break;
     }

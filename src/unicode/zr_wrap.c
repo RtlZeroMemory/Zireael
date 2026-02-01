@@ -48,7 +48,7 @@ static void zr_wrap_push_offset(size_t off, size_t* out_offsets, size_t out_cap,
 
 zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t policy, uint32_t tab_stop,
                             zr_measure_utf8_t* out) {
-  if (out == NULL) {
+  if (!out) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   out->lines = 1u;
@@ -60,7 +60,7 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
   if (len == 0u) {
     return ZR_OK;
   }
-  if (bytes == NULL) {
+  if (!bytes) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -100,7 +100,7 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
 zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_cols, zr_width_policy_t policy,
                                 uint32_t tab_stop, size_t* out_offsets, size_t out_offsets_cap,
                                 size_t* out_count, bool* out_truncated) {
-  if (out_count == NULL || out_truncated == NULL) {
+  if (!out_count || !out_truncated) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   *out_count = 0u;
@@ -109,10 +109,10 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
   if (tab_stop == 0u || max_cols == 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (out_offsets == NULL && out_offsets_cap != 0u) {
+  if (!out_offsets && out_offsets_cap != 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (bytes == NULL && len != 0u) {
+  if (!bytes && len != 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 

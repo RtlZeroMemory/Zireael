@@ -14,6 +14,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Default base alignment for arena blocks (cache-line friendly). */
+#define ZR_ARENA_BASE_ALIGN 64u
+
+/* Maximum supported alignment for arena allocations. */
+#define ZR_ARENA_MAX_ALIGN 4096u
+
 struct zr_arena_block_t {
   struct zr_arena_block_t* next;
   uint8_t* data; /* points inside this block's allocation (not separately allocated) */
@@ -22,7 +28,7 @@ struct zr_arena_block_t {
 };
 
 static bool zr__is_valid_align(size_t align) {
-  return align != 0u && zr_is_pow2_size(align) && align <= 4096u;
+  return align != 0u && zr_is_pow2_size(align) && align <= ZR_ARENA_MAX_ALIGN;
 }
 
 static zr_arena_block_t* zr__block_alloc(size_t cap, size_t base_align) {
@@ -81,6 +87,7 @@ static void zr__block_free_chain(zr_arena_block_t* b) {
   }
 }
 
+/* Called from cleanup paths; accepts NULL for caller convenience. */
 static void zr__arena_zero(zr_arena_t* a) {
   if (!a) {
     return;
@@ -107,7 +114,7 @@ zr_result_t zr_arena_init(zr_arena_t* a, size_t initial_bytes, size_t max_total_
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_arena_block_t* b = zr__block_alloc(initial_bytes, 64u);
+  zr_arena_block_t* b = zr__block_alloc(initial_bytes, ZR_ARENA_BASE_ALIGN);
   if (!b) {
     return ZR_ERR_OOM;
   }
@@ -201,7 +208,7 @@ static zr_result_t zr__arena_grow(zr_arena_t* a, size_t min_bytes) {
     return ZR_ERR_LIMIT;
   }
 
-  zr_arena_block_t* b = zr__block_alloc(next_cap, 64u);
+  zr_arena_block_t* b = zr__block_alloc(next_cap, ZR_ARENA_BASE_ALIGN);
   if (!b) {
     return ZR_ERR_OOM;
   }
@@ -268,6 +275,13 @@ zr_arena_mark_t zr_arena_mark(const zr_arena_t* a) {
 }
 
 void zr_arena_rewind(zr_arena_t* a, zr_arena_mark_t mark) {
+  /*
+   * Rewind arena to a previously captured mark, freeing all blocks allocated after it.
+   *
+   * If mark is NULL, performs a full reset. If mark is invalid (not from this
+   * arena), this is a no-op.
+   * After rewind, new allocations reuse the same memory addresses.
+   */
   if (!a || !a->head) {
     return;
   }

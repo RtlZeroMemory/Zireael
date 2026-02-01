@@ -179,6 +179,19 @@ int main(void) {
     return 2;
   }
 
+  /* Singleton guard: POSIX backend is currently process-singleton (SIGWINCH + global wake fd). */
+  plat_t* plat2 = NULL;
+  r = plat_create(&plat2, &cfg);
+  if (r != ZR_ERR_PLATFORM || plat2 != NULL) {
+    fprintf(stderr, "expected second plat_create() to fail with ZR_ERR_PLATFORM (r=%d plat2=%p)\n", (int)r, (void*)plat2);
+    if (plat2) {
+      plat_destroy(plat2);
+    }
+    plat_destroy(plat);
+    (void)close(master_fd);
+    return 2;
+  }
+
   if (zr_expect_wake_drains_pipe(plat) != 0) {
     fprintf(stderr, "wake pipe did not drain deterministically\n");
     plat_destroy(plat);

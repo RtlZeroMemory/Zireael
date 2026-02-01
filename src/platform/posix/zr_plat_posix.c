@@ -13,6 +13,8 @@
 
 #include "platform/zr_platform.h"
 
+#include "util/zr_assert.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -285,7 +287,14 @@ void plat_destroy(plat_t* plat) {
   (void)plat_leave_raw(plat);
 
   if (plat->sigwinch_installed) {
-    g_posix_wake_write_fd = -1;
+    /*
+      With the singleton create guard, we should always own the global wake fd
+      while SIGWINCH is installed.
+    */
+    ZR_ASSERT(g_posix_wake_write_fd == -1 || g_posix_wake_write_fd == plat->wake_write_fd);
+    if (g_posix_wake_write_fd == plat->wake_write_fd) {
+      g_posix_wake_write_fd = -1;
+    }
     (void)sigaction(SIGWINCH, &plat->sigwinch_prev, NULL);
     plat->sigwinch_installed = false;
   }

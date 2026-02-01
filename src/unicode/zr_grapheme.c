@@ -109,6 +109,7 @@ void zr_grapheme_iter_init(zr_grapheme_iter_t* it, const uint8_t* bytes, size_t 
   it->off = 0u;
 }
 
+/* Advance iterator to next grapheme cluster; returns false when exhausted. */
 bool zr_grapheme_next(zr_grapheme_iter_t* it, zr_grapheme_t* out) {
   if (!it || !out) {
     return false;

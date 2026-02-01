@@ -53,6 +53,7 @@ static bool zr__write_u32le(zr_evpack_writer_t* w, uint32_t v) {
   return zr__write_bytes(w, tmp, sizeof(tmp));
 }
 
+/* Begin writing an event batch; writes placeholder header to be patched by finish. */
 zr_result_t zr_evpack_begin(zr_evpack_writer_t* w, uint8_t* out_buf, size_t out_cap) {
   if (!w) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -86,6 +87,7 @@ bool zr_evpack_append_record(zr_evpack_writer_t* w, zr_event_type_t type, uint32
   return zr_evpack_append_record2(w, type, time_ms, flags, payload, payload_len, NULL, 0u);
 }
 
+/* Append event record with two payload chunks; sets TRUNCATED flag if no space. */
 bool zr_evpack_append_record2(zr_evpack_writer_t* w, zr_event_type_t type, uint32_t time_ms,
                               uint32_t flags, const void* p1, size_t n1, const void* p2,
                               size_t n2) {
@@ -143,6 +145,7 @@ bool zr_evpack_append_record2(zr_evpack_writer_t* w, zr_event_type_t type, uint3
   return true;
 }
 
+/* Finalize batch header (total_size, event_count, flags) and return total length. */
 size_t zr_evpack_finish(zr_evpack_writer_t* w) {
   if (!w || !w->started) {
     return 0u;

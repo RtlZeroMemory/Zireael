@@ -11,6 +11,7 @@
 
 #include <string.h>
 
+/* Initialize a fixed-capacity FIFO ring buffer with caller-provided backing storage. */
 zr_result_t zr_ring_init(zr_ring_t* r, void* backing_buf, size_t cap_elems, size_t elem_size) {
   if (!r || elem_size == 0u || (cap_elems != 0u && !backing_buf)) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -49,6 +50,7 @@ bool zr_ring_is_full(const zr_ring_t* r) {
   return r && r->cap != 0u && r->len >= r->cap;
 }
 
+/* Push element to tail; returns ZR_ERR_LIMIT if ring is full (no mutation on failure). */
 zr_result_t zr_ring_push(zr_ring_t* r, const void* elem) {
   if (!r || !elem) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -72,6 +74,7 @@ zr_result_t zr_ring_push(zr_ring_t* r, const void* elem) {
   return ZR_OK;
 }
 
+/* Pop element from head into out_elem; returns false if ring is empty. */
 bool zr_ring_pop(zr_ring_t* r, void* out_elem) {
   if (!r || !out_elem) {
     return false;

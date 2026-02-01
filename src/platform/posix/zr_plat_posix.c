@@ -95,6 +95,7 @@ static zr_result_t zr_posix_set_fd_cloexec(int fd) {
   return ZR_OK;
 }
 
+/* Create a non-blocking self-pipe pair for cross-thread wake signaling. */
 static zr_result_t zr_posix_make_self_pipe(int* out_read_fd, int* out_write_fd) {
   if (!out_read_fd || !out_write_fd) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -142,6 +143,7 @@ static void zr_posix_drain_fd_best_effort(int fd) {
   }
 }
 
+/* Write all bytes to fd, retrying on EINTR; returns error on partial write failure. */
 static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {
   if (len < 0) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -217,6 +219,7 @@ static void zr_posix_emit_leave_sequences(plat_t* plat) {
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1049l");
 }
 
+/* Create POSIX platform handle with self-pipe wake and SIGWINCH handler. */
 zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   if (!out_plat || !cfg) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -311,6 +314,7 @@ void plat_destroy(plat_t* plat) {
   free(plat);
 }
 
+/* Enter raw terminal mode: disable echo/canonical, enable alt screen and mouse. */
 zr_result_t plat_enter_raw(plat_t* plat) {
   if (!plat) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -356,6 +360,7 @@ zr_result_t plat_enter_raw(plat_t* plat) {
   return ZR_OK;
 }
 
+/* Leave raw mode: restore saved termios, leave alt screen, show cursor. Idempotent. */
 zr_result_t plat_leave_raw(plat_t* plat) {
   if (!plat) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -407,6 +412,7 @@ zr_result_t plat_get_caps(plat_t* plat, plat_caps_t* out_caps) {
   return ZR_OK;
 }
 
+/* Non-blocking read from stdin; returns bytes read, 0 if nothing available, or error. */
 int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
   if (!plat) {
     return (int32_t)ZR_ERR_INVALID_ARGUMENT;
@@ -449,6 +455,7 @@ zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {
   return zr_posix_write_all(plat->stdout_fd, bytes, len);
 }
 
+/* Wait for input or wake signal; returns 1 if ready, 0 on timeout, or error code. */
 int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
   if (!plat) {
     return (int32_t)ZR_ERR_INVALID_ARGUMENT;
@@ -511,6 +518,7 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
   }
 }
 
+/* Wake a blocked plat_wait call from another thread by writing to the self-pipe. */
 zr_result_t plat_wake(plat_t* plat) {
   if (!plat) {
     return ZR_ERR_INVALID_ARGUMENT;

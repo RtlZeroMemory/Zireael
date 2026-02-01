@@ -46,6 +46,7 @@ static void zr_wrap_push_offset(size_t off, size_t* out_offsets, size_t out_cap,
   *io_count = idx + 1u;
 }
 
+/* Measure UTF-8 text dimensions (line count and max column width) with tab expansion. */
 zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t policy, uint32_t tab_stop,
                             zr_measure_utf8_t* out) {
   if (!out) {
@@ -97,6 +98,7 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
   return ZR_OK;
 }
 
+/* Compute greedy line-break offsets for UTF-8 text within max_cols, preferring whitespace breaks. */
 zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_cols, zr_width_policy_t policy,
                                 uint32_t tab_stop, size_t* out_offsets, size_t out_offsets_cap,
                                 size_t* out_count, bool* out_truncated) {

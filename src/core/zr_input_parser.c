@@ -33,6 +33,7 @@ static void zr__push_text_byte(zr_event_queue_t* q, uint32_t time_ms, uint8_t b)
   (void)zr_event_queue_push(q, &ev);
 }
 
+/* Parse terminal input bytes into key/text events; handles basic CSI arrow keys and controls. */
 void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms) {
   if (!q || (!bytes && len != 0u)) {
     return;

@@ -20,6 +20,7 @@ static zr_utf8_decode_result_t zr_utf8_invalid(size_t len) {
 
 static bool zr_utf8_is_cont(uint8_t b) { return (uint8_t)(b & 0xC0u) == 0x80u; }
 
+/* Decode one UTF-8 codepoint; returns U+FFFD with valid=0 for invalid sequences. */
 zr_utf8_decode_result_t zr_utf8_decode_one(const uint8_t* s, size_t len) {
   if (len == 0u || !s) {
     return zr_utf8_invalid(len);

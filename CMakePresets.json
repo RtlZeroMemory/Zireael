@@ -1,0 +1,138 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "windows-clangcl-debug",
+      "displayName": "Windows (clang-cl) Debug",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "windows-clangcl-release",
+      "displayName": "Windows (clang-cl) Release",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "posix-clang-debug",
+      "displayName": "POSIX (clang) Debug",
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang"
+      }
+    },
+    {
+      "name": "posix-clang-release",
+      "displayName": "POSIX (clang) Release",
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang"
+      }
+    },
+    {
+      "name": "posix-gcc-debug",
+      "displayName": "POSIX (gcc) Debug (CI)",
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc"
+      }
+    },
+    {
+      "name": "posix-gcc-release",
+      "displayName": "POSIX (gcc) Release (CI)",
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-clangcl-debug",
+      "configurePreset": "windows-clangcl-debug"
+    },
+    {
+      "name": "windows-clangcl-release",
+      "configurePreset": "windows-clangcl-release"
+    },
+    {
+      "name": "posix-clang-debug",
+      "configurePreset": "posix-clang-debug"
+    },
+    {
+      "name": "posix-clang-release",
+      "configurePreset": "posix-clang-release"
+    },
+    {
+      "name": "posix-gcc-debug",
+      "configurePreset": "posix-gcc-debug"
+    },
+    {
+      "name": "posix-gcc-release",
+      "configurePreset": "posix-gcc-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "ctest",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
+

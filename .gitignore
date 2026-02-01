@@ -1,3 +1,27 @@
+# Internal docs (not committed)
+/docs/
+
+# Build / artifacts
+/build/
+/out/
+/bin/
+/obj/
+
+# CMake generated
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
 # Prerequisites
 *.d
 

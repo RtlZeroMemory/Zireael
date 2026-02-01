@@ -391,7 +391,9 @@ static zr_result_t zr_dl_validate_span_table_v1(const uint8_t* bytes, uint32_t s
   for (uint32_t i = 0u; i < span_count; i++) {
     const size_t span_off = (size_t)i * sizeof(zr_dl_span_t);
     zr_dl_span_t span;
-    zr_dl_span_read_host(bytes + span_table_offset + span_off, &span);
+    if (zr_dl_span_read_host(bytes + span_table_offset + span_off, &span) != ZR_OK) {
+      return ZR_ERR_FORMAT;
+    }
     size_t end = 0u;
     if (!zr_checked_add_u32_to_size(span.off, span.len, &end)) {
       return ZR_ERR_FORMAT;
@@ -486,7 +488,9 @@ static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const 
         }
         const size_t span_off = (size_t)cmd.string_index * sizeof(zr_dl_span_t);
         zr_dl_span_t span;
-        zr_dl_span_read_host(view->strings_span_bytes + span_off, &span);
+        if (zr_dl_span_read_host(view->strings_span_bytes + span_off, &span) != ZR_OK) {
+          return ZR_ERR_FORMAT;
+        }
         uint32_t slice_end = 0u;
         if (!zr_checked_add_u32(cmd.byte_off, cmd.byte_len, &slice_end)) {
           return ZR_ERR_FORMAT;
@@ -563,7 +567,9 @@ static zr_result_t zr_dl_validate_text_run_blob(const zr_dl_view_t* v, uint32_t 
 
   const size_t span_off = (size_t)blob_index * sizeof(zr_dl_span_t);
   zr_dl_span_t span;
-  zr_dl_span_read_host(v->blobs_span_bytes + span_off, &span);
+  if (zr_dl_span_read_host(v->blobs_span_bytes + span_off, &span) != ZR_OK) {
+    return ZR_ERR_FORMAT;
+  }
 
   if (!zr_is_aligned4_u32(span.off) || (span.len & 3u) != 0u) {
     return ZR_ERR_FORMAT;
@@ -623,7 +629,9 @@ static zr_result_t zr_dl_validate_text_run_blob(const zr_dl_view_t* v, uint32_t 
     }
     const size_t str_span_off = (size_t)string_index * sizeof(zr_dl_span_t);
     zr_dl_span_t str_span;
-    zr_dl_span_read_host(v->strings_span_bytes + str_span_off, &str_span);
+    if (zr_dl_span_read_host(v->strings_span_bytes + str_span_off, &str_span) != ZR_OK) {
+      return ZR_ERR_FORMAT;
+    }
     uint32_t slice_end = 0u;
     if (!zr_checked_add_u32(byte_off, byte_len, &slice_end)) {
       return ZR_ERR_FORMAT;
@@ -732,7 +740,9 @@ static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t*
 
   const size_t span_off = (size_t)cmd.string_index * sizeof(zr_dl_span_t);
   zr_dl_span_t sspan;
-  zr_dl_span_read_host(v->strings_span_bytes + span_off, &sspan);
+  if (zr_dl_span_read_host(v->strings_span_bytes + span_off, &sspan) != ZR_OK) {
+    return ZR_ERR_FORMAT;
+  }
 
   const uint8_t* sbytes = v->strings_bytes + sspan.off + cmd.byte_off;
   zr_style_t s = zr_style_from_dl(cmd.style);
@@ -800,7 +810,9 @@ static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v, zr_fb
 
   const size_t sspan_off = (size_t)string_index * sizeof(zr_dl_span_t);
   zr_dl_span_t sspan;
-  zr_dl_span_read_host(v->strings_span_bytes + sspan_off, &sspan);
+  if (zr_dl_span_read_host(v->strings_span_bytes + sspan_off, &sspan) != ZR_OK) {
+    return ZR_ERR_FORMAT;
+  }
 
   const uint8_t* sbytes = v->strings_bytes + sspan.off + byte_off;
   zr_style_t s = zr_style_from_dl(style);
@@ -831,7 +843,9 @@ static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_vie
 
   const size_t bspan_off = (size_t)cmd.blob_index * sizeof(zr_dl_span_t);
   zr_dl_span_t bspan;
-  zr_dl_span_read_host(v->blobs_span_bytes + bspan_off, &bspan);
+  if (zr_dl_span_read_host(v->blobs_span_bytes + bspan_off, &bspan) != ZR_OK) {
+    return ZR_ERR_FORMAT;
+  }
 
   const uint8_t* blob = v->blobs_bytes + bspan.off;
   zr_byte_reader_t br;

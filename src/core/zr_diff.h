@@ -28,6 +28,20 @@ typedef struct zr_diff_stats_t {
   size_t   bytes_emitted;
 } zr_diff_stats_t;
 
+/*
+  zr_diff_render:
+    - Pure function: does not mutate framebuffers.
+    - On success:
+        - returns ZR_OK
+        - writes [0..*out_len) bytes to out_buf
+        - writes final terminal state to out_final_term_state
+        - writes stats to out_stats
+    - On failure:
+        - returns a negative ZR_ERR_*
+        - sets *out_len = 0
+        - zeroes out_final_term_state and out_stats
+        - out_buf contents are unspecified (caller must respect *out_len)
+*/
 zr_result_t zr_diff_render(const zr_fb_t* prev,
                            const zr_fb_t* next,
                            const plat_caps_t* caps,
@@ -39,4 +53,3 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
                            zr_diff_stats_t* out_stats);
 
 #endif /* ZR_CORE_ZR_DIFF_H_INCLUDED */
-

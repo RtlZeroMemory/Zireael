@@ -334,15 +334,16 @@ static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t 
   return false;
 }
 
-zr_result_t zr_diff_render(const zr_fb_t* prev,
-                           const zr_fb_t* next,
-                           const plat_caps_t* caps,
-                           const zr_term_state_t* initial_term_state,
-                           uint8_t* out_buf,
-                           size_t out_cap,
-                           size_t* out_len,
-                           zr_term_state_t* out_final_term_state,
-                           zr_diff_stats_t* out_stats) {
+typedef struct zr_diff_ctx_t {
+  const zr_fb_t* prev;
+  const zr_fb_t* next;
+  const plat_caps_t* caps;
+  zr_sb_t sb;
+  zr_term_state_t ts;
+  zr_diff_stats_t stats;
+} zr_diff_ctx_t;
+
+static void zr_diff_zero_outputs(size_t* out_len, zr_term_state_t* out_final_term_state, zr_diff_stats_t* out_stats) {
   if (out_len) {
     *out_len = 0u;
   }
@@ -352,95 +353,142 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   if (out_stats) {
     memset(out_stats, 0, sizeof(*out_stats));
   }
+}
 
-  if (!prev || !next || !caps || !initial_term_state || !out_buf || !out_len || !out_final_term_state ||
-      !out_stats) {
+static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
+                                        const zr_fb_t* next,
+                                        const plat_caps_t* caps,
+                                        const zr_term_state_t* initial_term_state,
+                                        const uint8_t* out_buf,
+                                        const size_t* out_len,
+                                        const zr_term_state_t* out_final_term_state,
+                                        const zr_diff_stats_t* out_stats) {
+  if (!prev || !next || !caps || !initial_term_state || !out_buf || !out_len || !out_final_term_state || !out_stats) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   if (prev->cols != next->cols || prev->rows != next->rows) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-
-  zr_sb_t sb;
-  zr_sb_init(&sb, out_buf, out_cap);
-
-  zr_term_state_t ts = *initial_term_state;
-  zr_diff_stats_t stats = {0u, 0u, 0u};
-
-  for (uint32_t y = 0u; y < next->rows; y++) {
-    bool line_dirty = false;
-
-    uint32_t x = 0u;
-    while (x < next->cols) {
-      if (!zr_line_dirty_at(prev, next, x, y)) {
-        x++;
-        continue;
-      }
-
-      const uint32_t start = x;
-      while (x < next->cols && zr_line_dirty_at(prev, next, x, y)) {
-        x++;
-      }
-      const uint32_t end = (x == 0u) ? 0u : (x - 1u);
-
-      if (!zr_emit_cup(&sb, &ts, start, y)) {
-        break;
-      }
-
-      for (uint32_t xx = start; xx <= end; xx++) {
-        const zr_fb_cell_t* c = zr_fb_cell_at_const(next, xx, y);
-        if (!c) {
-          continue;
-        }
-        const uint8_t w = zr_cell_width_in_next(next, xx, y);
-        if (w == 0u) {
-          continue;
-        }
-
-        /* If the cursor drifted (e.g. due to skipped continuations), use CUP only. */
-        if (!zr_emit_cup(&sb, &ts, xx, y)) {
-          break;
-        }
-        if (!zr_emit_sgr_absolute(&sb, &ts, c->style, caps)) {
-          break;
-        }
-        if (c->glyph_len != 0u) {
-          if (!zr_sb_write_bytes(&sb, c->glyph, (size_t)c->glyph_len)) {
-            break;
-          }
-        }
-
-        ts.cursor_x += (uint32_t)w;
-      }
-
-      line_dirty = true;
-      stats.dirty_cells += (end - start + 1u);
-
-      if (zr_sb_truncated(&sb)) {
-        break;
-      }
-    }
-
-    if (line_dirty) {
-      stats.dirty_lines++;
-    }
-
-    if (zr_sb_truncated(&sb)) {
-      break;
-    }
-  }
-
-  if (zr_sb_truncated(&sb)) {
-    *out_len = 0u;
-    memset(out_final_term_state, 0, sizeof(*out_final_term_state));
-    memset(out_stats, 0, sizeof(*out_stats));
-    return ZR_ERR_LIMIT;
-  }
-
-  *out_len = zr_sb_len(&sb);
-  *out_final_term_state = ts;
-  stats.bytes_emitted = *out_len;
-  *out_stats = stats;
   return ZR_OK;
 }
 
+static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t start, uint32_t end) {
+  if (!ctx || !ctx->prev || !ctx->next) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!zr_emit_cup(&ctx->sb, &ctx->ts, start, y)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  for (uint32_t xx = start; xx <= end; xx++) {
+    const zr_fb_cell_t* c = zr_fb_cell_at_const(ctx->next, xx, y);
+    if (!c) {
+      continue;
+    }
+    const uint8_t w = zr_cell_width_in_next(ctx->next, xx, y);
+    if (w == 0u) {
+      continue;
+    }
+
+    /* If the cursor drifted (e.g. due to skipped continuations), use CUP only. */
+    if (!zr_emit_cup(&ctx->sb, &ctx->ts, xx, y)) {
+      return ZR_ERR_LIMIT;
+    }
+    if (!zr_emit_sgr_absolute(&ctx->sb, &ctx->ts, c->style, ctx->caps)) {
+      return ZR_ERR_LIMIT;
+    }
+    if (c->glyph_len != 0u) {
+      if (!zr_sb_write_bytes(&ctx->sb, c->glyph, (size_t)c->glyph_len)) {
+        return ZR_ERR_LIMIT;
+      }
+    }
+
+    ctx->ts.cursor_x += (uint32_t)w;
+  }
+
+  return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
+}
+
+static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
+  if (!ctx || !ctx->prev || !ctx->next) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  bool line_dirty = false;
+
+  uint32_t x = 0u;
+  while (x < ctx->next->cols) {
+    if (!zr_line_dirty_at(ctx->prev, ctx->next, x, y)) {
+      x++;
+      continue;
+    }
+
+    const uint32_t start = x;
+    while (x < ctx->next->cols && zr_line_dirty_at(ctx->prev, ctx->next, x, y)) {
+      x++;
+    }
+    const uint32_t end = (x == 0u) ? 0u : (x - 1u);
+
+    const zr_result_t rc = zr_diff_render_span(ctx, y, start, end);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+
+    line_dirty = true;
+    ctx->stats.dirty_cells += (end - start + 1u);
+
+    if (zr_sb_truncated(&ctx->sb)) {
+      return ZR_ERR_LIMIT;
+    }
+  }
+
+  if (line_dirty) {
+    ctx->stats.dirty_lines++;
+  }
+  return ZR_OK;
+}
+
+zr_result_t zr_diff_render(const zr_fb_t* prev,
+                           const zr_fb_t* next,
+                           const plat_caps_t* caps,
+                           const zr_term_state_t* initial_term_state,
+                           uint8_t* out_buf,
+                           size_t out_cap,
+                           size_t* out_len,
+                           zr_term_state_t* out_final_term_state,
+                           zr_diff_stats_t* out_stats) {
+  zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+
+  const zr_result_t arg_rc =
+      zr_diff_validate_args(prev, next, caps, initial_term_state, out_buf, out_len, out_final_term_state, out_stats);
+  if (arg_rc != ZR_OK) {
+    return arg_rc;
+  }
+
+  zr_diff_ctx_t ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.prev = prev;
+  ctx.next = next;
+  ctx.caps = caps;
+  zr_sb_init(&ctx.sb, out_buf, out_cap);
+  ctx.ts = *initial_term_state;
+
+  for (uint32_t y = 0u; y < next->rows; y++) {
+    const zr_result_t rc = zr_diff_render_line(&ctx, y);
+    if (rc != ZR_OK) {
+      zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+      return rc;
+    }
+  }
+
+  if (zr_sb_truncated(&ctx.sb)) {
+    zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+    return ZR_ERR_LIMIT;
+  }
+
+  *out_len = zr_sb_len(&ctx.sb);
+  *out_final_term_state = ctx.ts;
+  ctx.stats.bytes_emitted = *out_len;
+  *out_stats = ctx.stats;
+  return ZR_OK;
+}

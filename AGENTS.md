@@ -15,12 +15,14 @@ Implementation-ready internal docs live under `docs/` and are **gitignored**. Us
 - `docs/00_INDEX.md` (reading order + TOC)
 - `docs/01_OVERVIEW.md` (high-level architecture + data flow)
 - `docs/02_REPO_LAYOUT.md` (module boundaries + `#ifdef` rules)
+- `docs/04_CODE_STANDARDS.md` (Safe C Rule Set + stdlib whitelist + comment/doc rules)
 - `docs/05_ALLOCATOR_OWNERSHIP.md` (locked ownership + arenas)
 - `docs/06_EVENT_SYSTEM.md` (normalized events + packed event ABI)
 - `docs/07_DRAWLIST_FORMAT.md` (binary drawlist ABI)
 - `docs/09_UNICODE_TEXT.md` (Unicode decisions + primitives)
 - `docs/10_DIFF_RENDERER.md` (diff pipeline + golden hooks)
 - `docs/11_PLATFORM_LAYER.md` (POSIX/Win32 backend notes)
+- `docs/14_MODULE_CATALOG.md` (planned files/modules for epics/tasks)
 
 Do **not** stage/commit anything under `docs/`.
 
@@ -36,6 +38,11 @@ Do **not** stage/commit anything under `docs/`.
   - caller provides drawlist bytes and event output buffers
 - Error model: `0 = OK`, negative codes for failures.
 - Hot paths: no per-frame heap churn; buffer output; single flush per present.
+- Safe C: follow `docs/04_CODE_STANDARDS.md` (MUST/MUST NOT rules + stdlib whitelist).
+- Documentation + comments:
+  - every `.c`/`.h` file MUST have a brief top-of-file “what/why” header comment
+  - code changes that affect behavior/ABI/formats/invariants MUST update internal docs in the same change
+  - prefer expressive naming + small focused functions; add comments only when needed for correctness
 
 ## Repo layout (high level)
 

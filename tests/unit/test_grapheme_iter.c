@@ -33,8 +33,8 @@ ZR_TEST_UNIT(grapheme_regional_indicator_flag_pair) {
 }
 
 ZR_TEST_UNIT(grapheme_zwj_extended_pictographic_sequence) {
-  /* U+1F469 ZWJ U+1F4BB ("👩‍💻"). */
-  const uint8_t s[] = {0xF0u, 0x9Fu, 0x91u, 0xA9u, 0xE2u, 0x80u, 0x8Du, 0xF0u, 0x9Fu, 0x92u, 0xBBu};
+  /* U+1F600 ZWJ U+1F600 ("😀‍😀") exercises EP beyond a tiny hand-picked subset. */
+  const uint8_t s[] = {0xF0u, 0x9Fu, 0x98u, 0x80u, 0xE2u, 0x80u, 0x8Du, 0xF0u, 0x9Fu, 0x98u, 0x80u};
   zr_assert_one_cluster(ctx, s, sizeof(s), sizeof(s));
 }
 
@@ -55,4 +55,3 @@ ZR_TEST_UNIT(grapheme_iter_progress_on_malformed_utf8) {
   }
   ZR_ASSERT_EQ_U32(total, (uint32_t)sizeof(s));
 }
-

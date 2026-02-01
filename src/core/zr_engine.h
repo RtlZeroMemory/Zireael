@@ -16,7 +16,13 @@
   Errors:
     - ZR_OK == 0 on success; negative ZR_ERR_* on failure.
     - Event batch truncation is reserved as a success mode (see
-      docs/ERROR_CODES_CATALOG.md and docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md).
+      docs/ERROR_CODES_CATALOG.md and docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md). When truncated,
+      engine_poll_events() returns the bytes written and the batch header has ZR_EV_BATCH_TRUNCATED set.
+
+  engine_poll_events return convention:
+    - > 0: bytes written to out_buf
+    -   0: no events before timeout_ms
+    - < 0: failure (negative ZR_ERR_*)
 */
 
 #ifndef ZR_CORE_ZR_ENGINE_H_INCLUDED

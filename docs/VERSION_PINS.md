@@ -2,6 +2,14 @@
 
 This document centralizes determinism-critical pins.
 
+## Engine ABI
+
+Pinned engine ABI version (see `src/core/zr_version.h`):
+
+- `ZR_ENGINE_ABI_MAJOR = 1`
+- `ZR_ENGINE_ABI_MINOR = 0`
+- `ZR_ENGINE_ABI_PATCH = 0`
+
 ## Unicode
 
 Pinned Unicode version (see `src/unicode/zr_unicode_pins.h`):
@@ -20,7 +28,9 @@ All on-buffer/on-wire formats are:
 
 ### Drawlist
 
-- Drawlist header `version` is pinned to v1 (`1`).
+Defined in `src/core/zr_drawlist.h` (version pins are centralized in `src/core/zr_version.h`):
+
+- Drawlist header `version` is pinned to v1 (`ZR_DRAWLIST_VERSION_V1 = 1`).
 
 ### Packed event batches
 

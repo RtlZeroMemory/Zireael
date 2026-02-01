@@ -27,9 +27,9 @@ Use this skill when changing:
 - Return `0` on success, negative `ZR_ERR_*` codes on failure
 - Engine MUST NOT return heap pointers requiring caller free
 - Caller provides buffers:
-  - drawlist bytes (input)
-  - event batch buffer (output)
-  - user-event payload (engine copies)
+    - drawlist bytes (input)
+    - event batch buffer (output)
+    - user-event payload (engine copies)
 
 ## Format rules (must follow)
 

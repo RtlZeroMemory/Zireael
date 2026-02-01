@@ -31,13 +31,13 @@ Key locked docs:
 
 - **Engine-only repo:** no TypeScript, Node tooling, or monorepo
 - **Platform boundary:**
-  - `src/core`, `src/unicode`, `src/util` MUST NOT include OS headers
-  - OS code only in `src/platform/win32/` and `src/platform/posix/`
-  - `#ifdef _WIN32` only in platform backends
+    - `src/core`, `src/unicode`, `src/util` MUST NOT include OS headers
+    - OS code only in `src/platform/win32/` and `src/platform/posix/`
+    - `#ifdef _WIN32` only in platform backends
 - **Ownership (locked):**
-  - engine owns all its allocations
-  - caller never frees engine memory
-  - engine doesn't return heap pointers requiring caller free
+    - engine owns all its allocations
+    - caller never frees engine memory
+    - engine doesn't return heap pointers requiring caller free
 - **Error model:** `0 = OK`, negative `ZR_ERR_*` codes
 - **UB avoidance:** no type-punning; safe unaligned reads; validate all bounds
 - **Hot paths:** no per-frame heap churn; single flush per present

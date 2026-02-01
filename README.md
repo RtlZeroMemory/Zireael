@@ -2,7 +2,9 @@
 
 Zireael is a cross-platform **terminal UI core engine** for Windows / Linux / macOS.
 
-It is designed to be embedded: you drive it by submitting a **binary drawlist** and you read back a **packed event batch**. The engine owns terminal I/O (raw mode, output emission, input bytes) and provides a deterministic, cap-bounded core suitable for wrappers in other languages.
+It is designed to be embedded: you drive it by submitting a **binary drawlist** and you read back a **packed event batch
+**. The engine owns terminal I/O (raw mode, output emission, input bytes) and provides a deterministic, cap-bounded core
+suitable for wrappers in other languages.
 
 ## Overview
 
@@ -10,7 +12,8 @@ At a glance:
 
 - **Engine-only C library**: no TypeScript, no Node tooling, no GUI toolkit.
 - **Stable ABI**: callers interact via a small `engine_*` API surface.
-- **Explicit ownership**: caller provides input/output buffers; the engine never returns heap pointers that require caller `free()`.
+- **Explicit ownership**: caller provides input/output buffers; the engine never returns heap pointers that require
+  caller `free()`.
 - **Deterministic core**: fixed inputs + fixed caps/config ⇒ fixed outputs.
 - **Hard platform boundary**: OS headers live only under `src/platform/**`.
 
@@ -110,19 +113,20 @@ Return conventions:
 - `ZR_OK == 0` means success.
 - Negative values are failures (`ZR_ERR_*`).
 - `engine_poll_events` returns:
-  - `> 0`: bytes written to `out_buf`
-  - `0`: no events before `timeout_ms`
-  - `< 0`: failure (negative `ZR_ERR_*`)
+    - `> 0`: bytes written to `out_buf`
+    - `0`: no events before `timeout_ms`
+    - `< 0`: failure (negative `ZR_ERR_*`)
 
 ## Ownership, caps, and “no partial effects”
 
 - The engine owns all allocations it makes; callers never free engine memory.
 - The engine does not retain pointers into caller buffers beyond the call.
 - Callers provide:
-  - drawlist bytes (`engine_submit_drawlist`)
-  - packed event output buffer (`engine_poll_events`)
-  - user-event payload bytes (`engine_post_user_event`, copied during the call)
-- Failures are **deterministic** and, by default, have **no partial effects** (the drawlist path validates fully before mutating the `next` framebuffer).
+    - drawlist bytes (`engine_submit_drawlist`)
+    - packed event output buffer (`engine_poll_events`)
+    - user-event payload bytes (`engine_post_user_event`, copied during the call)
+- Failures are **deterministic** and, by default, have **no partial effects** (the drawlist path validates fully before
+  mutating the `next` framebuffer).
 - Resource usage is cap-bounded via `zr_limits_t` (e.g., max bytes per frame, max events per poll, arena growth caps).
 
 ## Binary formats
@@ -165,12 +169,13 @@ Events are written as a batch header followed by 4-byte-aligned records:
 └───────────────┘
 ```
 
-Truncation policy (v1): if the caller buffer cannot fit all events, the engine writes as many **complete** records as fit, sets the batch `TRUNCATED` flag, and returns the bytes written.
+Truncation policy (v1): if the caller buffer cannot fit all events, the engine writes as many **complete** records as
+fit, sets the batch `TRUNCATED` flag, and returns the bytes written.
 
 ## Threading model
 
 - The engine is **single-threaded**: all `engine_*` calls are engine-thread only, except:
-  - `engine_post_user_event`, which is thread-safe and wakes a blocking poll.
+    - `engine_post_user_event`, which is thread-safe and wakes a blocking poll.
 - The engine does not invoke user callbacks from non-engine threads (including logging).
 
 ## Unicode and determinism

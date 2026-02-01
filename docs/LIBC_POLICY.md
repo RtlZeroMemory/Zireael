@@ -1,6 +1,7 @@
 # Zireael — libc Policy (Locked)
 
-Zireael’s deterministic core avoids libc features that introduce locale, environment, time, randomness, or process variability.
+Zireael’s deterministic core avoids libc features that introduce locale, environment, time, randomness, or process
+variability.
 
 ## Enforced by CI
 
@@ -14,7 +15,8 @@ Zireael’s deterministic core avoids libc features that introduce locale, envir
 
 The following libc families are forbidden in the deterministic core:
 
-- `printf` family: `printf`, `fprintf`, `sprintf`, `snprintf`, `vprintf`, `vfprintf`, `vsprintf`, `vsnprintf`, `dprintf`, `vdprintf`
+- `printf` family: `printf`, `fprintf`, `sprintf`, `snprintf`, `vprintf`, `vfprintf`, `vsprintf`, `vsnprintf`,
+  `dprintf`, `vdprintf`
 - `puts`/`getchar` family: `puts`, `putchar`, `getchar`, `fputs`, `fputc`, `fgetc`
 - `scanf` family: `scanf`, `fscanf`, `sscanf`, `vscanf`, `vfscanf`, `vsscanf`
 - Locale / environment: `setlocale`, `getenv`, `putenv`
@@ -25,5 +27,6 @@ The following libc families are forbidden in the deterministic core:
 ## Allowed patterns
 
 - `memcpy`/`memset`/`memcmp` and small, obvious libc primitives are allowed where they do not violate determinism.
-- Platform backends (`src/platform/posix`, `src/platform/win32`) may use OS APIs and libc as needed, but must keep the core boundary clean.
+- Platform backends (`src/platform/posix`, `src/platform/win32`) may use OS APIs and libc as needed, but must keep the
+  core boundary clean.
 

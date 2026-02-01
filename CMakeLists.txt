@@ -12,119 +12,119 @@ option(ZIREAEL_SANITIZE_UNDEFINED "Enable UndefinedBehaviorSanitizer (Clang/GCC 
 add_library(zireael_build_settings INTERFACE)
 
 target_compile_options(zireael_build_settings INTERFACE
-  $<$<C_COMPILER_ID:MSVC>:/W4>
-  $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
+        $<$<C_COMPILER_ID:MSVC>:/W4>
+        $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
 )
 
 if (ZIREAEL_WARNINGS_AS_ERRORS)
-  target_compile_options(zireael_build_settings INTERFACE
-    $<$<C_COMPILER_ID:MSVC>:/WX>
-    $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Werror>
-  )
+    target_compile_options(zireael_build_settings INTERFACE
+            $<$<C_COMPILER_ID:MSVC>:/WX>
+            $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Werror>
+    )
 endif ()
 
 if (ZIREAEL_SANITIZE_ADDRESS OR ZIREAEL_SANITIZE_UNDEFINED)
-  if (MSVC)
-    message(FATAL_ERROR "ZIREAEL_SANITIZE_* is not supported with MSVC/clang-cl.")
-  endif ()
+    if (MSVC)
+        message(FATAL_ERROR "ZIREAEL_SANITIZE_* is not supported with MSVC/clang-cl.")
+    endif ()
 
-  set(_zr_sanitize_list "")
-  if (ZIREAEL_SANITIZE_ADDRESS)
-    list(APPEND _zr_sanitize_list "address")
-  endif ()
-  if (ZIREAEL_SANITIZE_UNDEFINED)
-    list(APPEND _zr_sanitize_list "undefined")
-  endif ()
-  string(JOIN "," _zr_sanitize_flags ${_zr_sanitize_list})
+    set(_zr_sanitize_list "")
+    if (ZIREAEL_SANITIZE_ADDRESS)
+        list(APPEND _zr_sanitize_list "address")
+    endif ()
+    if (ZIREAEL_SANITIZE_UNDEFINED)
+        list(APPEND _zr_sanitize_list "undefined")
+    endif ()
+    string(JOIN "," _zr_sanitize_flags ${_zr_sanitize_list})
 
-  target_compile_options(zireael_build_settings INTERFACE
-    -fno-omit-frame-pointer
-    -fno-sanitize-recover=all
-    -fsanitize=${_zr_sanitize_flags}
-  )
-  target_link_options(zireael_build_settings INTERFACE
-    -fsanitize=${_zr_sanitize_flags}
-  )
+    target_compile_options(zireael_build_settings INTERFACE
+            -fno-omit-frame-pointer
+            -fno-sanitize-recover=all
+            -fsanitize=${_zr_sanitize_flags}
+    )
+    target_link_options(zireael_build_settings INTERFACE
+            -fsanitize=${_zr_sanitize_flags}
+    )
 endif ()
 
 set(ZIREAEL_SOURCES
-  src/core/zr_diff.c
-  src/core/zr_drawlist.c
-  src/core/zr_event_pack.c
-  src/core/zr_event_queue.c
-  src/core/zr_fb.c
-  src/core/zr_input_parser.c
-  src/core/zr_placeholder.c
-  src/platform/zr_platform_select.c
-  src/unicode/zr_grapheme.c
-  src/unicode/zr_unicode_data.c
-  src/unicode/zr_utf8.c
-  src/unicode/zr_width.c
-  src/unicode/zr_wrap.c
-  src/util/zr_arena.c
-  src/util/zr_caps.c
-  src/util/zr_log.c
-  src/util/zr_ring.c
-  src/util/zr_string_builder.c
-  src/util/zr_vec.c
+        src/core/zr_diff.c
+        src/core/zr_drawlist.c
+        src/core/zr_event_pack.c
+        src/core/zr_event_queue.c
+        src/core/zr_fb.c
+        src/core/zr_input_parser.c
+        src/core/zr_placeholder.c
+        src/platform/zr_platform_select.c
+        src/unicode/zr_grapheme.c
+        src/unicode/zr_unicode_data.c
+        src/unicode/zr_utf8.c
+        src/unicode/zr_width.c
+        src/unicode/zr_wrap.c
+        src/util/zr_arena.c
+        src/util/zr_caps.c
+        src/util/zr_log.c
+        src/util/zr_ring.c
+        src/util/zr_string_builder.c
+        src/util/zr_vec.c
 )
 
 if (WIN32)
-  list(APPEND ZIREAEL_SOURCES
-    src/platform/win32/zr_plat_win32_stub.c
-  )
+    list(APPEND ZIREAEL_SOURCES
+            src/platform/win32/zr_plat_win32_stub.c
+    )
 else ()
-  list(APPEND ZIREAEL_SOURCES
-    src/platform/posix/zr_plat_posix.c
-  )
+    list(APPEND ZIREAEL_SOURCES
+            src/platform/posix/zr_plat_posix.c
+    )
 endif ()
 
 add_library(zireael STATIC
-  ${ZIREAEL_SOURCES}
+        ${ZIREAEL_SOURCES}
 )
 add_library(Zireael::zireael ALIAS zireael)
 
 set_target_properties(zireael PROPERTIES
-  C_STANDARD 11
-  C_STANDARD_REQUIRED YES
-  C_EXTENSIONS NO
+        C_STANDARD 11
+        C_STANDARD_REQUIRED YES
+        C_EXTENSIONS NO
 )
 
 target_link_libraries(zireael PRIVATE zireael_build_settings)
 
 target_include_directories(zireael PUBLIC
-  ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src
 )
 
 if (ZIREAEL_BUILD_SHARED)
-  add_library(zireael_shared SHARED
-    ${ZIREAEL_SOURCES}
-  )
-  add_library(Zireael::zireael_shared ALIAS zireael_shared)
+    add_library(zireael_shared SHARED
+            ${ZIREAEL_SOURCES}
+    )
+    add_library(Zireael::zireael_shared ALIAS zireael_shared)
 
-  set_target_properties(zireael_shared PROPERTIES
-    OUTPUT_NAME zireael
-    C_STANDARD 11
-    C_STANDARD_REQUIRED YES
-    C_EXTENSIONS NO
-  )
+    set_target_properties(zireael_shared PROPERTIES
+            OUTPUT_NAME zireael
+            C_STANDARD 11
+            C_STANDARD_REQUIRED YES
+            C_EXTENSIONS NO
+    )
 
-  target_link_libraries(zireael_shared PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_shared PRIVATE zireael_build_settings)
 
-  target_include_directories(zireael_shared PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-  )
+    target_include_directories(zireael_shared PUBLIC
+            ${PROJECT_SOURCE_DIR}/src
+    )
 endif ()
 
 if (ZIREAEL_BUILD_EXAMPLES)
-  add_executable(zireael_example
-    examples/example.c
-  )
-  target_link_libraries(zireael_example PRIVATE zireael_build_settings)
-  target_link_libraries(zireael_example PRIVATE zireael)
+    add_executable(zireael_example
+            examples/example.c
+    )
+    target_link_libraries(zireael_example PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_example PRIVATE zireael)
 endif ()
 
 if (ZIREAEL_BUILD_TESTS)
-  enable_testing()
-  add_subdirectory(tests)
+    enable_testing()
+    add_subdirectory(tests)
 endif ()

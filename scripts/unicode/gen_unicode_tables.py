@@ -27,7 +27,6 @@ import sys
 import textwrap
 import urllib.request
 
-
 UNICODE_VERSION = "15.1.0"
 BASE = f"https://www.unicode.org/Public/{UNICODE_VERSION}/ucd"
 URLS = {
@@ -104,17 +103,17 @@ def _parse_property_file(path: pathlib.Path, wanted: set[str] | None = None) -> 
 
 
 def _download_to(path: pathlib.Path, url: str) -> None:
-  path.parent.mkdir(parents=True, exist_ok=True)
-  req = urllib.request.Request(
-      url,
-      headers={
-          "User-Agent": "Zireael-UnicodeTableGen/1.0 (+https://github.com/RtlZeroMemory/Zireael)",
-          "Accept": "text/plain,*/*",
-      },
-  )
-  with urllib.request.urlopen(req) as r:
-    data = r.read()
-  path.write_bytes(data)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Zireael-UnicodeTableGen/1.0 (+https://github.com/RtlZeroMemory/Zireael)",
+            "Accept": "text/plain,*/*",
+        },
+    )
+    with urllib.request.urlopen(req) as r:
+        data = r.read()
+    path.write_bytes(data)
 
 
 def _ensure_sources(dir_path: pathlib.Path) -> dict[str, pathlib.Path]:
@@ -137,11 +136,11 @@ def _assert_disjoint_sorted(ranges: list[tuple[int, int, str]], label: str) -> N
 
 
 def _emit_inc(
-    out_path: pathlib.Path,
-    gcb: list[tuple[int, int, str]],
-    ep: list[tuple[int, int]],
-    emoji_pres: list[tuple[int, int]],
-    eaw_wide: list[tuple[int, int]],
+        out_path: pathlib.Path,
+        gcb: list[tuple[int, int, str]],
+        ep: list[tuple[int, int]],
+        emoji_pres: list[tuple[int, int]],
+        eaw_wide: list[tuple[int, int]],
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

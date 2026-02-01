@@ -35,12 +35,12 @@ Use this skill when working on:
 
 ## Test strategy
 
-| Type | Purpose | Location |
-|------|---------|----------|
-| Unit | Pure logic, deterministic | `tests/unit/` |
-| Golden | Byte-for-byte output | `tests/golden/` |
-| Fuzz | No crash/hang on arbitrary input | `tests/fuzz/` |
-| Integration | PTY/ConPTY real terminals | `tests/integration/` |
+| Type        | Purpose                          | Location             |
+|-------------|----------------------------------|----------------------|
+| Unit        | Pure logic, deterministic        | `tests/unit/`        |
+| Golden      | Byte-for-byte output             | `tests/golden/`      |
+| Fuzz        | No crash/hang on arbitrary input | `tests/fuzz/`        |
+| Integration | PTY/ConPTY real terminals        | `tests/integration/` |
 
 ## Fuzz budgets
 

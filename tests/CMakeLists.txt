@@ -16,6 +16,10 @@ add_executable(zireael_unit_tests
   unit/test_string_builder.c
   unit/test_user_event_injection.c
   unit/test_vec.c
+  unit/test_utf8_decode.c
+  unit/test_grapheme_iter.c
+  unit/test_width.c
+  unit/test_wrap.c
   golden/zr_golden.c
   golden/golden_diff_renderer.c
   golden/golden_runner_smoke.c
@@ -66,3 +70,19 @@ target_link_libraries(zireael_fuzz_input_parser PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_input_parser PRIVATE zireael)
 add_test(NAME zireael.fuzz.input.parser COMMAND zireael_fuzz_input_parser)
 set_tests_properties(zireael.fuzz.input.parser PROPERTIES TIMEOUT 5)
+
+add_executable(zireael_fuzz_utf8_decode
+  fuzz/fuzz_utf8_decode.c
+)
+target_link_libraries(zireael_fuzz_utf8_decode PRIVATE zireael_build_settings)
+target_link_libraries(zireael_fuzz_utf8_decode PRIVATE zireael)
+add_test(NAME zireael.fuzz.utf8.decode COMMAND zireael_fuzz_utf8_decode)
+set_tests_properties(zireael.fuzz.utf8.decode PROPERTIES TIMEOUT 5)
+
+add_executable(zireael_fuzz_grapheme_iter
+  fuzz/fuzz_grapheme_iter.c
+)
+target_link_libraries(zireael_fuzz_grapheme_iter PRIVATE zireael_build_settings)
+target_link_libraries(zireael_fuzz_grapheme_iter PRIVATE zireael)
+add_test(NAME zireael.fuzz.grapheme.iter COMMAND zireael_fuzz_grapheme_iter)
+set_tests_properties(zireael.fuzz.grapheme.iter PROPERTIES TIMEOUT 5)

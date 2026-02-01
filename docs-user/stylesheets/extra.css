@@ -1,0 +1,19 @@
+/*
+  docs-user/stylesheets/extra.css — Docs site visual tweaks.
+
+  Why: Keeps site styling consistent and readable without adding heavy tooling.
+*/
+
+/* Slightly tighter headline spacing for technical pages. */
+.md-typeset h1 {
+  margin-bottom: 0.8em;
+}
+
+.md-typeset h2 {
+  margin-top: 1.6em;
+}
+
+/* Make inline code easier to scan in prose. */
+.md-typeset code {
+  font-size: 0.95em;
+}

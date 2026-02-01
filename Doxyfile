@@ -1,0 +1,30 @@
+# Doxyfile — C API reference generator for Zireael
+
+PROJECT_NAME           = "Zireael"
+PROJECT_BRIEF          = "Deterministic terminal UI core engine (C)"
+
+OUTPUT_DIRECTORY       = out/doxygen
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+QUIET                 = YES
+WARNINGS              = YES
+WARN_IF_UNDOCUMENTED  = YES
+WARN_IF_DOC_ERROR     = YES
+
+INPUT                 = include/zr
+FILE_PATTERNS         = *.h
+RECURSIVE             = YES
+
+EXTRACT_ALL           = YES
+EXTRACT_STATIC        = NO
+
+JAVADOC_AUTOBRIEF      = YES
+OPTIMIZE_OUTPUT_FOR_C  = YES
+
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+
+GENERATE_TREEVIEW      = YES
+
+HTML_OUTPUT            = html

@@ -2,22 +2,62 @@ site_name: Zireael
 site_description: Deterministic terminal UI core engine (C)
 repo_url: https://github.com/RtlZeroMemory/Zireael
 repo_name: RtlZeroMemory/Zireael
+edit_uri: edit/main/docs-user/
 
 docs_dir: docs-user
 site_dir: out/site
 
 theme:
   name: material
+  language: en
   features:
+    - navigation.instant
+    - navigation.tracking
     - navigation.tabs
     - navigation.sections
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
     - content.code.copy
+    - content.action.edit
+    - content.action.view
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search:
+      lang: en
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - tables
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - toc:
       permalink: true
+
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md
@@ -47,6 +87,7 @@ nav:
   - API:
       - Overview: api/overview.md
       - Header Map: api/headers.md
+      - C API Reference: api/c-api.md
   - Platform:
       - POSIX Backend: platform/posix.md
       - Win32 Backend: platform/win32.md

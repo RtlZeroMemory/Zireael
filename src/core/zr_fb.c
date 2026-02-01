@@ -153,6 +153,98 @@ zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* s
   return ZR_OK;
 }
 
+static size_t zr_utf8_decode_one(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
+  if (!s || !out || !out_len || len == 0u) {
+    return 0u;
+  }
+
+  const uint8_t b0 = s[0];
+  if (b0 < 0x80u) {
+    out[0] = b0;
+    *out_len = 1u;
+    return 1u;
+  }
+
+  /* 2-byte */
+  if ((b0 & 0xE0u) == 0xC0u) {
+    if (len < 2u) {
+      goto invalid;
+    }
+    const uint8_t b1 = s[1];
+    if ((b1 & 0xC0u) != 0x80u) {
+      goto invalid;
+    }
+    /* Reject overlong encodings (U+0000..U+007F). */
+    if (b0 < 0xC2u) {
+      goto invalid;
+    }
+    out[0] = b0;
+    out[1] = b1;
+    *out_len = 2u;
+    return 2u;
+  }
+
+  /* 3-byte */
+  if ((b0 & 0xF0u) == 0xE0u) {
+    if (len < 3u) {
+      goto invalid;
+    }
+    const uint8_t b1 = s[1];
+    const uint8_t b2 = s[2];
+    if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u) {
+      goto invalid;
+    }
+    if (b0 == 0xE0u && b1 < 0xA0u) {
+      goto invalid;
+    }
+    /* UTF-16 surrogate halves */
+    if (b0 == 0xEDu && b1 >= 0xA0u) {
+      goto invalid;
+    }
+    out[0] = b0;
+    out[1] = b1;
+    out[2] = b2;
+    *out_len = 3u;
+    return 3u;
+  }
+
+  /* 4-byte */
+  if ((b0 & 0xF8u) == 0xF0u) {
+    if (len < 4u) {
+      goto invalid;
+    }
+    const uint8_t b1 = s[1];
+    const uint8_t b2 = s[2];
+    const uint8_t b3 = s[3];
+    if ((b1 & 0xC0u) != 0x80u || (b2 & 0xC0u) != 0x80u || (b3 & 0xC0u) != 0x80u) {
+      goto invalid;
+    }
+    if (b0 == 0xF0u && b1 < 0x90u) {
+      goto invalid;
+    }
+    if (b0 == 0xF4u && b1 > 0x8Fu) {
+      goto invalid;
+    }
+    if (b0 > 0xF4u) {
+      goto invalid;
+    }
+    out[0] = b0;
+    out[1] = b1;
+    out[2] = b2;
+    out[3] = b3;
+    *out_len = 4u;
+    return 4u;
+  }
+
+invalid:
+  /* Invalid UTF-8 policy: emit U+FFFD and consume 1 byte. */
+  out[0] = 0xEFu;
+  out[1] = 0xBFu;
+  out[2] = 0xBDu;
+  *out_len = 3u;
+  return 1u;
+}
+
 zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8_t* bytes,
                                   size_t len, const zr_style_t* style, zr_fb_rect_i32_t clip) {
   if (!fb || !bytes || !style) {
@@ -165,29 +257,28 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8
   clip = zr_fb_clip_intersect(clip, full);
 
   int32_t cx = x;
-  for (size_t i = 0u; i < len; i++) {
-    if (cx < 0 || y < 0) {
-      cx++;
-      continue;
+  size_t i = 0u;
+  while (i < len) {
+    uint8_t glyph[4] = {0u, 0u, 0u, 0u};
+    uint8_t glyph_len = 0u;
+    const size_t adv = zr_utf8_decode_one(bytes + i, len - i, glyph, &glyph_len);
+    if (adv == 0u) {
+      break;
     }
-    if (cx >= (int32_t)fb->cols || y >= (int32_t)fb->rows) {
-      cx++;
-      continue;
+
+    if (cx >= 0 && y >= 0 && cx < (int32_t)fb->cols && y < (int32_t)fb->rows && zr_fb_in_clip(cx, y, clip)) {
+      zr_fb_cell_t* c = zr_fb_cell_at(fb, (uint32_t)cx, (uint32_t)y);
+      if (c) {
+        memset(c->glyph, 0, sizeof(c->glyph));
+        memcpy(c->glyph, glyph, (size_t)glyph_len);
+        c->glyph_len = glyph_len;
+        c->flags = 0u;
+        c->style = *style;
+      }
     }
-    if (!zr_fb_in_clip(cx, y, clip)) {
-      cx++;
-      continue;
-    }
-    zr_fb_cell_t* c = zr_fb_cell_at(fb, (uint32_t)cx, (uint32_t)y);
-    if (c) {
-      memset(c->glyph, 0, sizeof(c->glyph));
-      c->glyph[0] = bytes[i];
-      c->glyph_len = 1u;
-      c->flags = 0u;
-      c->style = *style;
-    }
+
+    i += adv;
     cx++;
   }
   return ZR_OK;
 }
-

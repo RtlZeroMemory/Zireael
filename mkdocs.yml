@@ -31,6 +31,15 @@ nav:
       - Ownership & Buffers: concepts/ownership.md
       - Error Model: concepts/errors.md
       - Determinism Pins: concepts/determinism.md
+  - Modules:
+      - Config & Versioning: modules/config-and-versioning.md
+      - Drawlist: modules/drawlist.md
+      - Framebuffer: modules/framebuffer.md
+      - Diff Renderer: modules/diff-renderer.md
+      - Events: modules/events.md
+      - Unicode Text: modules/unicode-text.md
+      - Platform Interface: modules/platform-interface.md
+      - Diagnostics Overlay: modules/diagnostics-overlay.md
   - ABI / Formats:
       - Overview: abi/overview.md
       - Drawlist v1: abi/drawlist-v1.md

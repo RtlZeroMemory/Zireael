@@ -121,6 +121,29 @@ cmake --build --preset windows-clangcl-debug
 ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 ```
 
+## Go PoC Demo — Codex-like Stress TUI
+
+This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
+
+- scenario picker (menu)
+- Codex/Claude-style “Thinking” screen
+- high-stress scenarios (including “Element Storm” with tens/hundreds of thousands of elements per frame)
+- performance overlay (FPS, Zireael dirty/bytes stats, Go RAM stats)
+
+Run (one command; downloads a local Go toolchain automatically if `go` is missing):
+
+```bash
+bash scripts/poc-go-codex-tui.sh
+```
+
+Benchmark example (10 seconds, Element Storm):
+
+```bash
+bash scripts/poc-go-codex-tui.sh -scenario storm -bench-seconds 10 -storm-n 150000 -phantom 200000
+```
+
+Source: `poc/go-codex-tui/`
+
 ## Target Audience
 
 Zireael is for **framework authors**, not application developers. Use it if you're building a TUI framework and need a stable C ABI for terminal rendering.

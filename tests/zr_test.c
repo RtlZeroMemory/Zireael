@@ -91,9 +91,13 @@ void zr_test_failf(zr_test_ctx_t* ctx, const char* file, int line, const char* f
     ctx->failed = 1;
   }
   fprintf(stderr, "FAIL: %s:%d: ", file ? file : "?", line);
+  if (!fmt) {
+    fputs("(null)\n", stderr);
+    return;
+  }
   va_list ap;
   va_start(ap, fmt);
-  (void)vfprintf(stderr, fmt ? fmt : "(null)", ap);
+  (void)vfprintf(stderr, fmt, ap);
   va_end(ap);
   fputc('\n', stderr);
 }
@@ -241,4 +245,3 @@ int zr_test_run_all(int argc, char** argv) {
   fprintf(stdout, "SUMMARY: ran=%d failed=%d skipped=%d\n", ran, failed, skipped);
   return failed ? 1 : 0;
 }
-

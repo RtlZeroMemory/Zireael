@@ -51,6 +51,7 @@ zr_result_t plat_get_caps(plat_t* plat, plat_caps_t* out_caps) {
   out_caps->_pad[0] = 0u;
   out_caps->_pad[1] = 0u;
   out_caps->_pad[2] = 0u;
+  out_caps->sgr_attrs_supported = 0xFFFFFFFFu;
   return ZR_ERR_UNSUPPORTED;
 }
 

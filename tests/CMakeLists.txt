@@ -5,6 +5,7 @@ add_executable(zireael_unit_tests
   unit/test_arena.c
   unit/test_bytes.c
   unit/test_checked.c
+  unit/test_diff_spans.c
   unit/test_drawlist_execute.c
   unit/test_drawlist_validate.c
   unit/test_limits.c
@@ -12,6 +13,7 @@ add_executable(zireael_unit_tests
   unit/test_string_builder.c
   unit/test_vec.c
   golden/zr_golden.c
+  golden/golden_diff_renderer.c
   golden/golden_runner_smoke.c
 )
 

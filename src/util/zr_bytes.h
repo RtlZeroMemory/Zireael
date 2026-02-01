@@ -100,6 +100,9 @@ static inline bool zr_byte_reader_read_bytes(zr_byte_reader_t* r, void* out, siz
   if (!r || (!out && n != 0u)) {
     return false;
   }
+  if (!r->bytes && n != 0u) {
+    return false;
+  }
   if (zr_byte_reader_remaining(r) < n) {
     return false;
   }

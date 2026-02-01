@@ -1,0 +1,6 @@
+# fixture_id: zr_bytes_smoke_00
+# purpose: golden harness smoke fixture (byte-for-byte compare only)
+# notes:
+#   - This fixture exists to validate deterministic missing/mismatch diagnostics.
+#   - It does not yet exercise engine output semantics.
+

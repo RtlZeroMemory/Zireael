@@ -7,7 +7,11 @@
     - poll()-based wait that can be interrupted by a self-pipe wake (threads + signals)
 */
 
-#ifndef _POSIX_C_SOURCE
+#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#define _DARWIN_C_SOURCE 1
+#endif
+
+#if !defined(_POSIX_C_SOURCE) && !defined(__APPLE__)
 #define _POSIX_C_SOURCE 200809L
 #endif
 

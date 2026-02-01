@@ -24,6 +24,8 @@ nav:
   - Getting Started:
       - Build & Test: getting-started/build-and-test.md
       - Minimal Example: getting-started/minimal-example.md
+      - CMake Integration: getting-started/cmake-integration.md
+      - Testing: getting-started/testing.md
   - Concepts:
       - Engine Model: concepts/engine-model.md
       - Ownership & Buffers: concepts/ownership.md

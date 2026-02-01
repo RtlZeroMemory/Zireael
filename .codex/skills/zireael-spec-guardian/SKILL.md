@@ -1,6 +1,6 @@
 ---
 name: zireael-spec-guardian
-description: Enforce MASTERDOC.MD constraints and repo guardrails for any Zireael engine change.
+description: Enforce Zireael’s locked docs, boundary rules, and safety guardrails for any change.
 metadata:
   short-description: Spec + boundary compliance checklist
 ---
@@ -15,8 +15,16 @@ Use this skill at the start of **any** task in this repo, especially when:
 
 ## Source of truth
 
-- Treat `MASTERDOC.MD` as authoritative (locked).
-- Internal architecture docs are in `docs/` (gitignored); use `docs/00_INDEX.md` for navigation if present.
+- GitHub-facing overview: `README.md`
+- Normative internal specs (implementation rules and module docs): `docs/00_INDEX.md` and `docs/**`
+
+Key locked docs:
+
+- `docs/SAFETY_RULESET.md`
+- `docs/LIBC_POLICY.md`
+- `docs/ERROR_CODES_CATALOG.md`
+- `docs/VERSION_PINS.md`
+- `docs/GOLDEN_FIXTURE_FORMAT.md`
 
 ## Hard constraints (must not violate)
 
@@ -29,29 +37,32 @@ Use this skill at the start of **any** task in this repo, especially when:
   - engine owns all allocations it makes; caller never frees engine memory
   - caller provides drawlist bytes and event output buffers
   - engine must not return heap pointers requiring caller free
-- **Error model:** `0 = OK`, negative error codes for failures.
+- **Error model:** `0 = OK`, negative error codes for failures (`ZR_ERR_*`).
 - **UB avoidance:** no type-punning through casts; drawlist parsing uses safe unaligned reads via `memcpy`; validate all bounds.
 - **Hot paths:** avoid per-frame heap churn; use arenas; single buffered flush per `engine_present()`.
 
 ## Pre-flight checklist (before coding)
 
-1. Identify which MASTERDOC sections apply (ABI, drawlist, events, unicode, diff, platform).
-2. Identify affected modules and verify dependency direction:
+1. Identify affected docs/modules (`docs/00_INDEX.md` reading order).
+2. Verify dependency direction:
    - util → unicode → core → platform interface → platform backends
-3. Decide caps/limits impacted (drawlist size, cmd count, event queue depth, output bytes per frame, arena caps).
-4. Decide test impact:
+3. Verify version pins and defaults (`docs/VERSION_PINS.md`), especially:
+   - Unicode version + width policy
+   - drawlist/event batch versions
+4. Decide caps/limits impacted (`zr_limits_t`) and the expected failure code (`ZR_ERR_LIMIT` vs `ZR_ERR_OOM`).
+5. Decide test impact:
    - unit vs golden vs fuzz vs integration
-   - determinism constraints (no wall clock / locale dependencies in unit tests)
+   - determinism constraints (no locale/wall-clock in unit tests)
 
 ## Review checklist (before finalizing)
 
 - No OS headers added to `src/core|src/unicode|src/util`.
 - No platform `#ifdef` leaked into core/unicode/util.
 - No API returns pointers requiring caller free; all outputs use caller-provided buffers/structs.
+- Error returns are consistent with `docs/ERROR_CODES_CATALOG.md` (and “no partial effects” is preserved unless explicitly allowed).
 - Parser paths (drawlist, input, UTF-8) have:
   - bounds checks
   - deterministic error returns
   - fuzz target considerations
 - Diff output remains single-buffer flush per present; golden outputs updated intentionally if changed.
-- `docs/` remains gitignored and uncommitted.
-
+- If behavior/ABI/formats/invariants change, update the corresponding `docs/**` in the same change.

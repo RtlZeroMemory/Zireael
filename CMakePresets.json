@@ -128,11 +128,41 @@
   ],
   "testPresets": [
     {
-      "name": "ctest",
+      "name": "ctest-base",
+      "hidden": true,
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "windows-clangcl-debug",
+      "inherits": "ctest-base",
+      "configurePreset": "windows-clangcl-debug"
+    },
+    {
+      "name": "windows-clangcl-release",
+      "inherits": "ctest-base",
+      "configurePreset": "windows-clangcl-release"
+    },
+    {
+      "name": "posix-clang-debug",
+      "inherits": "ctest-base",
+      "configurePreset": "posix-clang-debug"
+    },
+    {
+      "name": "posix-clang-release",
+      "inherits": "ctest-base",
+      "configurePreset": "posix-clang-release"
+    },
+    {
+      "name": "posix-gcc-debug",
+      "inherits": "ctest-base",
+      "configurePreset": "posix-gcc-debug"
+    },
+    {
+      "name": "posix-gcc-release",
+      "inherits": "ctest-base",
+      "configurePreset": "posix-gcc-release"
     }
   ]
 }
-

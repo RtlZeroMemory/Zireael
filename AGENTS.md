@@ -2,27 +2,26 @@
 
 This repository is the **C core engine only**. A TypeScript wrapper/product will live in a separate repo later.
 
-## Single source of truth (locked)
+## Source of truth (locked)
 
-- `MASTERDOC.MD` — **must** be treated as authoritative for requirements, ABI, portability rules, ownership model, and testing intent.
+- `README.md` — GitHub-facing overview (architecture, boundary rules, build/test intent).
+- `docs/00_INDEX.md` — internal reading path and normative module specs under `docs/`.
 
-If any file, comment, or suggestion conflicts with `MASTERDOC.MD`, defer to `MASTERDOC.MD`.
+If any file, comment, or suggestion conflicts with the normative docs set (`docs/`), defer to `docs/`.
 
 ## Internal docs (not committed)
 
-Implementation-ready internal docs live under `docs/` and are **gitignored**. Use:
+Implementation-ready internal docs live under `docs/` and are **gitignored**. Start here:
 
-- `docs/00_INDEX.md` (reading order + TOC)
-- `docs/01_OVERVIEW.md` (high-level architecture + data flow)
-- `docs/02_REPO_LAYOUT.md` (module boundaries + `#ifdef` rules)
-- `docs/04_CODE_STANDARDS.md` (Safe C Rule Set + stdlib whitelist + comment/doc rules)
-- `docs/05_ALLOCATOR_OWNERSHIP.md` (locked ownership + arenas)
-- `docs/06_EVENT_SYSTEM.md` (normalized events + packed event ABI)
-- `docs/07_DRAWLIST_FORMAT.md` (binary drawlist ABI)
-- `docs/09_UNICODE_TEXT.md` (Unicode decisions + primitives)
-- `docs/10_DIFF_RENDERER.md` (diff pipeline + golden hooks)
-- `docs/11_PLATFORM_LAYER.md` (POSIX/Win32 backend notes)
-- `docs/14_MODULE_CATALOG.md` (planned files/modules for epics/tasks)
+- `docs/00_INDEX.md` (reading path)
+- `docs/SAFETY_RULESET.md` (LOCKED Safe C rulebook)
+- `docs/LIBC_POLICY.md` (LOCKED libc allow/forbid policy)
+- `docs/ERROR_CODES_CATALOG.md` (LOCKED single error/result catalog)
+- `docs/VERSION_PINS.md` (LOCKED version/policy pins for determinism)
+- `docs/GOLDEN_FIXTURE_FORMAT.md` (LOCKED golden fixture format, byte-for-byte comparison)
+- `docs/CODE_STANDARDS.md`, `docs/REPO_LAYOUT.md`, `docs/BUILD_TOOLCHAINS_AND_CMAKE.md` (normative engineering practices)
+- `docs/EPIC_PLAN.md` (EPIC/task-ready plan)
+- `docs/modules/` (full module architecture specs)
 
 Do **not** stage/commit anything under `docs/`.
 
@@ -38,7 +37,7 @@ Do **not** stage/commit anything under `docs/`.
   - caller provides drawlist bytes and event output buffers
 - Error model: `0 = OK`, negative codes for failures.
 - Hot paths: no per-frame heap churn; buffer output; single flush per present.
-- Safe C: follow `docs/04_CODE_STANDARDS.md` (MUST/MUST NOT rules + stdlib whitelist).
+- Safe C: follow `docs/SAFETY_RULESET.md` and `docs/LIBC_POLICY.md`.
 - Documentation + comments:
   - every `.c`/`.h` file MUST have a brief top-of-file “what/why” header comment
   - code changes that affect behavior/ABI/formats/invariants MUST update internal docs in the same change
@@ -70,7 +69,8 @@ Recommended starting skill for any task: `$zireael-spec-guardian`.
 
 ## Quick navigation
 
-- Specs: `MASTERDOC.MD`
+- Overview: `README.md`
+- Internal docs index: `docs/00_INDEX.md`
 - Skills index: `SKILLS.md`
 - Build: `CMakeLists.txt`, `CMakePresets.json`
 - Core modules: `src/core/`, `src/unicode/`, `src/util/`

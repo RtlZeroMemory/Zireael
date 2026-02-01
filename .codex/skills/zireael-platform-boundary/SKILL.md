@@ -38,6 +38,13 @@ Recommended interface categories (see internal docs if available):
 - wait/wake: block until input or wake event, wake from other threads
 - resize/caps: get size, capabilities (color/mouse/paste)
 
+Primary specs:
+
+- `docs/REPO_LAYOUT.md` (boundary rules and `#ifdef` policy)
+- `docs/modules/PLATFORM_INTERFACE.md` (core-facing interface)
+- `docs/modules/PLATFORM_POSIX_BACKEND.md` (POSIX backend behavior)
+- `docs/modules/PLATFORM_WIN32_BACKEND.md` (Win32 backend behavior)
+
 ## Backend notes (high level)
 
 POSIX:
@@ -59,4 +66,3 @@ Platform correctness is validated via integration tests (not pure unit tests):
 
 - POSIX: PTY-based tests (headless)
 - Windows: ConPTY-based tests where possible
-

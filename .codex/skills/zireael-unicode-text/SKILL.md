@@ -14,14 +14,21 @@ Use this skill when implementing or modifying anything in `src/unicode/` or Unic
 - width measurement policy (CJK/emoji/VS/ZWJ)
 - wrapping and tab expansion
 
-## Requirements (from MASTERDOC.MD)
+## Requirements (locked docs)
 
-- Do not “DIY from vibes”: pick a Unicode helper approach early and document it.
-- Define and enforce a width policy everywhere.
-- Provide deterministic primitives:
-  - UTF-8 decode (invalid sequences deterministic)
-  - grapheme-safe ops (no half glyph)
-  - column width measurement + wrapping
+Primary spec:
+
+- `docs/modules/UNICODE_UTF8_GRAPHEME_WIDTH_WRAP.md`
+
+Pinned policy summary:
+
+- `docs/VERSION_PINS.md` (Unicode 15.1.0, default emoji-wide policy, invalid UTF-8 policy)
+
+Must provide deterministic primitives:
+
+- UTF-8 decode (invalid sequences deterministic)
+- grapheme-safe ops (no half glyph)
+- column width measurement + wrapping
 
 ## Implementation guidance
 
@@ -38,4 +45,3 @@ Add/maintain tests that pin the chosen policy/version:
 
 - unit: UTF-8 valid/invalid cases, width edge cases, grapheme boundaries, wrapping positions, tab expansion
 - fuzz: UTF-8 decoder fuzz target (no crash/hang; deterministic behavior)
-

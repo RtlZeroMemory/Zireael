@@ -14,7 +14,14 @@ Use this skill when working on:
 - diff renderer and terminal output emission
 - scrolling acceleration (blit/terminal scroll)
 
-## Requirements (from MASTERDOC.MD)
+## Requirements (locked docs)
+
+Primary specs:
+
+- `docs/modules/FRAMEBUFFER_MODEL_AND_OPS.md`
+- `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
+- `docs/modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md`
+- `docs/GOLDEN_FIXTURE_FORMAT.md` (canonical golden storage/comparison)
 
 - Offscreen framebuffer, double-buffered (prev/next).
 - Cell model includes Unicode grapheme-safe representation, colors, and attrs.
@@ -42,4 +49,3 @@ Golden fixtures must pin:
 - capabilities (truecolor vs 256 vs basic)
 - width policy mode
 - initial cursor/style assumptions
-

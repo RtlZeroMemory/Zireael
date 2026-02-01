@@ -48,6 +48,13 @@ typedef struct plat_caps_t {
   uint8_t           supports_focus_events;
   uint8_t           supports_osc52;
   uint8_t           _pad[3];
+
+  /*
+    sgr_attrs_supported:
+      - Bitmask of supported zr_style_t attrs for SGR emission.
+      - Diff renderer must AND desired attrs with this mask deterministically.
+  */
+  uint32_t          sgr_attrs_supported;
 } plat_caps_t;
 
 /*
@@ -94,4 +101,3 @@ zr_result_t plat_wake(plat_t* plat);
 uint64_t plat_now_ms(void);
 
 #endif /* ZR_PLATFORM_ZR_PLATFORM_H_INCLUDED */
-

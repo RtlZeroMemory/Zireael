@@ -9,9 +9,9 @@ This repository is the **C core engine only**. A TypeScript wrapper/product will
 
 If any file, comment, or suggestion conflicts with the normative docs set (`docs/`), defer to `docs/`.
 
-## Internal docs (not committed)
+## Docs (normative)
 
-Implementation-ready internal docs live under `docs/` and are **gitignored**. Start here:
+Implementation-ready internal docs live under `docs/` and are checked in. Start here:
 
 - `docs/00_INDEX.md` (reading path)
 - `docs/SAFETY_RULESET.md` (LOCKED Safe C rulebook)
@@ -19,12 +19,9 @@ Implementation-ready internal docs live under `docs/` and are **gitignored**. St
 - `docs/ERROR_CODES_CATALOG.md` (LOCKED single error/result catalog)
 - `docs/VERSION_PINS.md` (LOCKED version/policy pins for determinism)
 - `docs/GOLDEN_FIXTURE_FORMAT.md` (LOCKED golden fixture format, byte-for-byte comparison)
-- `docs/CODE_STANDARDS.md` (normative engineering practices; checked in)
-- `docs/REPO_LAYOUT.md`, `docs/BUILD_TOOLCHAINS_AND_CMAKE.md` (normative engineering practices; local-only)
+- `docs/CODE_STANDARDS.md`, `docs/REPO_LAYOUT.md`, `docs/BUILD_TOOLCHAINS_AND_CMAKE.md` (normative engineering practices)
 - `docs/EPIC_PLAN.md` (EPIC/task-ready plan)
 - `docs/modules/` (full module architecture specs)
-
-Do **not** stage/commit internal docs under `docs/` (the only checked-in file there is `docs/CODE_STANDARDS.md`).
 
 ## Non-negotiables (quick checklist)
 

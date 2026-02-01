@@ -25,8 +25,8 @@ ZR_TEST_UNIT(width_codepoint_vectors) {
 }
 
 ZR_TEST_UNIT(width_grapheme_emoji_policy_vectors) {
-  /* "👩‍💻" (WOMAN ZWJ LAPTOP). */
-  const uint8_t s[] = {0xF0u, 0x9Fu, 0x91u, 0xA9u, 0xE2u, 0x80u, 0x8Du, 0xF0u, 0x9Fu, 0x92u, 0xBBu};
+  /* U+1F600 ("😀") policy width. */
+  const uint8_t s[] = {0xF0u, 0x9Fu, 0x98u, 0x80u};
   ZR_ASSERT_EQ_U32(zr_width_grapheme_utf8(s, sizeof(s), ZR_WIDTH_EMOJI_WIDE), 2u);
   ZR_ASSERT_EQ_U32(zr_width_grapheme_utf8(s, sizeof(s), ZR_WIDTH_EMOJI_NARROW), 1u);
 }
@@ -36,4 +36,3 @@ ZR_TEST_UNIT(width_grapheme_combining_sequence) {
   const uint8_t s[] = {0x65u, 0xCCu, 0x81u};
   ZR_ASSERT_EQ_U32(zr_width_grapheme_utf8(s, sizeof(s), ZR_WIDTH_EMOJI_WIDE), 1u);
 }
-

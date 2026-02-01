@@ -71,7 +71,7 @@ set(ZIREAEL_SOURCES
 
 if (WIN32)
     list(APPEND ZIREAEL_SOURCES
-            src/platform/win32/zr_plat_win32_stub.c
+            src/platform/win32/zr_plat_win32.c
     )
 else ()
     list(APPEND ZIREAEL_SOURCES

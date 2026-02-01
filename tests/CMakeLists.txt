@@ -40,13 +40,23 @@ add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)
 
 if (WIN32)
-    add_executable(zireael_integration_tests
-            integration/zr_integration_smoke.c
+    add_executable(zireael_integration_win32_conpty_rawmode
+            integration/win32_conpty_rawmode.c
+            ${PROJECT_SOURCE_DIR}/src/platform/win32/zr_win32_conpty_test.c
     )
-    target_link_libraries(zireael_integration_tests PRIVATE zireael_build_settings)
-    target_link_libraries(zireael_integration_tests PRIVATE zireael)
-    add_test(NAME zireael.integration COMMAND zireael_integration_tests)
-    set_tests_properties(zireael.integration PROPERTIES SKIP_RETURN_CODE 77)
+    target_link_libraries(zireael_integration_win32_conpty_rawmode PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_win32_conpty_rawmode PRIVATE zireael)
+    add_test(NAME zireael.integration.win32.conpty.rawmode COMMAND zireael_integration_win32_conpty_rawmode)
+    set_tests_properties(zireael.integration.win32.conpty.rawmode PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+    add_executable(zireael_integration_win32_conpty_wake
+            integration/win32_conpty_wake.c
+            ${PROJECT_SOURCE_DIR}/src/platform/win32/zr_win32_conpty_test.c
+    )
+    target_link_libraries(zireael_integration_win32_conpty_wake PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_win32_conpty_wake PRIVATE zireael)
+    add_test(NAME zireael.integration.win32.conpty.wake COMMAND zireael_integration_win32_conpty_wake)
+    set_tests_properties(zireael.integration.win32.conpty.wake PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
 else ()
     find_package(Threads REQUIRED)
 

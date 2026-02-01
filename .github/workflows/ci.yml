@@ -18,6 +18,18 @@ jobs:
       - name: Run guardrails
         run: bash scripts/guardrails.sh
 
+  clang-tidy:
+    name: linux / clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang clang-tidy cmake ninja-build python3
+      - name: Configure
+        run: cmake --preset posix-clang-debug -DZIREAEL_WARNINGS_AS_ERRORS=ON -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: clang-tidy
+        run: python3 scripts/run_clang_tidy.py --build-dir out/build/posix-clang-debug
+
   linux-clang-debug:
     name: linux / clang / Debug
     runs-on: ubuntu-latest

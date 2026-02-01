@@ -207,11 +207,20 @@ cmake --build --preset windows-clangcl-debug
 cmake --build --preset posix-clang-debug
 ```
 
+Guardrails (platform boundary + libc policy):
+
+```text
+bash scripts/guardrails.sh
+```
+
 CMake options:
 
 - `ZIREAEL_BUILD_SHARED` (default: OFF)
 - `ZIREAEL_BUILD_EXAMPLES` (default: ON)
 - `ZIREAEL_BUILD_TESTS` (default: ON)
+- `ZIREAEL_WARNINGS_AS_ERRORS` (default: OFF; CI)
+- `ZIREAEL_SANITIZE_ADDRESS` (default: OFF; Clang/GCC only)
+- `ZIREAEL_SANITIZE_UNDEFINED` (default: OFF; Clang/GCC only)
 
 Embedding as a subproject:
 

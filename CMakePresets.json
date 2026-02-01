@@ -58,6 +58,22 @@
       }
     },
     {
+      "name": "posix-clang-asan-ubsan",
+      "displayName": "POSIX (clang) Debug + ASan + UBSan",
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "ZIREAEL_SANITIZE_ADDRESS": "ON",
+        "ZIREAEL_SANITIZE_UNDEFINED": "ON"
+      }
+    },
+    {
       "name": "posix-clang-release",
       "displayName": "POSIX (clang) Release",
       "inherits": "base",
@@ -114,6 +130,10 @@
       "configurePreset": "posix-clang-debug"
     },
     {
+      "name": "posix-clang-asan-ubsan",
+      "configurePreset": "posix-clang-asan-ubsan"
+    },
+    {
       "name": "posix-clang-release",
       "configurePreset": "posix-clang-release"
     },
@@ -148,6 +168,11 @@
       "name": "posix-clang-debug",
       "inherits": "ctest-base",
       "configurePreset": "posix-clang-debug"
+    },
+    {
+      "name": "posix-clang-asan-ubsan",
+      "inherits": "ctest-base",
+      "configurePreset": "posix-clang-asan-ubsan"
     },
     {
       "name": "posix-clang-release",

@@ -5,6 +5,47 @@ project(Zireael LANGUAGES C)
 option(ZIREAEL_BUILD_SHARED "Build shared library (optional)" OFF)
 option(ZIREAEL_BUILD_EXAMPLES "Build examples" ON)
 option(ZIREAEL_BUILD_TESTS "Build tests" ON)
+option(ZIREAEL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors (CI)" OFF)
+option(ZIREAEL_SANITIZE_ADDRESS "Enable AddressSanitizer (Clang/GCC only)" OFF)
+option(ZIREAEL_SANITIZE_UNDEFINED "Enable UndefinedBehaviorSanitizer (Clang/GCC only)" OFF)
+
+add_library(zireael_build_settings INTERFACE)
+
+target_compile_options(zireael_build_settings INTERFACE
+  $<$<C_COMPILER_ID:MSVC>:/W4>
+  $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
+)
+
+if (ZIREAEL_WARNINGS_AS_ERRORS)
+  target_compile_options(zireael_build_settings INTERFACE
+    $<$<C_COMPILER_ID:MSVC>:/WX>
+    $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Werror>
+  )
+endif ()
+
+if (ZIREAEL_SANITIZE_ADDRESS OR ZIREAEL_SANITIZE_UNDEFINED)
+  if (MSVC)
+    message(FATAL_ERROR "ZIREAEL_SANITIZE_* is not supported with MSVC/clang-cl.")
+  endif ()
+
+  set(_zr_sanitize_list "")
+  if (ZIREAEL_SANITIZE_ADDRESS)
+    list(APPEND _zr_sanitize_list "address")
+  endif ()
+  if (ZIREAEL_SANITIZE_UNDEFINED)
+    list(APPEND _zr_sanitize_list "undefined")
+  endif ()
+  string(JOIN "," _zr_sanitize_flags ${_zr_sanitize_list})
+
+  target_compile_options(zireael_build_settings INTERFACE
+    -fno-omit-frame-pointer
+    -fno-sanitize-recover=all
+    -fsanitize=${_zr_sanitize_flags}
+  )
+  target_link_options(zireael_build_settings INTERFACE
+    -fsanitize=${_zr_sanitize_flags}
+  )
+endif ()
 
 add_library(zireael STATIC
   src/core/zr_placeholder.c
@@ -16,6 +57,8 @@ set_target_properties(zireael PROPERTIES
   C_STANDARD_REQUIRED YES
   C_EXTENSIONS NO
 )
+
+target_link_libraries(zireael PRIVATE zireael_build_settings)
 
 target_include_directories(zireael PUBLIC
   ${PROJECT_SOURCE_DIR}/src
@@ -34,6 +77,8 @@ if (ZIREAEL_BUILD_SHARED)
     C_EXTENSIONS NO
   )
 
+  target_link_libraries(zireael_shared PRIVATE zireael_build_settings)
+
   target_include_directories(zireael_shared PUBLIC
     ${PROJECT_SOURCE_DIR}/src
   )
@@ -43,6 +88,7 @@ if (ZIREAEL_BUILD_EXAMPLES)
   add_executable(zireael_example
     examples/example.c
   )
+  target_link_libraries(zireael_example PRIVATE zireael_build_settings)
   target_link_libraries(zireael_example PRIVATE zireael)
 endif ()
 
@@ -50,4 +96,3 @@ if (ZIREAEL_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
 endif ()
-

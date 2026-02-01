@@ -1,0 +1,94 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  guardrails:
+    name: guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Run guardrails
+        run: bash scripts/guardrails.sh
+
+  linux-clang-debug:
+    name: linux / clang / Debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: cmake --preset posix-clang-debug -DZIREAEL_WARNINGS_AS_ERRORS=ON -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset posix-clang-debug
+      - name: Test
+        run: ctest --test-dir out/build/posix-clang-debug --output-on-failure
+
+  linux-gcc-debug:
+    name: linux / gcc / Debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc cmake ninja-build
+      - name: Configure
+        run: cmake --preset posix-gcc-debug -DZIREAEL_WARNINGS_AS_ERRORS=ON -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset posix-gcc-debug
+      - name: Test
+        run: ctest --test-dir out/build/posix-gcc-debug --output-on-failure
+
+  linux-clang-asan-ubsan:
+    name: linux / clang / Debug + ASan+UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: cmake --preset posix-clang-asan-ubsan -DZIREAEL_WARNINGS_AS_ERRORS=ON -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset posix-clang-asan-ubsan
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --test-dir out/build/posix-clang-asan-ubsan --output-on-failure
+
+  macos-appleclang-debug:
+    name: macos / AppleClang / Debug
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install ninja
+      - name: Configure
+        run: cmake --preset posix-clang-debug -DZIREAEL_WARNINGS_AS_ERRORS=ON -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset posix-clang-debug
+      - name: Test
+        run: ctest --test-dir out/build/posix-clang-debug --output-on-failure
+
+  windows-clangcl-debug:
+    name: windows / clang-cl / Debug
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: choco install ninja --no-progress -y
+      - name: MSVC dev cmd
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure
+        run: cmake --preset windows-clangcl-debug -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset windows-clangcl-debug
+      - name: Test
+        run: ctest --test-dir out/build/windows-clangcl-debug --output-on-failure

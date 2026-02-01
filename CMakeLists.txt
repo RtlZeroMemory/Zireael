@@ -56,6 +56,11 @@ set(ZIREAEL_SOURCES
   src/core/zr_input_parser.c
   src/core/zr_placeholder.c
   src/platform/zr_platform_select.c
+  src/unicode/zr_grapheme.c
+  src/unicode/zr_unicode_data.c
+  src/unicode/zr_utf8.c
+  src/unicode/zr_width.c
+  src/unicode/zr_wrap.c
   src/util/zr_arena.c
   src/util/zr_caps.c
   src/util/zr_log.c

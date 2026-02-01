@@ -13,6 +13,14 @@ If any file, comment, or suggestion conflicts with `MASTERDOC.MD`, defer to `MAS
 Implementation-ready internal docs live under `docs/` and are **gitignored**. Use:
 
 - `docs/00_INDEX.md` (reading order + TOC)
+- `docs/01_OVERVIEW.md` (high-level architecture + data flow)
+- `docs/02_REPO_LAYOUT.md` (module boundaries + `#ifdef` rules)
+- `docs/05_ALLOCATOR_OWNERSHIP.md` (locked ownership + arenas)
+- `docs/06_EVENT_SYSTEM.md` (normalized events + packed event ABI)
+- `docs/07_DRAWLIST_FORMAT.md` (binary drawlist ABI)
+- `docs/09_UNICODE_TEXT.md` (Unicode decisions + primitives)
+- `docs/10_DIFF_RENDERER.md` (diff pipeline + golden hooks)
+- `docs/11_PLATFORM_LAYER.md` (POSIX/Win32 backend notes)
 
 Do **not** stage/commit anything under `docs/`.
 
@@ -53,3 +61,11 @@ This repo defines project skills under `.codex/skills/` (checked in).
 
 Recommended starting skill for any task: `$zireael-spec-guardian`.
 
+## Quick navigation
+
+- Specs: `MASTERDOC.MD`
+- Skills index: `SKILLS.md`
+- Build: `CMakeLists.txt`, `CMakePresets.json`
+- Core modules: `src/core/`, `src/unicode/`, `src/util/`
+- Platform backends: `src/platform/win32/`, `src/platform/posix/`
+- Tests: `tests/unit/`, `tests/golden/`, `tests/fuzz/`, `tests/integration/`

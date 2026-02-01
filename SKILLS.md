@@ -2,12 +2,12 @@
 
 This repository includes **repo-scoped** Codex skills under `.codex/skills/`.
 
-Per OpenAI’s agent skills format, each skill is a folder containing a required `SKILL.md` with YAML front matter (`name`, `description`) plus optional supporting files. Codex loads the skill name/description at startup and reads the full instructions only when invoked. citeturn0search0turn0search3
+Per the Codex agent skills format, each skill is a folder containing a required `SKILL.md` with YAML front matter (`name`, `description`) plus optional supporting files. Codex loads the skill name/description at startup and reads the full instructions only when invoked.
 
 ## How to use
 
-- In Codex: type `$<skill-name>` (for example: `$zireael-spec-guardian`). citeturn0search2
-- Or use `/skills` to select an available skill. citeturn0search0
+- In Codex: type `$<skill-name>` (for example: `$zireael-spec-guardian`).
+- Or use `/skills` to select an available skill.
 
 ## Skills in this repo
 
@@ -17,4 +17,3 @@ Per OpenAI’s agent skills format, each skill is a folder containing a required
 - `$zireael-unicode-text` — UTF-8 decoding, grapheme segmentation, width policy, wrapping primitives, Unicode version pinning.
 - `$zireael-rendering-diff` — framebuffer model, drawlist execution semantics, diff renderer output minimization + golden hooks.
 - `$zireael-build-test-ci` — CMake/toolchains, CI matrix, sanitizers, unit/golden/fuzz/integration testing strategy.
-

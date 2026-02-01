@@ -1,14 +1,30 @@
-# Determinism pins
+# Determinism
 
-Zireael is designed to be deterministic across platforms and toolchains when:
+Zireael guarantees deterministic output across platforms and toolchains when:
 
-- inputs are the same (drawlists + input bytes)
-- caps/config are the same
-- pinned versions are the same
+- Inputs are identical (drawlists, input bytes)
+- Configuration is identical (limits, policies)
+- Version pins match
 
-Pins include:
+## Version Pins
 
-- engine ABI and binary format versions (`src/core/zr_version.h`)
-- Unicode data and policies (`src/unicode/zr_unicode_pins.h`)
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Engine ABI | 1.0.0 | API stability |
+| Drawlist format | v1 | Binary compatibility |
+| Event batch format | v1 | Binary compatibility |
+| Unicode data | 15.1.0 | Consistent text handling |
 
-See `docs/VERSION_PINS.md` for the normative pin set.
+## What This Enables
+
+- **Golden tests**: Compare byte-exact output across runs
+- **Replay debugging**: Record inputs, reproduce issues
+- **Cross-platform parity**: Same code, same behavior
+
+## Caveats
+
+Platform differences outside engine control:
+
+- Terminal capabilities vary (color depth, mouse support)
+- Timing depends on OS scheduler
+- User events (`engine_post_user_event`) have caller-defined ordering

@@ -22,21 +22,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Install doxygen
-        run: sudo apt-get update && sudo apt-get install -y doxygen
       - name: Install docs dependencies
         run: python3 -m pip install --upgrade pip && python3 -m pip install -r requirements-docs.txt
-      - name: Generate C API reference (Doxygen)
-        run: |
-          mkdir -p out/doxygen
-          doxygen Doxyfile
       - name: Build site
         run: mkdocs build --strict
-      - name: Bundle C API reference into site
-        run: |
-          rm -rf out/site/c-api
-          mkdir -p out/site/c-api
-          cp -R out/doxygen/html/* out/site/c-api/
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

@@ -14,13 +14,20 @@ static bool zr_grapheme_is_control(zr_gcb_class_t c) {
   return c == ZR_GCB_CONTROL || c == ZR_GCB_CR || c == ZR_GCB_LF;
 }
 
+static bool zr_grapheme_is_hangul_l(zr_gcb_class_t c) { return c == ZR_GCB_L; }
+static bool zr_grapheme_is_hangul_v(zr_gcb_class_t c) { return c == ZR_GCB_V; }
+static bool zr_grapheme_is_hangul_t(zr_gcb_class_t c) { return c == ZR_GCB_T; }
+static bool zr_grapheme_is_hangul_lv(zr_gcb_class_t c) { return c == ZR_GCB_LV; }
+static bool zr_grapheme_is_hangul_lvt(zr_gcb_class_t c) { return c == ZR_GCB_LVT; }
+
 static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_after_ep, uint32_t ri_run,
                                      zr_gcb_class_t next_class, bool next_is_ep) {
   /*
-    Implemented UAX #29 rules (minimal subset):
+    Implemented UAX #29 rules (Unicode 15.1.0, core set):
       - GB3: CR x LF
       - GB4/GB5: break around controls
-      - GB9: x Extend
+      - GB6/7/8: Hangul syllable sequences
+      - GB9/9a/9b/9c: x Extend / SpacingMark / Prepend x / x ZWJ
       - GB11: EP Extend* ZWJ x EP
       - GB12/GB13: RI pairs
       - otherwise: break
@@ -37,8 +44,36 @@ static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_af
     return true;
   }
 
+  /* GB6: L x (L|V|LV|LVT) */
+  if (zr_grapheme_is_hangul_l(prev_class) &&
+      (zr_grapheme_is_hangul_l(next_class) || zr_grapheme_is_hangul_v(next_class) || zr_grapheme_is_hangul_lv(next_class) ||
+       zr_grapheme_is_hangul_lvt(next_class))) {
+    return false;
+  }
+
+  /* GB7: (LV|V) x (V|T) */
+  if ((zr_grapheme_is_hangul_lv(prev_class) || zr_grapheme_is_hangul_v(prev_class)) &&
+      (zr_grapheme_is_hangul_v(next_class) || zr_grapheme_is_hangul_t(next_class))) {
+    return false;
+  }
+
+  /* GB8: (LVT|T) x T */
+  if ((zr_grapheme_is_hangul_lvt(prev_class) || zr_grapheme_is_hangul_t(prev_class)) && zr_grapheme_is_hangul_t(next_class)) {
+    return false;
+  }
+
   /* GB9: x Extend */
   if (next_class == ZR_GCB_EXTEND) {
+    return false;
+  }
+
+  /* GB9a: x SpacingMark */
+  if (next_class == ZR_GCB_SPACINGMARK) {
+    return false;
+  }
+
+  /* GB9b: Prepend x */
+  if (prev_class == ZR_GCB_PREPEND) {
     return false;
   }
 

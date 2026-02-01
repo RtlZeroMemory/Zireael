@@ -1,5 +1,10 @@
 # Internal docs (not committed)
-/docs/
+#
+# `docs/` contains implementation-ready internal docs that are local-only.
+# The single exception is `docs/CODE_STANDARDS.md`, which is checked in and
+# serves as the canonical code-standards reference.
+/docs/*
+!/docs/CODE_STANDARDS.md
 
 # Build / artifacts
 /build/

@@ -8,65 +8,14 @@
 #ifndef ZR_PLATFORM_ZR_PLATFORM_H_INCLUDED
 #define ZR_PLATFORM_ZR_PLATFORM_H_INCLUDED
 
+#include "zr/zr_platform_types.h"
+
 #include "util/zr_result.h"
 
 #include <stdint.h>
 
 /* Opaque platform handle. Implemented by the platform backend. */
 typedef struct plat_t plat_t;
-
-/*
-  plat_color_mode_t:
-    - A fixed-width, ABI-stable color capability / request.
-*/
-typedef uint8_t plat_color_mode_t;
-#define PLAT_COLOR_MODE_UNKNOWN ((plat_color_mode_t)0u)
-#define PLAT_COLOR_MODE_16      ((plat_color_mode_t)1u)
-#define PLAT_COLOR_MODE_256     ((plat_color_mode_t)2u)
-#define PLAT_COLOR_MODE_RGB     ((plat_color_mode_t)3u)
-
-/*
-  plat_size_t:
-    - Terminal size in character cells.
-*/
-typedef struct plat_size_t {
-  uint32_t cols;
-  uint32_t rows;
-} plat_size_t;
-
-/*
-  plat_caps_t:
-    - Backend-discovered capabilities.
-    - Boolean-like fields are encoded as 0/1 bytes for ABI stability.
-*/
-typedef struct plat_caps_t {
-  plat_color_mode_t color_mode;
-  uint8_t           supports_mouse;
-  uint8_t           supports_bracketed_paste;
-  uint8_t           supports_focus_events;
-  uint8_t           supports_osc52;
-  uint8_t           _pad[3];
-
-  /*
-    sgr_attrs_supported:
-      - Bitmask of supported zr_style_t attrs for SGR emission.
-      - Diff renderer must AND desired attrs with this mask deterministically.
-  */
-  uint32_t          sgr_attrs_supported;
-} plat_caps_t;
-
-/*
-  plat_config_t:
-    - Core-provided desired platform behavior.
-*/
-typedef struct plat_config_t {
-  plat_color_mode_t requested_color_mode;
-  uint8_t           enable_mouse;
-  uint8_t           enable_bracketed_paste;
-  uint8_t           enable_focus_events;
-  uint8_t           enable_osc52;
-  uint8_t           _pad[3];
-} plat_config_t;
 
 /* lifecycle */
 zr_result_t plat_create(plat_t** out_plat, const plat_config_t* cfg);

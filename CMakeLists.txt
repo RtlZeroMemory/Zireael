@@ -48,12 +48,16 @@ if (ZIREAEL_SANITIZE_ADDRESS OR ZIREAEL_SANITIZE_UNDEFINED)
 endif ()
 
 set(ZIREAEL_SOURCES
+        src/core/zr_config.c
         src/core/zr_diff.c
+        src/core/zr_debug_overlay.c
         src/core/zr_drawlist.c
+        src/core/zr_engine.c
         src/core/zr_event_pack.c
         src/core/zr_event_queue.c
-        src/core/zr_fb.c
+        src/core/zr_framebuffer.c
         src/core/zr_input_parser.c
+        src/core/zr_metrics.c
         src/core/zr_placeholder.c
         src/platform/zr_platform_select.c
         src/unicode/zr_grapheme.c
@@ -92,7 +96,10 @@ set_target_properties(zireael PROPERTIES
 
 target_link_libraries(zireael PRIVATE zireael_build_settings)
 
-target_include_directories(zireael PUBLIC
+target_include_directories(zireael
+        PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+        PRIVATE
         ${PROJECT_SOURCE_DIR}/src
 )
 
@@ -111,7 +118,10 @@ if (ZIREAEL_BUILD_SHARED)
 
     target_link_libraries(zireael_shared PRIVATE zireael_build_settings)
 
-    target_include_directories(zireael_shared PUBLIC
+    target_include_directories(zireael_shared
+            PUBLIC
+            ${PROJECT_SOURCE_DIR}/include
+            PRIVATE
             ${PROJECT_SOURCE_DIR}/src
     )
 endif ()

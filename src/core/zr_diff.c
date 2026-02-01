@@ -75,18 +75,18 @@ static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
 #define ZR_STYLE_ATTR_STRIKE    (1u << 4)
 
 static bool zr_style_eq(zr_style_t a, zr_style_t b) {
-  return a.fg == b.fg && a.bg == b.bg && a.attrs == b.attrs;
+  return a.fg_rgb == b.fg_rgb && a.bg_rgb == b.bg_rgb && a.attrs == b.attrs && a.reserved == b.reserved;
 }
 
 /* Compare two framebuffer cells for equality (glyph, flags, and style). */
-static bool zr_cell_eq(const zr_fb_cell_t* a, const zr_fb_cell_t* b) {
+static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
   if (!a || !b) {
     return false;
   }
   if (a->glyph_len != b->glyph_len) {
     return false;
   }
-  if (a->flags != b->flags) {
+  if (a->width != b->width) {
     return false;
   }
   if (!zr_style_eq(a->style, b->style)) {
@@ -98,21 +98,24 @@ static bool zr_cell_eq(const zr_fb_cell_t* a, const zr_fb_cell_t* b) {
   return true;
 }
 
-static bool zr_cell_is_continuation(const zr_fb_cell_t* c) {
-  return c && (c->flags & ZR_FB_CELL_FLAG_CONTINUATION) != 0u;
+static bool zr_cell_is_continuation(const zr_cell_t* c) {
+  return c && c->width == 0u;
 }
 
 /* Return display width of cell at (x,y): 0 for continuation, 2 for wide, 1 otherwise. */
 static uint8_t zr_cell_width_in_next(const zr_fb_t* fb, uint32_t x, uint32_t y) {
-  const zr_fb_cell_t* c = zr_fb_cell_at_const(fb, x, y);
+  const zr_cell_t* c = zr_fb_cell_const(fb, x, y);
   if (!c) {
     return 1u;
   }
   if (zr_cell_is_continuation(c)) {
     return 0u;
   }
+  if (c->width == 2u) {
+    return 2u;
+  }
   if (x + 1u < fb->cols) {
-    const zr_fb_cell_t* c1 = zr_fb_cell_at_const(fb, x + 1u, y);
+    const zr_cell_t* c1 = zr_fb_cell_const(fb, x + 1u, y);
     if (zr_cell_is_continuation(c1)) {
       return 2u;
     }
@@ -226,19 +229,19 @@ static zr_style_t zr_style_apply_caps(zr_style_t in, const plat_caps_t* caps) {
     return out;
   }
   if (caps->color_mode == PLAT_COLOR_MODE_256) {
-    out.fg = (uint32_t)zr_rgb_to_xterm256(out.fg);
-    out.bg = (uint32_t)zr_rgb_to_xterm256(out.bg);
+    out.fg_rgb = (uint32_t)zr_rgb_to_xterm256(out.fg_rgb);
+    out.bg_rgb = (uint32_t)zr_rgb_to_xterm256(out.bg_rgb);
     return out;
   }
   if (caps->color_mode == PLAT_COLOR_MODE_16) {
-    out.fg = (uint32_t)zr_rgb_to_ansi16(out.fg);
-    out.bg = (uint32_t)zr_rgb_to_ansi16(out.bg);
+    out.fg_rgb = (uint32_t)zr_rgb_to_ansi16(out.fg_rgb);
+    out.bg_rgb = (uint32_t)zr_rgb_to_ansi16(out.bg_rgb);
     return out;
   }
 
   /* Unknown: deterministically degrade to 16. */
-  out.fg = (uint32_t)zr_rgb_to_ansi16(out.fg);
-  out.bg = (uint32_t)zr_rgb_to_ansi16(out.bg);
+  out.fg_rgb = (uint32_t)zr_rgb_to_ansi16(out.fg_rgb);
+  out.bg_rgb = (uint32_t)zr_rgb_to_ansi16(out.bg_rgb);
   return out;
 }
 
@@ -326,12 +329,12 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
 
   /* --- Foreground and background colors --- */
   if (caps && caps->color_mode == PLAT_COLOR_MODE_RGB) {
-    const uint8_t fr = zr_rgb_r(desired.fg);
-    const uint8_t fg = zr_rgb_g(desired.fg);
-    const uint8_t fb = zr_rgb_b(desired.fg);
-    const uint8_t br = zr_rgb_r(desired.bg);
-    const uint8_t bg = zr_rgb_g(desired.bg);
-    const uint8_t bb = zr_rgb_b(desired.bg);
+    const uint8_t fr = zr_rgb_r(desired.fg_rgb);
+    const uint8_t fg = zr_rgb_g(desired.fg_rgb);
+    const uint8_t fb = zr_rgb_b(desired.fg_rgb);
+    const uint8_t br = zr_rgb_r(desired.bg_rgb);
+    const uint8_t bg = zr_rgb_g(desired.bg_rgb);
+    const uint8_t bb = zr_rgb_b(desired.bg_rgb);
 
     if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_FG_256) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_RGB) ||
@@ -349,8 +352,8 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
       return false;
     }
   } else if (caps && caps->color_mode == PLAT_COLOR_MODE_256) {
-    const uint32_t fg_idx = desired.fg & 0xFFu;
-    const uint32_t bg_idx = desired.bg & 0xFFu;
+    const uint32_t fg_idx = desired.fg_rgb & 0xFFu;
+    const uint32_t bg_idx = desired.bg_rgb & 0xFFu;
     if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_FG_256) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_256) ||
         !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, fg_idx)) {
@@ -362,9 +365,9 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
       return false;
     }
   } else {
-    /* 16-color (or unknown degraded to 16): desired.fg/bg are indices 0..15. */
-    const uint8_t fg_idx = (uint8_t)(desired.fg & 0x0Fu);
-    const uint8_t bg_idx = (uint8_t)(desired.bg & 0x0Fu);
+    /* 16-color (or unknown degraded to 16): desired.fg_rgb/bg_rgb are indices 0..15. */
+    const uint8_t fg_idx = (uint8_t)(desired.fg_rgb & 0x0Fu);
+    const uint8_t bg_idx = (uint8_t)(desired.bg_rgb & 0x0Fu);
     const uint32_t fg_code =
         (fg_idx < 8u) ? (ZR_SGR_FG_BASE + (uint32_t)fg_idx) : (ZR_SGR_FG_BRIGHT + (uint32_t)(fg_idx - 8u));
     const uint32_t bg_code =
@@ -388,8 +391,8 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
 /* Check if cell at (x,y) differs between prev and next framebuffers.
  * Also returns true if wide-glyph continuation cell changed. */
 static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t x, uint32_t y) {
-  const zr_fb_cell_t* a = zr_fb_cell_at_const(prev, x, y);
-  const zr_fb_cell_t* b = zr_fb_cell_at_const(next, x, y);
+  const zr_cell_t* a = zr_fb_cell_const(prev, x, y);
+  const zr_cell_t* b = zr_fb_cell_const(next, x, y);
   if (!a || !b) {
     return false;
   }
@@ -398,8 +401,8 @@ static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t 
   }
   /* Wide-glyph rule: a dirty continuation forces inclusion of its lead cell. */
   if (x + 1u < prev->cols) {
-    const zr_fb_cell_t* a1 = zr_fb_cell_at_const(prev, x + 1u, y);
-    const zr_fb_cell_t* b1 = zr_fb_cell_at_const(next, x + 1u, y);
+    const zr_cell_t* a1 = zr_fb_cell_const(prev, x + 1u, y);
+    const zr_cell_t* b1 = zr_fb_cell_const(next, x + 1u, y);
     const bool cont = zr_cell_is_continuation(a1) || zr_cell_is_continuation(b1);
     if (cont && a1 && b1 && !zr_cell_eq(a1, b1)) {
       return true;
@@ -456,7 +459,7 @@ static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t 
   }
 
   for (uint32_t xx = start; xx <= end; xx++) {
-    const zr_fb_cell_t* c = zr_fb_cell_at_const(ctx->next, xx, y);
+    const zr_cell_t* c = zr_fb_cell_const(ctx->next, xx, y);
     if (!c) {
       continue;
     }

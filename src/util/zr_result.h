@@ -1,27 +1,13 @@
 /*
-  src/util/zr_result.h — Shared result code type and error constants.
+  src/util/zr_result.h — Compatibility include for internal paths.
 
-  Why: Establishes Zireael's cross-module "0 = OK, negative = failure" contract.
+  Why: The public header set lives under `include/zr/`. This header keeps
+  existing internal include paths working without leaking `src/` to consumers.
 */
 
 #ifndef ZR_UTIL_ZR_RESULT_H_INCLUDED
 #define ZR_UTIL_ZR_RESULT_H_INCLUDED
 
-typedef int zr_result_t;
-
-/* Success. */
-#define ZR_OK ((zr_result_t)0)
-
-/*
-  Failures (negative).
-
-  Note: Numeric values are intended to match the project's error catalog.
-*/
-#define ZR_ERR_INVALID_ARGUMENT ((zr_result_t)-1)
-#define ZR_ERR_OOM ((zr_result_t)-2)
-#define ZR_ERR_LIMIT ((zr_result_t)-3)
-#define ZR_ERR_UNSUPPORTED ((zr_result_t)-4)
-#define ZR_ERR_FORMAT ((zr_result_t)-5)
-#define ZR_ERR_PLATFORM ((zr_result_t)-6)
+#include "zr/zr_result.h"
 
 #endif /* ZR_UTIL_ZR_RESULT_H_INCLUDED */

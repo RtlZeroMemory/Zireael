@@ -1,5 +1,14 @@
 /*
   tests/fuzz/fuzz_drawlist_parser.c — Drawlist validator fuzz target (smoke-mode).
+
+  Why: Validates that the drawlist parser never crashes, hangs, or exhibits
+  non-deterministic behavior when fed arbitrary bytes. Uses a deterministic
+  PRNG to generate test inputs without requiring libFuzzer.
+
+  Invariants verified:
+    - Parser never crashes on malformed input
+    - Same input always produces same return code (determinism)
+    - Same input always produces identical zr_dl_view_t output
 */
 
 #include "core/zr_drawlist.h"
@@ -7,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
+/* Trigger a trap/crash for test failure detection by fuzzers/sanitizers. */
 static void zr_fuzz_trap(void) {
 #if defined(_MSC_VER)
   __debugbreak();
@@ -28,7 +38,16 @@ static uint32_t zr_xorshift32(uint32_t* state) {
   return x;
 }
 
+/*
+ * Fuzz one input: validate drawlist bytes twice and verify determinism.
+ *
+ * Checks:
+ *   1. Validator doesn't crash on arbitrary bytes
+ *   2. Same input produces same result code (determinism)
+ *   3. Same input produces identical parsed header (if valid)
+ */
 static void zr_fuzz_one(const uint8_t* data, size_t size) {
+  /* Configure limits to allow input size but cap internal structures. */
   zr_limits_t lim = zr_limits_default();
   lim.dl_max_total_bytes = (uint32_t)size;
   lim.dl_max_cmds = 64u;
@@ -37,15 +56,18 @@ static void zr_fuzz_one(const uint8_t* data, size_t size) {
   lim.dl_max_clip_depth = 16u;
   lim.dl_max_text_run_segments = 64u;
 
+  /* Validate same input twice. */
   zr_dl_view_t v1;
   zr_dl_view_t v2;
   const zr_result_t r1 = zr_dl_validate(data, size, &lim, &v1);
   const zr_result_t r2 = zr_dl_validate(data, size, &lim, &v2);
 
-  /* Determinism: same input -> same return code (and same decoded header if OK). */
+  /* Determinism check: same input must produce same return code. */
   if (r1 != r2) {
     zr_fuzz_trap();
   }
+
+  /* If valid, parsed headers must match. */
   if (r1 == ZR_OK) {
     if (memcmp(&v1.hdr, &v2.hdr, sizeof(v1.hdr)) != 0) {
       zr_fuzz_trap();

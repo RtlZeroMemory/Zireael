@@ -1,5 +1,13 @@
 /*
   tests/fuzz/fuzz_input_parser.c — Input parser fuzz target (smoke-mode).
+
+  Why: Validates that the terminal input parser (VT sequences) never crashes,
+  hangs, or produces non-deterministic output when fed arbitrary bytes.
+
+  Invariants verified:
+    - Parser never crashes on malformed input
+    - Same input always produces same event queue (determinism)
+    - Serialized event batches are byte-identical for same input
 */
 
 #include "core/zr_event_pack.h"
@@ -28,6 +36,7 @@ static uint32_t zr_xorshift32(uint32_t* state) {
   return x;
 }
 
+/* Pack an event into the event batch writer for determinism comparison. */
 static bool zr_pack_event(zr_evpack_writer_t* w, const zr_event_queue_t* q, const zr_event_t* ev) {
   (void)q;
   switch (ev->type) {
@@ -58,9 +67,18 @@ static bool zr_pack_event(zr_evpack_writer_t* w, const zr_event_queue_t* q, cons
   }
 }
 
+/*
+ * Fuzz one input: parse bytes into events twice, serialize, and compare.
+ *
+ * Checks:
+ *   1. Parser doesn't crash on arbitrary bytes
+ *   2. Same input produces same events (determinism)
+ *   3. Serialized event batches are byte-identical
+ */
 static void zr_fuzz_one(const uint8_t* data, size_t size) {
   enum { kEventCap = 64, kUserBytesCap = 256, kOutCap = 1024 };
 
+  /* Two independent event queues for determinism comparison. */
   zr_event_t ev_storage1[kEventCap];
   zr_event_t ev_storage2[kEventCap];
   uint8_t user_bytes1[kUserBytesCap];

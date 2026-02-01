@@ -1,295 +1,161 @@
-# Zireael — C Core Terminal Engine
+<p align="center">
+  <img width="720" alt="Zireael" src="https://github.com/user-attachments/assets/000b7a71-50ca-4d9f-9ef1-fd3cde6173d1" />
+</p>
 
-Zireael is a cross-platform **terminal UI core engine** for Windows / Linux / macOS.
+<p align="center">
+  <em>The foundation for building cross-platform TUI frameworks</em>
+</p>
 
-It is designed to be embedded: you drive it by submitting a **binary drawlist** and you read back a **packed event batch
-**. The engine owns terminal I/O (raw mode, output emission, input bytes) and provides a deterministic, cap-bounded core
-suitable for wrappers in other languages.
+<p align="center">
+  <a href="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml"><img src="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/RtlZeroMemory/Zireael/releases"><img src="https://img.shields.io/github/v/release/RtlZeroMemory/Zireael" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  <a href="https://rtlzeromemory.github.io/Zireael/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs"></a>
+</p>
 
-## Overview
+---
 
-At a glance:
+## What is Zireael?
 
-- **Engine-only C library**: no TypeScript, no Node tooling, no GUI toolkit.
-- **Stable ABI**: callers interact via a small `engine_*` API surface.
-- **Explicit ownership**: caller provides input/output buffers; the engine never returns heap pointers that require
-  caller `free()`.
-- **Deterministic core**: fixed inputs + fixed caps/config ⇒ fixed outputs.
-- **Hard platform boundary**: OS headers live only under `src/platform/**`.
-
-## Architecture
-
-### Component map
+Zireael is a **low-level terminal rendering engine** designed to be embedded in higher-level TUI frameworks. It handles the hard parts—terminal I/O, input parsing, efficient diff-based rendering, Unicode grapheme handling—so framework authors don't have to.
 
 ```
-+------------------+         +---------------------------------------------+
-| Caller / Wrapper |         |                   Zireael                    |
-|  (any language)  |         |---------------------------------------------|
-|                  | drawlist|  core: drawlist → framebuffer → diff → emit  |
-| submit bytes     |-------> |  unicode: UTF-8 / graphemes / width / wrap   |
-|                  |         |  util: arenas / containers / checked math     |
-| poll events      | <------ |  platform: POSIX / Win32 backend (raw I/O)    |
-+------------------+         +---------------------------------------------+
+┌─────────────────────────────────────────────────────────────┐
+│  Your TUI Framework (TypeScript, Rust, Go, ...)             │
+├─────────────────────────────────────────────────────────────┤
+│                         FFI Boundary                        │
+├─────────────────────────────────────────────────────────────┤
+│  Zireael Engine                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐  │
+│  │ Drawlist │→ │Framebuf  │→ │ Diff     │→ │ Platform    │  │
+│  │ Parser   │  │          │  │ Renderer │  │ (Win/POSIX) │  │
+│  └──────────┘  └──────────┘  └──────────┘  └─────────────┘  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Data flow
+**You provide:** A binary drawlist describing what to render
+**Engine returns:** Packed input events (keys, mouse, resize)
+**Engine handles:** Terminal setup, efficient output, Unicode width calculations
 
-Output path (rendering):
+## Why Zireael?
 
-```
-drawlist bytes
-   │
-   v
-validate (bounds/caps/version)
-   │
-   v
-execute → next framebuffer
-   │
-   v
-diff(prev, next) → VT/ANSI byte stream → platform_write() (single flush)
-   │
-   v
-swap(prev, next)
-```
+Building a TUI framework means solving the same hard problems over and over:
 
-Input path (events):
+- **Terminal I/O** — Raw mode, signal handling, platform differences
+- **Efficient rendering** — Diff algorithms, cursor optimization, minimal escape sequences
+- **Unicode** — Grapheme clusters, character widths, text wrapping
+- **Input parsing** — ANSI sequences, mouse protocols, bracketed paste
 
-```
-platform_read() → input bytes → parse/normalize → queue/coalesce
-                                         │
-                                         v
-                               pack to event-batch ABI
-                                         │
-                                         v
-                              caller-provided output buffer
-```
+Zireael solves these once, correctly, with a stable ABI that any language can call via FFI.
 
-### Repository layout
+### Design Principles
 
-```
-src/
-  util/              arenas, bounded containers, checked helpers, logging
-  unicode/           UTF-8 decode, graphemes, width policy, wrapping
-  core/              engine ABI, events, drawlist, framebuffer, diff renderer
-  platform/
-    posix/           termios raw mode, poll/select, wake (self-pipe/eventfd)
-    win32/           VT mode enable, wait/wake, console mode save/restore
-tests/
-  unit/ golden/ fuzz/ integration/
-examples/
-```
+| Principle | Implementation |
+|-----------|----------------|
+| **Deterministic** | Same inputs + config → same outputs. Always. |
+| **Zero allocations at ABI boundary** | Caller provides buffers; engine never returns heap pointers |
+| **Platform isolation** | OS headers confined to `src/platform/`; core is portable C |
+| **No per-frame heap churn** | Arenas and fixed buffers for hot paths |
 
-## Public API (C ABI)
-
-Headers:
-
-- `src/core/zr_engine.h` (primary entrypoints)
-- `src/core/zr_config.h` (configuration)
-- `src/core/zr_event.h` (packed event ABI types)
-- `src/core/zr_drawlist.h` (drawlist ABI types)
-- `src/platform/zr_platform.h` (core-facing platform boundary; OS-header-free)
-
-Core entrypoints (summary):
+## Quick Example
 
 ```c
-typedef struct zr_engine_t zr_engine_t;
-typedef int zr_result_t;
+#include <zr/zr_engine.h>
 
-zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cfg);
-void        engine_destroy(zr_engine_t* e);
+int main(void) {
+    zr_engine_t* engine = NULL;
+    zr_engine_config_t cfg = {
+        .max_width = 120,
+        .max_height = 40,
+    };
 
-int         engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out_cap);
-zr_result_t engine_post_user_event(zr_engine_t* e, uint32_t tag, const uint8_t* payload, int payload_len);
+    // Create engine (takes ownership of terminal)
+    engine_create(&engine, &cfg);
 
-zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int bytes_len);
-zr_result_t engine_present(zr_engine_t* e);
+    // Main loop
+    uint8_t event_buf[4096];
+    while (running) {
+        // Poll for input events
+        int n = engine_poll_events(engine, 16, event_buf, sizeof(event_buf));
+        // ... process events from event_buf ...
 
-zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics);
-zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg);
+        // Submit drawlist (your rendering commands)
+        engine_submit_drawlist(engine, drawlist_bytes, drawlist_len);
+
+        // Present (diff and flush to terminal)
+        engine_present(engine);
+    }
+
+    engine_destroy(engine);
+    return 0;
+}
 ```
 
-Return conventions:
+## Features
 
-- `ZR_OK == 0` means success.
-- Negative values are failures (`ZR_ERR_*`).
-- `engine_poll_events` returns:
-    - `> 0`: bytes written to `out_buf`
-    - `0`: no events before `timeout_ms`
-    - `< 0`: failure (negative `ZR_ERR_*`)
+- **Cross-platform** — Windows (ConPTY), Linux, macOS
+- **Stable ABI** — Versioned binary formats for drawlists and events
+- **Unicode 15.1** — Full grapheme segmentation and width calculation
+- **Diff renderer** — Minimal terminal output via smart diffing
+- **Zero dependencies** — Pure C11, no external libraries
 
-## Ownership, caps, and “no partial effects”
+## Documentation
 
-- The engine owns all allocations it makes; callers never free engine memory.
-- The engine does not retain pointers into caller buffers beyond the call.
-- Callers provide:
-    - drawlist bytes (`engine_submit_drawlist`)
-    - packed event output buffer (`engine_poll_events`)
-    - user-event payload bytes (`engine_post_user_event`, copied during the call)
-- Failures are **deterministic** and, by default, have **no partial effects** (the drawlist path validates fully before
-  mutating the `next` framebuffer).
-- Resource usage is cap-bounded via `zr_limits_t` (e.g., max bytes per frame, max events per poll, arena growth caps).
+📖 **[Full Documentation](https://rtlzeromemory.github.io/Zireael/)** — Getting started, concepts, API reference
 
-## Binary formats
+Quick links:
+- [Build & Test](https://rtlzeromemory.github.io/Zireael/getting-started/build-and-test/)
+- [Engine Model](https://rtlzeromemory.github.io/Zireael/concepts/engine-model/)
+- [ABI Overview](https://rtlzeromemory.github.io/Zireael/abi/overview/)
+- [C API Reference](https://rtlzeromemory.github.io/Zireael/c-api/)
 
-Zireael uses versioned, little-endian binary formats designed for:
+## Building
 
-- bounds-checked parsing (no UB, no unaligned loads via casts)
-- deterministic rejection of malformed inputs
-- forward/backward compatibility policies that are explicit per format
-
-### Drawlist (wrapper → engine)
-
-The drawlist is a self-framed command stream with a fixed header:
-
-```
-┌───────────────┐
-│ header (v1)    │ magic/version/offsets/sizes
-├───────────────┤
-│ cmd stream     │ [ {opcode,size,flags} payload ]...
-├───────────────┤
-│ string table   │ spans + concatenated UTF-8 bytes
-├───────────────┤
-│ blob table     │ spans + concatenated binary blobs
-└───────────────┘
+**Linux / macOS:**
+```bash
+cmake --preset posix-clang-debug
+cmake --build --preset posix-clang-debug
+ctest --test-dir out/build/posix-clang-debug --output-on-failure
 ```
 
-Unknown opcode policy (v1): reject with `ZR_ERR_UNSUPPORTED`.
-
-### Packed event batch (engine → wrapper)
-
-Events are written as a batch header followed by 4-byte-aligned records:
-
-```
-┌───────────────┐
-│ batch header   │ magic/version/total_size/event_count/flags
-├───────────────┤
-│ record 0       │ {type,size,time_ms,flags} payload...
-├───────────────┤
-│ record 1       │ ...
-└───────────────┘
-```
-
-Truncation policy (v1): if the caller buffer cannot fit all events, the engine writes as many **complete** records as
-fit, sets the batch `TRUNCATED` flag, and returns the bytes written.
-
-## Threading model
-
-- The engine is **single-threaded**: all `engine_*` calls are engine-thread only, except:
-    - `engine_post_user_event`, which is thread-safe and wakes a blocking poll.
-- The engine does not invoke user callbacks from non-engine threads (including logging).
-
-## Unicode and determinism
-
-Text handling is deterministic and pinned:
-
-- Unicode data version: **15.1.0**
-- Default emoji width policy: **emoji wide**
-- Invalid UTF-8 policy: emit `U+FFFD`, mark invalid, and consume 1 byte
-
-These pins exist to keep wrapping/measurement/rendering stable across platforms and toolchains.
-
-## Build
-
-Zireael uses CMake (C11). Presets are defined in `CMakePresets.json` (Ninja generator).
-
-Windows note (important):
-
-- The `windows-clangcl-*` presets use `Ninja` + `clang-cl`, which requires an MSVC/Windows-SDK environment for linking.
-- In a regular PowerShell, run `.\scripts\vsdev.ps1` once before configuring/building.
-
-Configure:
-
-```text
+**Windows (clang-cl):**
+```powershell
 .\scripts\vsdev.ps1
 cmake --preset windows-clangcl-debug
-cmake --preset posix-clang-debug
-```
-
-Build:
-
-```text
 cmake --build --preset windows-clangcl-debug
-cmake --build --preset posix-clang-debug
+ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 ```
 
-Guardrails (platform boundary + libc policy):
+## Who Is This For?
 
-```text
-bash scripts/guardrails.sh
-```
+Zireael is for **framework authors**, not application developers. If you're:
 
-Code standards (readability + safety):
+- Building a TUI framework in TypeScript, Rust, Go, or another language
+- Tired of reimplementing terminal rendering for each platform
+- Need a stable C ABI you can call via FFI
 
-- `docs/CODE_STANDARDS.md`
+Then Zireael provides the foundation so you can focus on your framework's API and features.
 
-CMake options:
+## Project Status
 
-- `ZIREAEL_BUILD_SHARED` (default: OFF)
-- `ZIREAEL_BUILD_EXAMPLES` (default: ON)
-- `ZIREAEL_BUILD_TESTS` (default: ON)
-- `ZIREAEL_WARNINGS_AS_ERRORS` (default: OFF; CI)
-- `ZIREAEL_SANITIZE_ADDRESS` (default: OFF; Clang/GCC only)
-- `ZIREAEL_SANITIZE_UNDEFINED` (default: OFF; Clang/GCC only)
+**v1.0.0** — Engine ABI stable. Drawlist v1 and Event Batch v1 formats locked.
 
-Embedding as a subproject:
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
-```cmake
-add_subdirectory(path/to/zireael)
-target_link_libraries(my_app PRIVATE Zireael::zireael)
-```
+## Contributing
 
-## Usage (typical loop)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Key rules:
 
-```c
-zr_engine_config_t cfg = zr_engine_config_default();
-cfg.requested_engine_abi_major = ZR_ENGINE_ABI_MAJOR;
-cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
-cfg.requested_event_batch_version = ZR_EVENT_BATCH_VERSION_V1;
-
-zr_engine_t* e = NULL;
-zr_result_t rc = engine_create(&e, &cfg);
-if (rc != ZR_OK) { /* handle error */ return 1; }
-
-for (;;) {
-  uint8_t evbuf[64 * 1024];
-  int evlen = engine_poll_events(e, /*timeout_ms=*/16, evbuf, (int)sizeof evbuf);
-  if (evlen < 0) { /* handle error */ break; }
-
-  // application logic consumes packed events in evbuf[0..evlen)
-  // application produces a drawlist byte buffer for the next frame
-
-  rc = engine_submit_drawlist(e, drawlist_bytes, drawlist_len);
-  if (rc != ZR_OK) { /* handle error */ break; }
-
-  rc = engine_present(e);
-  if (rc != ZR_OK) { /* handle error */ break; }
-}
-
-engine_destroy(e);
-```
-
-## Testing
-
-Zireael is tested via:
-
-- **Unit tests**: pure logic (util/unicode/core), deterministic, no OS headers.
-- **Golden tests**: diff output compared byte-for-byte.
-- **Fuzz tests**: drawlist parser, UTF-8 decoder, input parser (cap-respecting; no crash/hang).
-- **Integration tests**: PTY/ConPTY headless tests for raw mode lifecycle and wake behavior.
-
-Run tests (after configuring/building a preset):
-
-```text
-ctest --test-dir out/build/<preset> --output-on-failure
-```
-
-## Contributing guidelines (high-level)
-
-- Keep OS headers out of `src/core`, `src/unicode`, `src/util`.
-- Treat drawlist/event bytes as untrusted input: validate bounds and overflow before use.
-- Prefer fixed-size, caller-provided buffers on the ABI boundary.
-- Avoid per-frame heap churn; use arenas and bounded containers.
+- Keep OS headers out of `src/core`, `src/unicode`, `src/util`
+- Validate all binary input (drawlists, events) defensively
+- No per-frame heap allocations on hot paths
 
 ## License
 
-Apache-2.0 (see `LICENSE`).
+Apache-2.0 — See [LICENSE](LICENSE)
+
+---
+
+<p align="center">
+  <sub>Internal engine specs for contributors: <a href="docs/00_INDEX.md">docs/00_INDEX.md</a></sub>
+</p>

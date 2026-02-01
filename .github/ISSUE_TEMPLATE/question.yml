@@ -1,0 +1,17 @@
+name: Question
+description: Ask a usage or integration question.
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you building? Which OS/terminal/compiler?
+    validations:
+      required: false

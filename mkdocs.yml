@@ -1,0 +1,123 @@
+site_name: Zireael
+site_description: A deterministic terminal UI core engine in C — the foundation for building cross-platform TUI frameworks.
+site_url: https://rtlzeromemory.github.io/Zireael/
+repo_url: https://github.com/RtlZeroMemory/Zireael
+repo_name: RtlZeroMemory/Zireael
+edit_uri: edit/main/docs-user/
+
+docs_dir: docs-user
+site_dir: out/site
+
+theme:
+  name: material
+  custom_dir: docs-user/overrides
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - announce.dismiss
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - def_list
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  version:
+    provider: mike
+    default: stable
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/RtlZeroMemory/Zireael
+  generator: false
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Build & Test: getting-started/build-and-test.md
+      - Minimal Example: getting-started/minimal-example.md
+      - CMake Integration: getting-started/cmake-integration.md
+      - Testing: getting-started/testing.md
+  - Concepts:
+      - Engine Model: concepts/engine-model.md
+      - Ownership & Buffers: concepts/ownership.md
+      - Error Model: concepts/errors.md
+      - Determinism Pins: concepts/determinism.md
+  - Modules:
+      - Config & Versioning: modules/config-and-versioning.md
+      - Drawlist: modules/drawlist.md
+      - Framebuffer: modules/framebuffer.md
+      - Diff Renderer: modules/diff-renderer.md
+      - Events: modules/events.md
+      - Unicode Text: modules/unicode-text.md
+      - Platform Interface: modules/platform-interface.md
+      - Diagnostics Overlay: modules/diagnostics-overlay.md
+  - ABI / Formats:
+      - Overview: abi/overview.md
+      - Drawlist v1: abi/drawlist-v1.md
+      - Event Batch v1: abi/event-batch-v1.md
+  - API:
+      - Overview: api/overview.md
+      - Header Map: api/headers.md
+      - C API Reference: api/c-api.md
+  - Platform:
+      - POSIX Backend: platform/posix.md
+      - Win32 Backend: platform/win32.md
+  - Development:
+      - Contributing: contributing.md
+      - Security: security.md

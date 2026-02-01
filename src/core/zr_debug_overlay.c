@@ -12,19 +12,19 @@
 
 static uint32_t zr_u32_min(uint32_t a, uint32_t b) { return (a < b) ? a : b; }
 
-static void zr_cell_set_ascii(zr_fb_cell_t* cell, uint8_t ch, zr_style_t style) {
+static void zr_cell_set_ascii(zr_cell_t* cell, uint8_t ch, zr_style_t style) {
   if (!cell) {
     return;
   }
   memset(cell->glyph, 0, sizeof(cell->glyph));
   cell->glyph[0] = ch;
   cell->glyph_len = 1u;
-  cell->flags = 0u;
+  cell->width = 1u;
   cell->style = style;
 }
 
-static bool zr_cell_is_continuation(const zr_fb_cell_t* cell) {
-  return cell && (cell->flags & ZR_FB_CELL_FLAG_CONTINUATION) != 0u;
+static bool zr_cell_is_continuation(const zr_cell_t* cell) {
+  return cell && cell->width == 0u;
 }
 
 /*
@@ -36,7 +36,7 @@ static bool zr_cell_is_continuation(const zr_fb_cell_t* cell) {
  */
 static void zr_overlay_write_ascii_cell(zr_fb_t* fb, uint32_t x, uint32_t y, uint32_t overlay_cols,
                                        uint8_t ch, zr_style_t style) {
-  zr_fb_cell_t* c = zr_fb_cell_at(fb, x, y);
+  zr_cell_t* c = zr_fb_cell(fb, x, y);
   if (!c) {
     return;
   }
@@ -50,8 +50,8 @@ static void zr_overlay_write_ascii_cell(zr_fb_t* fb, uint32_t x, uint32_t y, uin
     if (lead_x >= overlay_cols) {
       return;
     }
-    zr_fb_cell_t* lead = zr_fb_cell_at(fb, lead_x, y);
-    zr_fb_cell_t* cont = c;
+    zr_cell_t* lead = zr_fb_cell(fb, lead_x, y);
+    zr_cell_t* cont = c;
     if (!lead) {
       return;
     }
@@ -61,7 +61,7 @@ static void zr_overlay_write_ascii_cell(zr_fb_t* fb, uint32_t x, uint32_t y, uin
 
   /* If we are overwriting a lead cell of a wide glyph, clear the continuation cell too. */
   if (x + 1u < fb->cols) {
-    zr_fb_cell_t* next = zr_fb_cell_at(fb, x + 1u, y);
+    zr_cell_t* next = zr_fb_cell(fb, x + 1u, y);
     if (zr_cell_is_continuation(next)) {
       if (x + 1u >= overlay_cols) {
         /* Would split a wide glyph across the overlay boundary; leave it intact. */
@@ -170,7 +170,7 @@ zr_result_t zr_debug_overlay_render(zr_fb_t* fb, const zr_metrics_t* metrics) {
     return ZR_OK;
   }
 
-  const zr_style_t style = (zr_style_t){0u, 0u, 0u};
+  const zr_style_t style = (zr_style_t){0u, 0u, 0u, 0u};
 
   char line[ZR_DEBUG_OVERLAY_MAX_COLS];
 

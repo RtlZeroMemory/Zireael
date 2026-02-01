@@ -55,7 +55,7 @@ set(ZIREAEL_SOURCES
         src/core/zr_engine_stub.c
         src/core/zr_event_pack.c
         src/core/zr_event_queue.c
-        src/core/zr_fb.c
+        src/core/zr_framebuffer.c
         src/core/zr_input_parser.c
         src/core/zr_metrics.c
         src/core/zr_placeholder.c

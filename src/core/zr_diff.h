@@ -8,7 +8,7 @@
 #ifndef ZR_CORE_ZR_DIFF_H_INCLUDED
 #define ZR_CORE_ZR_DIFF_H_INCLUDED
 
-#include "core/zr_fb.h"
+#include "core/zr_framebuffer.h"
 #include "platform/zr_platform.h"
 #include "util/zr_result.h"
 

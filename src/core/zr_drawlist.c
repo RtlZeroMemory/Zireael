@@ -10,8 +10,11 @@
 
 #include "core/zr_drawlist.h"
 
-#include "core/zr_fb.h"
+#include "core/zr_framebuffer.h"
 #include "core/zr_version.h"
+
+#include "unicode/zr_grapheme.h"
+#include "unicode/zr_width.h"
 
 #include "util/zr_bytes.h"
 #include "util/zr_checked.h"
@@ -727,30 +730,91 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
 
 static zr_style_t zr_style_from_dl(zr_dl_style_t s) {
   zr_style_t out;
-  out.fg = s.fg;
-  out.bg = s.bg;
+  out.fg_rgb = s.fg;
+  out.bg_rgb = s.bg;
   out.attrs = s.attrs;
+  out.reserved = s.reserved0;
   return out;
 }
 
-static zr_result_t zr_dl_exec_clear(zr_fb_t* dst) {
-  zr_style_t s = {0u, 0u, 0u};
-  return zr_fb_clear(dst, &s);
+static zr_result_t zr_dl_exec_clear(zr_fb_t* dst) { return zr_fb_clear(dst, NULL); }
+
+static bool zr_rect_contains_i32(zr_rect_t r, int32_t x, int32_t y) {
+  if (r.w <= 0 || r.h <= 0) {
+    return false;
+  }
+  if (x < r.x || y < r.y) {
+    return false;
+  }
+  const int64_t x2 = (int64_t)r.x + (int64_t)r.w;
+  const int64_t y2 = (int64_t)r.y + (int64_t)r.h;
+  return ((int64_t)x < x2) && ((int64_t)y < y2);
 }
 
-static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, zr_fb_t* dst, zr_fb_rect_i32_t clip) {
+/*
+ * Draw UTF-8 bytes into the framebuffer by grapheme iteration.
+ *
+ * Why: The framebuffer primitive is zr_fb_put_grapheme (already segmented,
+ * width provided). Drawlist execution owns segmentation and deterministic width.
+ */
+static zr_result_t zr_dl_draw_text_utf8(zr_fb_painter_t* p,
+                                        int32_t y,
+                                        int32_t* inout_x,
+                                        const uint8_t* bytes,
+                                        size_t len,
+                                        const zr_style_t* style) {
+  if (!p || !inout_x || !bytes || !style) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  int32_t cx = *inout_x;
+  zr_grapheme_iter_t it;
+  zr_grapheme_iter_init(&it, bytes, len);
+
+  zr_grapheme_t g;
+  while (zr_grapheme_next(&it, &g)) {
+    const uint8_t* gb = bytes + g.offset;
+    const size_t gl = g.size;
+    const uint8_t w = zr_width_grapheme_utf8(gb, gl, zr_width_policy_default());
+    if (w == 0u) {
+      continue;
+    }
+
+    uint8_t adv = w;
+    if (w == 2u) {
+      /*
+        Replacement policy: if the wide glyph cannot fully fit within the
+        current clip, it is rendered as U+FFFD (width 1).
+      */
+      const zr_rect_t clip = p->clip_stack[p->clip_len - 1u];
+      if (!zr_rect_contains_i32(clip, cx, y) || !zr_rect_contains_i32(clip, cx + 1, y)) {
+        adv = 1u;
+      }
+    }
+
+    (void)zr_fb_put_grapheme(p, cx, y, gb, gl, w, style);
+    if (cx > (INT32_MAX - (int32_t)adv)) {
+      return ZR_ERR_LIMIT;
+    }
+    cx += (int32_t)adv;
+  }
+
+  *inout_x = cx;
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, zr_fb_painter_t* p) {
   zr_dl_cmd_fill_rect_t cmd;
   zr_result_t rc = zr_dl_read_cmd_fill_rect(r, &cmd);
   if (rc != ZR_OK) {
     return rc;
   }
-  zr_fb_rect_i32_t rr = {cmd.x, cmd.y, cmd.w, cmd.h};
+  zr_rect_t rr = {cmd.x, cmd.y, cmd.w, cmd.h};
   zr_style_t s = zr_style_from_dl(cmd.style);
-  return zr_fb_fill_rect(dst, rr, &s, clip);
+  return zr_fb_fill_rect(p, rr, &s);
 }
 
-static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_t* dst,
-                                        zr_fb_rect_i32_t clip) {
+static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
   zr_dl_cmd_draw_text_t cmd;
   zr_result_t rc = zr_dl_read_cmd_draw_text(r, &cmd);
   if (rc != ZR_OK) {
@@ -765,50 +829,33 @@ static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t*
 
   const uint8_t* sbytes = v->strings_bytes + sspan.off + cmd.byte_off;
   zr_style_t s = zr_style_from_dl(cmd.style);
-  return zr_fb_draw_text_bytes(dst, cmd.x, cmd.y, sbytes, (size_t)cmd.byte_len, &s, clip);
+  int32_t cx = cmd.x;
+  return zr_dl_draw_text_utf8(p, cmd.y, &cx, sbytes, (size_t)cmd.byte_len, &s);
 }
 
-static zr_result_t zr_dl_exec_push_clip(zr_byte_reader_t* r, zr_fb_t* dst, zr_fb_rect_i32_t clip_stack[],
-                                        uint32_t* clip_depth, zr_fb_rect_i32_t* inout_clip,
-                                        uint32_t max_clip_depth) {
+static zr_result_t zr_dl_exec_push_clip(zr_byte_reader_t* r, zr_fb_painter_t* p) {
   zr_dl_cmd_push_clip_t cmd;
   zr_result_t rc = zr_dl_read_cmd_push_clip(r, &cmd);
   if (rc != ZR_OK) {
     return rc;
   }
-  if (!clip_depth || !inout_clip) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-  if (*clip_depth >= max_clip_depth) {
-    return ZR_ERR_LIMIT;
-  }
-
-  zr_fb_rect_i32_t next = {cmd.x, cmd.y, cmd.w, cmd.h};
-  next = zr_fb_clip_intersect(next, zr_fb_full_clip(dst));
-  next = zr_fb_clip_intersect(*inout_clip, next);
-
-  clip_stack[*clip_depth] = *inout_clip;
-  (*clip_depth)++;
-  *inout_clip = next;
-  return ZR_OK;
+  zr_rect_t next = {cmd.x, cmd.y, cmd.w, cmd.h};
+  return zr_fb_clip_push(p, next);
 }
 
-static zr_result_t zr_dl_exec_pop_clip(const zr_fb_rect_i32_t clip_stack[], uint32_t* clip_depth,
-                                       zr_fb_rect_i32_t* inout_clip) {
-  if (!clip_depth || !inout_clip) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-  if (*clip_depth == 0u) {
+static zr_result_t zr_dl_exec_pop_clip(zr_fb_painter_t* p) {
+  zr_result_t rc = zr_fb_clip_pop(p);
+  if (rc == ZR_ERR_LIMIT) {
     return ZR_ERR_FORMAT;
   }
-
-  (*clip_depth)--;
-  *inout_clip = clip_stack[*clip_depth];
-  return ZR_OK;
+  return rc;
 }
 
-static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v, zr_fb_t* dst, zr_byte_reader_t* br,
-                                                    int32_t y, int32_t* inout_x, zr_fb_rect_i32_t clip) {
+static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v,
+                                                    zr_byte_reader_t* br,
+                                                    zr_fb_painter_t* p,
+                                                    int32_t y,
+                                                    int32_t* inout_x) {
   /*
     Note: This path assumes `v` came from zr_dl_validate() (so all indices and
     spans are in-bounds). Execution is structured as a straight-line interpreter
@@ -836,24 +883,10 @@ static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v, zr_fb
   const uint8_t* sbytes = v->strings_bytes + sspan.off + byte_off;
   zr_style_t s = zr_style_from_dl(style);
 
-  zr_result_t rc = zr_fb_draw_text_bytes(dst, *inout_x, y, sbytes, (size_t)byte_len, &s, clip);
-  if (rc != ZR_OK) {
-    return rc;
-  }
-
-  const size_t adv_cells = zr_fb_count_cells_utf8(sbytes, (size_t)byte_len);
-  if (adv_cells > (size_t)INT32_MAX) {
-    return ZR_ERR_LIMIT;
-  }
-  if (*inout_x > (INT32_MAX - (int32_t)adv_cells)) {
-    return ZR_ERR_LIMIT;
-  }
-  *inout_x += (int32_t)adv_cells;
-  return ZR_OK;
+  return zr_dl_draw_text_utf8(p, y, inout_x, sbytes, (size_t)byte_len, &s);
 }
 
-static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_t* dst,
-                                            zr_fb_rect_i32_t clip) {
+static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
   zr_dl_cmd_draw_text_run_t cmd;
   zr_result_t rc = zr_dl_read_cmd_draw_text_run(r, &cmd);
   if (rc != ZR_OK) {
@@ -877,7 +910,7 @@ static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_vie
 
   int32_t cx = cmd.x;
   for (uint32_t si = 0u; si < seg_count; si++) {
-    rc = zr_dl_exec_draw_text_run_segment(v, dst, &br, cmd.y, &cx, clip);
+    rc = zr_dl_exec_draw_text_run_segment(v, &br, p, cmd.y, &cx);
     if (rc != ZR_OK) {
       return rc;
     }
@@ -897,9 +930,12 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
     return ZR_ERR_LIMIT;
   }
 
-  zr_fb_rect_i32_t clip_stack[kMaxClip];
-  uint32_t clip_depth = 0u;
-  zr_fb_rect_i32_t cur_clip = zr_fb_full_clip(dst);
+  zr_rect_t clip_stack[kMaxClip + 1];
+  zr_fb_painter_t painter;
+  zr_result_t prc = zr_fb_painter_begin(&painter, dst, clip_stack, lim->dl_max_clip_depth + 1u);
+  if (prc != ZR_OK) {
+    return prc;
+  }
 
   zr_byte_reader_t r;
   zr_byte_reader_init(&r, v->cmd_bytes, v->cmd_bytes_len);
@@ -921,35 +957,35 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
         break;
       }
       case ZR_DL_OP_FILL_RECT: {
-        rc = zr_dl_exec_fill_rect(&r, dst, cur_clip);
+        rc = zr_dl_exec_fill_rect(&r, &painter);
         if (rc != ZR_OK) {
           return rc;
         }
         break;
       }
       case ZR_DL_OP_DRAW_TEXT: {
-        rc = zr_dl_exec_draw_text(&r, v, dst, cur_clip);
+        rc = zr_dl_exec_draw_text(&r, v, &painter);
         if (rc != ZR_OK) {
           return rc;
         }
         break;
       }
       case ZR_DL_OP_PUSH_CLIP: {
-        rc = zr_dl_exec_push_clip(&r, dst, clip_stack, &clip_depth, &cur_clip, (uint32_t)kMaxClip);
+        rc = zr_dl_exec_push_clip(&r, &painter);
         if (rc != ZR_OK) {
           return rc;
         }
         break;
       }
       case ZR_DL_OP_POP_CLIP: {
-        rc = zr_dl_exec_pop_clip(clip_stack, &clip_depth, &cur_clip);
+        rc = zr_dl_exec_pop_clip(&painter);
         if (rc != ZR_OK) {
           return rc;
         }
         break;
       }
       case ZR_DL_OP_DRAW_TEXT_RUN: {
-        rc = zr_dl_exec_draw_text_run(&r, v, dst, cur_clip);
+        rc = zr_dl_exec_draw_text_run(&r, v, &painter);
         if (rc != ZR_OK) {
           return rc;
         }

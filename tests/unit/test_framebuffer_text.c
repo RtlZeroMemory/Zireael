@@ -1,0 +1,74 @@
+/*
+  tests/unit/test_framebuffer_text.c — Unicode-safe text drawing convenience.
+
+  Why: Ensures zr_fb_draw_text_bytes() preserves wide-glyph invariants and
+  applies the "no half glyph" replacement policy deterministically.
+*/
+
+#include "zr_test.h"
+
+#include "core/zr_framebuffer.h"
+
+#include <string.h>
+
+static zr_style_t zr_style0(void) {
+  zr_style_t s;
+  s.fg_rgb = 0u;
+  s.bg_rgb = 0u;
+  s.attrs = 0u;
+  s.reserved = 0u;
+  return s;
+}
+
+ZR_TEST_UNIT(framebuffer_draw_text_bytes_writes_ascii_cells) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
+
+  const zr_style_t s0 = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, &s0), ZR_OK);
+
+  zr_rect_t clip_stack[2];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, clip_stack, 2u), ZR_OK);
+
+  const uint8_t bytes[] = {(uint8_t)'H', (uint8_t)'i'};
+  ZR_ASSERT_EQ_U32(zr_fb_draw_text_bytes(&p, 0, 0, bytes, sizeof(bytes), &s0), ZR_OK);
+
+  const zr_cell_t* c0 = zr_fb_cell_const(&fb, 0u, 0u);
+  const zr_cell_t* c1 = zr_fb_cell_const(&fb, 1u, 0u);
+  ZR_ASSERT_TRUE(c0 != NULL && c1 != NULL);
+  ZR_ASSERT_EQ_U32(c0->width, 1u);
+  ZR_ASSERT_EQ_U32(c0->glyph_len, 1u);
+  ZR_ASSERT_EQ_U32(c0->glyph[0], (uint8_t)'H');
+  ZR_ASSERT_EQ_U32(c1->width, 1u);
+  ZR_ASSERT_EQ_U32(c1->glyph_len, 1u);
+  ZR_ASSERT_EQ_U32(c1->glyph[0], (uint8_t)'i');
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(framebuffer_draw_text_bytes_wide_at_line_end_renders_replacement) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
+
+  const zr_style_t s0 = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, &s0), ZR_OK);
+
+  zr_rect_t clip_stack[2];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, clip_stack, 2u), ZR_OK);
+
+  const uint8_t wide[] = {0xE7u, 0x95u, 0x8Cu}; /* U+754C '界' */
+  ZR_ASSERT_EQ_U32(zr_fb_draw_text_bytes(&p, 3, 0, wide, sizeof(wide), &s0), ZR_OK);
+
+  const zr_cell_t* c = zr_fb_cell_const(&fb, 3u, 0u);
+  ZR_ASSERT_TRUE(c != NULL);
+  ZR_ASSERT_EQ_U32(c->width, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph_len, 3u);
+  ZR_ASSERT_EQ_U32(c->glyph[0], 0xEFu);
+  ZR_ASSERT_EQ_U32(c->glyph[1], 0xBFu);
+  ZR_ASSERT_EQ_U32(c->glyph[2], 0xBDu);
+
+  zr_fb_release(&fb);
+}
+

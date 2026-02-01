@@ -8,36 +8,35 @@
 #include "zr_test.h"
 
 #include "core/zr_diff.h"
-#include "core/zr_fb.h"
+#include "core/zr_framebuffer.h"
 #include "platform/zr_platform.h"
 
 #include <string.h>
 
 ZR_TEST_UNIT(diff_xterm256_component_distance_is_symmetric) {
-  zr_fb_cell_t prev_cells[1];
-  zr_fb_cell_t next_cells[1];
   zr_fb_t prev;
   zr_fb_t next;
-  (void)zr_fb_init(&prev, prev_cells, 1u, 1u);
-  (void)zr_fb_init(&next, next_cells, 1u, 1u);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 1u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&next, 1u, 1u), ZR_OK);
 
   zr_style_t base;
-  base.fg = 0u;
-  base.bg = 0u;
+  base.fg_rgb = 0u;
+  base.bg_rgb = 0u;
   base.attrs = 0u;
+  base.reserved = 0u;
   (void)zr_fb_clear(&prev, &base);
   (void)zr_fb_clear(&next, &base);
 
   /* RGB=(125,0,0) should quantize to the 6x6x6 cube r=135 component (index 2). */
   zr_style_t s = base;
-  s.fg = 0x7D0000u;
+  s.fg_rgb = 0x7D0000u;
 
-  zr_fb_cell_t* c = zr_fb_cell_at(&next, 0u, 0u);
+  zr_cell_t* c = zr_fb_cell(&next, 0u, 0u);
   ZR_ASSERT_TRUE(c != NULL);
   memset(c->glyph, 0, sizeof(c->glyph));
   c->glyph[0] = (uint8_t)'X';
   c->glyph_len = 1u;
-  c->flags = 0u;
+  c->width = 1u;
   c->style = s;
 
   plat_caps_t caps;
@@ -68,4 +67,7 @@ ZR_TEST_UNIT(diff_xterm256_component_distance_is_symmetric) {
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
 }

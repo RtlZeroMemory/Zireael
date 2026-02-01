@@ -8,6 +8,11 @@ add_executable(zireael_unit_tests
         unit/test_diff_color_quant.c
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c
+        unit/test_framebuffer_init_resize.c
+        unit/test_cell_invariants.c
+        unit/test_clipping.c
+        unit/test_blit.c
+        unit/test_framebuffer_text.c
         unit/test_drawlist_validate.c
         unit/test_event_pack.c
         unit/test_event_queue.c

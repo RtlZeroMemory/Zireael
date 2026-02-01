@@ -8,7 +8,7 @@
 #ifndef ZR_CORE_ZR_DEBUG_OVERLAY_H_INCLUDED
 #define ZR_CORE_ZR_DEBUG_OVERLAY_H_INCLUDED
 
-#include "core/zr_fb.h"
+#include "core/zr_framebuffer.h"
 #include "core/zr_metrics.h"
 
 #include "util/zr_result.h"

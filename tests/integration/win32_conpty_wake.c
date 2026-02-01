@@ -24,17 +24,22 @@ typedef struct zr_wait_thread_args_t {
   plat_t*  plat;
   int32_t  timeout_ms;
   int32_t  result;
+  zr_result_t wake_rc;
+  HANDLE   ready_event;
 } zr_wait_thread_args_t;
 
 static DWORD WINAPI zr_wait_thread(LPVOID user) {
   zr_wait_thread_args_t* args = (zr_wait_thread_args_t*)user;
+  if (args->ready_event) {
+    (void)SetEvent(args->ready_event);
+  }
   args->result = plat_wait(args->plat, args->timeout_ms);
   return 0u;
 }
 
 static DWORD WINAPI zr_wake_thread(LPVOID user) {
-  plat_t* plat = (plat_t*)user;
-  (void)plat_wake(plat);
+  zr_wait_thread_args_t* args = (zr_wait_thread_args_t*)user;
+  args->wake_rc = plat_wake(args->plat);
   return 0u;
 }
 
@@ -58,18 +63,33 @@ static int zr_child_main(void) {
   wait_args.plat = plat;
   wait_args.timeout_ms = 5000;
   wait_args.result = -999;
-
-  HANDLE th_wait = CreateThread(NULL, 0u, zr_wait_thread, &wait_args, 0u, NULL);
-  if (!th_wait) {
+  wait_args.wake_rc = ZR_ERR_PLATFORM;
+  wait_args.ready_event = CreateEventW(NULL, TRUE, FALSE, NULL);
+  if (!wait_args.ready_event) {
     plat_destroy(plat);
     return 2;
   }
 
-  Sleep(50u);
-  HANDLE th_wake = CreateThread(NULL, 0u, zr_wake_thread, plat, 0u, NULL);
+  HANDLE th_wait = CreateThread(NULL, 0u, zr_wait_thread, &wait_args, 0u, NULL);
+  if (!th_wait) {
+    CloseHandle(wait_args.ready_event);
+    plat_destroy(plat);
+    return 2;
+  }
+
+  if (WaitForSingleObject(wait_args.ready_event, 1000u) != WAIT_OBJECT_0) {
+    (void)WaitForSingleObject(th_wait, 100u);
+    CloseHandle(th_wait);
+    CloseHandle(wait_args.ready_event);
+    plat_destroy(plat);
+    return 2;
+  }
+
+  HANDLE th_wake = CreateThread(NULL, 0u, zr_wake_thread, &wait_args, 0u, NULL);
   if (!th_wake) {
     (void)WaitForSingleObject(th_wait, 1000u);
     CloseHandle(th_wait);
+    CloseHandle(wait_args.ready_event);
     plat_destroy(plat);
     return 2;
   }
@@ -78,12 +98,17 @@ static int zr_child_main(void) {
   DWORD wake_join = WaitForSingleObject(th_wake, 3000u);
   CloseHandle(th_wait);
   CloseHandle(th_wake);
+  CloseHandle(wait_args.ready_event);
 
   if (wait_join != WAIT_OBJECT_0 || wake_join != WAIT_OBJECT_0) {
     plat_destroy(plat);
     return 2;
   }
 
+  if (wait_args.wake_rc != ZR_OK) {
+    plat_destroy(plat);
+    return 2;
+  }
   if (wait_args.result != 1) {
     plat_destroy(plat);
     return 2;

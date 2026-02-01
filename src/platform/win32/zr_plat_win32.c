@@ -129,10 +129,38 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
   }
 
   /* --- Enable VT input (required; no legacy fallback in v1) --- */
-  DWORD in_mode_new = in_mode | ENABLE_VIRTUAL_TERMINAL_INPUT;
-  if (!SetConsoleMode(plat->h_in, in_mode_new)) {
-    (void)zr_win32_restore_modes_best_effort(plat);
-    return ZR_ERR_UNSUPPORTED;
+  /*
+    "Raw" input in practice means:
+      - no cooked line buffering and no echo
+      - no ctrl-c signal translation (engine parses bytes)
+      - avoid QuickEdit mode (can freeze input on mouse selection)
+
+    Note: we intentionally keep this logic deterministic and config-driven.
+  */
+  DWORD in_mode_base = in_mode | ENABLE_VIRTUAL_TERMINAL_INPUT;
+
+  /*
+    QuickEdit handling is best-effort: only toggle the bit when the console host
+    already exposes EXTENDED_FLAGS behavior.
+  */
+  if ((in_mode & ENABLE_EXTENDED_FLAGS) != 0u) {
+    in_mode_base &= ~((DWORD)ENABLE_QUICK_EDIT_MODE);
+  }
+
+  /*
+    Some environments (notably certain ConPTY configurations) reject aggressive
+    mode bit clearing. Try a strict raw-ish mode first; fall back to a minimal,
+    VT-input-capable mode on failure.
+  */
+  DWORD in_mode_strict = in_mode_base;
+  DWORD strict_clear = (DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT);
+  in_mode_strict &= ~strict_clear;
+
+  if (!SetConsoleMode(plat->h_in, in_mode_strict)) {
+    if (!SetConsoleMode(plat->h_in, in_mode_base)) {
+      (void)zr_win32_restore_modes_best_effort(plat);
+      return ZR_ERR_UNSUPPORTED;
+    }
   }
   DWORD in_mode_after = 0u;
   if (!GetConsoleMode(plat->h_in, &in_mode_after) || (in_mode_after & ENABLE_VIRTUAL_TERMINAL_INPUT) == 0u) {
@@ -315,7 +343,12 @@ zr_result_t plat_get_size(plat_t* plat, plat_size_t* out_size) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  (void)zr_win32_query_size_best_effort(plat->h_out, &plat->last_size);
+  if (!zr_win32_query_size_best_effort(plat->h_out, &plat->last_size)) {
+    out_size->cols = 0u;
+    out_size->rows = 0u;
+    return ZR_ERR_PLATFORM;
+  }
+
   *out_size = plat->last_size;
   return ZR_OK;
 }
@@ -421,5 +454,11 @@ uint64_t plat_now_ms(void) {
 
   uint64_t ticks = (uint64_t)now.QuadPart;
   uint64_t hz = (uint64_t)freq.QuadPart;
-  return (ticks * 1000ull) / hz;
+
+  uint64_t seconds = ticks / hz;
+  uint64_t rem = ticks % hz;
+  if (seconds > UINT64_MAX / 1000ull) {
+    return UINT64_MAX;
+  }
+  return (seconds * 1000ull) + ((rem * 1000ull) / hz);
 }

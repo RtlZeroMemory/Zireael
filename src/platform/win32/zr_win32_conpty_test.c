@@ -27,6 +27,9 @@ typedef HANDLE zr_win32_hpc_t;
 typedef HRESULT(WINAPI* zr_win32_create_pseudoconsole_fn)(COORD size, HANDLE h_in, HANDLE h_out, DWORD flags, zr_win32_hpc_t* out_hpc);
 typedef void(WINAPI* zr_win32_close_pseudoconsole_fn)(zr_win32_hpc_t hpc);
 
+/* --- ConPTY runner limits --- */
+#define ZR_WIN32_CONPTY_CHILD_TIMEOUT_MS 4000ull
+
 static void zr_win32_strcpy_reason(char* dst, size_t cap, const char* s) {
   if (!dst || cap == 0u) {
     return;
@@ -210,7 +213,7 @@ zr_result_t zr_win32_conpty_run_self_capture(const char* child_args,
   SIZE_T attr_list_size = 0u;
   char* cmdline = NULL;
   BOOL ok = FALSE;
-  DWORD start_ms = 0u;
+  uint64_t start_ms = 0ull;
   DWORD exit_code = 0u;
 
   if (!zr_win32_make_pipe(&conpty_in_r, &conpty_in_w) || !zr_win32_make_pipe(&conpty_out_r, &conpty_out_w)) {
@@ -254,6 +257,11 @@ zr_result_t zr_win32_conpty_run_self_capture(const char* child_args,
   }
 
   si.StartupInfo.cb = sizeof(si);
+  /*
+    ConPTY still expects the child to have valid std handles. Keep them pointed
+    at the parent's std handles; the pseudo-console attachment is driven by the
+    attribute list.
+  */
   si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
   si.StartupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
   si.StartupInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -288,7 +296,7 @@ zr_result_t zr_win32_conpty_run_self_capture(const char* child_args,
   CloseHandle(conpty_out_w);
   conpty_out_w = NULL;
 
-  start_ms = GetTickCount();
+  start_ms = (uint64_t)GetTickCount64();
   for (;;) {
     if (out_bytes && out_cap > 0u) {
       if (!zr_win32_read_pipe_best_effort(conpty_out_r, out_bytes, out_cap, out_len)) {
@@ -306,7 +314,9 @@ zr_result_t zr_win32_conpty_run_self_capture(const char* child_args,
       goto cleanup;
     }
 
-    if ((GetTickCount() - start_ms) > 4000u) {
+    if (((uint64_t)GetTickCount64() - start_ms) > ZR_WIN32_CONPTY_CHILD_TIMEOUT_MS) {
+      (void)TerminateProcess(pi.hProcess, 2u);
+      (void)WaitForSingleObject(pi.hProcess, 250u);
       r = ZR_ERR_PLATFORM;
       goto cleanup;
     }
@@ -340,6 +350,14 @@ cleanup:
   if (cmdline) {
     HeapFree(GetProcessHeap(), 0u, cmdline);
     cmdline = NULL;
+  }
+
+  if (pi.hProcess) {
+    DWORD wait_rc = WaitForSingleObject(pi.hProcess, 0u);
+    if (wait_rc == WAIT_TIMEOUT) {
+      (void)TerminateProcess(pi.hProcess, 2u);
+      (void)WaitForSingleObject(pi.hProcess, 250u);
+    }
   }
 
   if (pi.hThread) {

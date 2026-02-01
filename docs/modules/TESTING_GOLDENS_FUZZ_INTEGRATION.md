@@ -18,6 +18,10 @@ Location:
 
 - `tests/unit/`
 
+Notes:
+
+- Unit tests that exercise engine wiring use an OS-header-free mock platform backend (see `tests/unit/mock_platform.c`).
+
 ## Golden tests
 
 Purpose:
@@ -64,4 +68,3 @@ Notes:
 Location:
 
 - `tests/integration/`
-

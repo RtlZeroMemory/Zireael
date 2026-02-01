@@ -1,3 +1,35 @@
+add_library(zireael_unit_lib STATIC
+        ${PROJECT_SOURCE_DIR}/src/core/zr_config.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_diff.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_debug_overlay.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_drawlist.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_engine.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_event_pack.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_event_queue.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_framebuffer.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_input_parser.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_metrics.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_placeholder.c
+        ${PROJECT_SOURCE_DIR}/src/unicode/zr_grapheme.c
+        ${PROJECT_SOURCE_DIR}/src/unicode/zr_unicode_data.c
+        ${PROJECT_SOURCE_DIR}/src/unicode/zr_utf8.c
+        ${PROJECT_SOURCE_DIR}/src/unicode/zr_width.c
+        ${PROJECT_SOURCE_DIR}/src/unicode/zr_wrap.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_arena.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_caps.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_log.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_ring.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_string_builder.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_vec.c
+        unit/mock_platform.c
+)
+
+target_link_libraries(zireael_unit_lib PRIVATE zireael_build_settings)
+target_include_directories(zireael_unit_lib PUBLIC
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/tests
+)
+
 add_executable(zireael_unit_tests
         zr_test.c
         zr_tests_main.c
@@ -8,6 +40,10 @@ add_executable(zireael_unit_tests
         unit/test_diff_color_quant.c
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c
+        unit/test_engine_poll_events_truncation.c
+        unit/test_engine_present_single_flush.c
+        unit/test_engine_submit_drawlist_no_partial_effects.c
+        unit/test_engine_version_negotiation.c
         unit/test_framebuffer_init_resize.c
         unit/test_cell_invariants.c
         unit/test_clipping.c
@@ -42,7 +78,7 @@ target_compile_definitions(zireael_unit_tests PRIVATE
 )
 
 target_link_libraries(zireael_unit_tests PRIVATE zireael_build_settings)
-target_link_libraries(zireael_unit_tests PRIVATE zireael)
+target_link_libraries(zireael_unit_tests PRIVATE zireael_unit_lib)
 
 add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)

@@ -7,8 +7,11 @@
 
 #include "zr_test.h"
 
+#include "core/zr_config.h"
 #include "core/zr_engine.h"
 #include "core/zr_metrics_internal.h"
+
+#include "unit/mock_platform.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -44,11 +47,6 @@ ZR_TEST_ASSERT_U64_FIELD_(arena_persistent_high_water_bytes);
 
 #undef ZR_TEST_ASSERT_U32_FIELD_
 #undef ZR_TEST_ASSERT_U64_FIELD_
-
-static zr_engine_t* zr_dummy_engine_ptr(void) {
-  static uint8_t dummy;
-  return (zr_engine_t*)&dummy;
-}
 
 ZR_TEST_UNIT(metrics_prefix_copy_full_size_copies_all_fields) {
   zr_metrics_t snap = zr_metrics__default_snapshot();
@@ -153,13 +151,24 @@ ZR_TEST_UNIT(metrics_prefix_copy_zero_struct_size_writes_nothing) {
 }
 
 ZR_TEST_UNIT(engine_get_metrics_uses_prefix_copy_contract) {
+  mock_plat_reset();
+  mock_plat_set_size(80u, 24u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
   zr_metrics_t out;
   memset(&out, 0, sizeof(out));
   out.struct_size = (uint32_t)sizeof(zr_metrics_t);
 
-  ZR_ASSERT_EQ_U32(engine_get_metrics(zr_dummy_engine_ptr(), &out), ZR_OK);
+  ZR_ASSERT_EQ_U32(engine_get_metrics(e, &out), ZR_OK);
   ZR_ASSERT_EQ_U32(out.struct_size, (uint32_t)sizeof(zr_metrics_t));
   ZR_ASSERT_EQ_U32(out.negotiated_engine_abi_major, 1u);
   ZR_ASSERT_EQ_U32(out.negotiated_drawlist_version, 1u);
   ZR_ASSERT_EQ_U32(out.negotiated_event_batch_version, 1u);
+
+  engine_destroy(e);
 }

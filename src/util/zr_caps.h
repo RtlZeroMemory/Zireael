@@ -23,6 +23,14 @@ typedef struct zr_limits_t {
   uint32_t arena_max_total_bytes;
   uint32_t arena_initial_bytes;
 
+  /*
+    out_max_bytes_per_frame:
+      - Maximum bytes the engine may emit in a single engine_present() call.
+      - Enforced by allocating a fixed-size engine-owned output buffer and
+        building diff output into it before a single platform flush.
+  */
+  uint32_t out_max_bytes_per_frame;
+
   /* Drawlist (v1) caps. */
   uint32_t dl_max_total_bytes;
   uint32_t dl_max_cmds;

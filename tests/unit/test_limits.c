@@ -31,6 +31,7 @@ ZR_TEST_UNIT(limits_default_and_validate) {
   /* --- Assert: All capacity fields are non-zero --- */
   ZR_ASSERT_TRUE(l.arena_max_total_bytes != 0u);
   ZR_ASSERT_TRUE(l.arena_initial_bytes != 0u);
+  ZR_ASSERT_TRUE(l.out_max_bytes_per_frame != 0u);
   ZR_ASSERT_TRUE(l.dl_max_total_bytes != 0u);
   ZR_ASSERT_TRUE(l.dl_max_cmds != 0u);
   ZR_ASSERT_TRUE(l.dl_max_strings != 0u);
@@ -73,5 +74,10 @@ ZR_TEST_UNIT(limits_validate_rejects_zero_or_invalid) {
   /* --- Zero dl_max_total_bytes --- */
   l = zr_limits_default();
   l.dl_max_total_bytes = 0u;
+  ZR_ASSERT_EQ_U32(zr_limits_validate(&l), ZR_ERR_INVALID_ARGUMENT);
+
+  /* --- Zero out_max_bytes_per_frame --- */
+  l = zr_limits_default();
+  l.out_max_bytes_per_frame = 0u;
   ZR_ASSERT_EQ_U32(zr_limits_validate(&l), ZR_ERR_INVALID_ARGUMENT);
 }

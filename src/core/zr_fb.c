@@ -1,10 +1,16 @@
 /*
-  src/core/zr_fb.c — Minimal in-memory framebuffer model implementation.
+  src/core/zr_fb.c — In-memory framebuffer with grapheme-aware text rendering.
+
+  Why: Provides a deterministic, OS-header-free surface for drawlist execution.
+  Text is rendered at grapheme cluster boundaries with proper width handling
+  for wide characters (CJK, emoji) using continuation cells.
 */
 
 #include "core/zr_fb.h"
 
+#include "unicode/zr_grapheme.h"
 #include "unicode/zr_utf8.h"
+#include "unicode/zr_width.h"
 
 #include "util/zr_checked.h"
 
@@ -58,17 +64,32 @@ static void zr_fb_cell_set_space(zr_fb_cell_t* cell, zr_style_t style) {
   cell->style = style;
 }
 
-static void zr_fb_cell_set_glyph(zr_fb_cell_t* cell, const uint8_t glyph[4], uint8_t glyph_len,
+/* Store a grapheme cluster in a cell; truncates to ZR_FB_GLYPH_MAX_BYTES. */
+static void zr_fb_cell_set_glyph(zr_fb_cell_t* cell, const uint8_t* glyph, size_t glyph_len,
                                  zr_style_t style) {
-  if (!cell || !glyph) {
+  if (!cell) {
     return;
   }
   memset(cell->glyph, 0, sizeof(cell->glyph));
-  if (glyph_len != 0u) {
-    memcpy(cell->glyph, glyph, (size_t)glyph_len);
+  if (glyph && glyph_len != 0u) {
+    const size_t copy_len = (glyph_len <= ZR_FB_GLYPH_MAX_BYTES) ? glyph_len : ZR_FB_GLYPH_MAX_BYTES;
+    memcpy(cell->glyph, glyph, copy_len);
+    cell->glyph_len = (uint8_t)copy_len;
+  } else {
+    cell->glyph_len = 0u;
   }
-  cell->glyph_len = glyph_len;
   cell->flags = 0u;
+  cell->style = style;
+}
+
+/* Mark a cell as a continuation of a wide character. */
+static void zr_fb_cell_set_continuation(zr_fb_cell_t* cell, zr_style_t style) {
+  if (!cell) {
+    return;
+  }
+  memset(cell->glyph, 0, sizeof(cell->glyph));
+  cell->glyph_len = 0u;
+  cell->flags = ZR_FB_CELL_FLAG_CONTINUATION;
   cell->style = style;
 }
 
@@ -216,56 +237,30 @@ zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* s
   return ZR_OK;
 }
 
-/* Wrapper around canonical UTF-8 decoder for framebuffer text drawing. */
-static size_t zr_fb_decode_one_utf8(const uint8_t* s, size_t len, uint8_t out[4], uint8_t* out_len) {
-  if (!s || !out || !out_len || len == 0u) {
-    return 0u;
-  }
+/* U+FFFD replacement character in UTF-8. */
+static const uint8_t ZR_UTF8_REPLACEMENT[] = {0xEFu, 0xBFu, 0xBDu};
+#define ZR_UTF8_REPLACEMENT_LEN 3u
 
-  const zr_utf8_decode_result_t r = zr_utf8_decode_one(s, len);
-  if (r.size == 0u) {
-    return 0u;
-  }
-
-  if (r.valid) {
-    /* Copy original bytes for valid sequences. */
-    for (uint8_t i = 0u; i < r.size && i < 4u; i++) {
-      out[i] = s[i];
-    }
-    if (r.size < 4u) {
-      memset(out + r.size, 0, (size_t)(4u - r.size));
-    }
-    *out_len = r.size;
-  } else {
-    /* Invalid UTF-8 policy: emit U+FFFD. */
-    out[0] = 0xEFu;
-    out[1] = 0xBFu;
-    out[2] = 0xBDu;
-    out[3] = 0u;
-    *out_len = 3u;
-  }
-
-  return (size_t)r.size;
-}
-
-/* Count the number of terminal cells (codepoints) in a UTF-8 string. */
+/*
+ * Count terminal column width of a UTF-8 string using grapheme iteration.
+ * Each grapheme contributes its display width (0, 1, or 2 columns).
+ */
 size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
   if (!bytes || len == 0u) {
     return 0u;
   }
-  size_t cells = 0u;
-  size_t i = 0u;
-  while (i < len) {
-    uint8_t glyph[4];
-    uint8_t glyph_len = 0u;
-    const size_t adv = zr_fb_decode_one_utf8(bytes + i, len - i, glyph, &glyph_len);
-    if (adv == 0u) {
-      break;
-    }
-    i += adv;
-    cells++;
+
+  size_t total_width = 0u;
+  zr_grapheme_iter_t it;
+  zr_grapheme_iter_init(&it, bytes, len);
+
+  zr_grapheme_t g;
+  while (zr_grapheme_next(&it, &g)) {
+    const uint8_t w = zr_width_grapheme_utf8(bytes + g.offset, g.size, zr_width_policy_default());
+    total_width += (size_t)w;
   }
-  return cells;
+
+  return total_width;
 }
 
 static bool zr_fb_can_draw_at(const zr_fb_t* fb, int64_t x, int32_t y, zr_fb_rect_i32_t clip) {
@@ -281,7 +276,14 @@ static bool zr_fb_can_draw_at(const zr_fb_t* fb, int64_t x, int32_t y, zr_fb_rec
   return zr_fb_in_clip((int32_t)x, y, clip);
 }
 
-/* Draw UTF-8 text at (x,y) with given style, one codepoint per cell, respecting clip. */
+/*
+ * Draw UTF-8 text at (x,y) using grapheme-aware iteration.
+ *
+ * Each grapheme cluster occupies 0, 1, or 2 cells based on its display width.
+ * Zero-width graphemes (controls, extend-only, ZWJ-only) are skipped entirely.
+ * Wide characters (width=2) use a lead cell followed by a continuation cell.
+ * Graphemes exceeding ZR_FB_GLYPH_MAX_BYTES are replaced with U+FFFD.
+ */
 zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8_t* bytes,
                                   size_t len, const zr_style_t* style, zr_fb_rect_i32_t clip) {
   if (!fb || !bytes || !style) {
@@ -290,28 +292,52 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8
   if (!zr_fb_has_backing(fb)) {
     return ZR_OK;
   }
+
   zr_fb_rect_i32_t full = zr_fb_full_clip(fb);
   clip = zr_fb_clip_intersect(clip, full);
 
   int64_t cx = (int64_t)x;
-  size_t i = 0u;
-  while (i < len) {
-    uint8_t glyph[4] = {0u, 0u, 0u, 0u};
-    uint8_t glyph_len = 0u;
-    const size_t adv = zr_fb_decode_one_utf8(bytes + i, len - i, glyph, &glyph_len);
-    if (adv == 0u) {
-      break;
+  zr_grapheme_iter_t it;
+  zr_grapheme_iter_init(&it, bytes, len);
+
+  zr_grapheme_t g;
+  while (zr_grapheme_next(&it, &g)) {
+    const uint8_t* glyph_bytes = bytes + g.offset;
+    size_t glyph_len = g.size;
+
+    /* Replace oversized graphemes with U+FFFD. */
+    if (glyph_len > ZR_FB_GLYPH_MAX_BYTES) {
+      glyph_bytes = ZR_UTF8_REPLACEMENT;
+      glyph_len = ZR_UTF8_REPLACEMENT_LEN;
     }
 
+    const uint8_t width = zr_width_grapheme_utf8(glyph_bytes, glyph_len, zr_width_policy_default());
+
+    /* Skip zero-width graphemes (controls, extend-only, ZWJ-only clusters). */
+    if (width == 0u) {
+      continue;
+    }
+
+    /* --- Draw lead cell --- */
     if (zr_fb_can_draw_at(fb, cx, y, clip)) {
       zr_fb_cell_t* c = zr_fb_cell_at(fb, (uint32_t)cx, (uint32_t)y);
       if (c) {
-        zr_fb_cell_set_glyph(c, glyph, glyph_len, *style);
+        zr_fb_cell_set_glyph(c, glyph_bytes, glyph_len, *style);
       }
     }
-
-    i += adv;
     cx++;
+
+    /* --- Draw continuation cell for wide characters --- */
+    if (width == 2u) {
+      if (zr_fb_can_draw_at(fb, cx, y, clip)) {
+        zr_fb_cell_t* c = zr_fb_cell_at(fb, (uint32_t)cx, (uint32_t)y);
+        if (c) {
+          zr_fb_cell_set_continuation(c, *style);
+        }
+      }
+      cx++;
+    }
   }
+
   return ZR_OK;
 }

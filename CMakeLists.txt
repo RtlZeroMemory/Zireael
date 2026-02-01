@@ -49,6 +49,7 @@ endif ()
 
 set(ZIREAEL_SOURCES
   src/core/zr_placeholder.c
+  src/platform/zr_platform_select.c
   src/util/zr_arena.c
   src/util/zr_caps.c
   src/util/zr_log.c
@@ -56,6 +57,16 @@ set(ZIREAEL_SOURCES
   src/util/zr_string_builder.c
   src/util/zr_vec.c
 )
+
+if (WIN32)
+  list(APPEND ZIREAEL_SOURCES
+    src/platform/win32/zr_plat_win32_stub.c
+  )
+else ()
+  list(APPEND ZIREAEL_SOURCES
+    src/platform/posix/zr_plat_posix_stub.c
+  )
+endif ()
 
 add_library(zireael STATIC
   ${ZIREAEL_SOURCES}

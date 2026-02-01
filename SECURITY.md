@@ -1,12 +1,43 @@
-# Security policy
+# Security Policy
 
-## Reporting a vulnerability
+## Supported Versions
 
-Please report security issues via GitHub Security Advisories (preferred).
+| Version | Supported |
+|---------|-----------|
+| 1.x     | Yes       |
 
-If you cannot use GitHub advisories, open a GitHub issue with minimal details
-and request a private contact channel.
+## Reporting Vulnerabilities
 
-## Supported versions
+**Preferred:** Use [GitHub Security Advisories](https://github.com/RtlZeroMemory/Zireael/security/advisories/new)
 
-Only the latest `main` branch is supported at this time.
+**Alternative:** Open a GitHub issue requesting private contact if you cannot use Security Advisories.
+
+## Response Timeline
+
+- Acknowledgment within 48 hours
+- Initial assessment within 7 days
+- Fix timeline depends on severity and complexity
+
+## Scope
+
+Security issues in Zireael include:
+
+- Buffer overflows in drawlist/event parsing
+- Memory corruption in core engine
+- Input validation bypasses
+- Denial of service via malformed input
+
+Out of scope:
+
+- Issues in example code (not production)
+- Terminal emulator vulnerabilities
+- Wrapper/binding issues (separate projects)
+
+## Security Design
+
+Zireael treats all wrapper-provided input as untrusted:
+
+- Drawlist bytes are validated before execution
+- Event buffers use bounded writes
+- No partial effects on validation failure
+- Fixed resource limits prevent exhaustion

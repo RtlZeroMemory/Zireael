@@ -49,6 +49,9 @@ endif ()
 
 set(ZIREAEL_SOURCES
   src/core/zr_placeholder.c
+  src/platform/zr_platform_select.c
+  src/platform/posix/zr_plat_posix_stub.c
+  src/platform/win32/zr_plat_win32_stub.c
   src/util/zr_arena.c
   src/util/zr_caps.c
   src/util/zr_log.c

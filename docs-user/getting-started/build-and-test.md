@@ -1,10 +1,8 @@
-# Zireael — Build Toolchains and CMake (Normative)
+# Build & test
 
-Zireael uses CMake presets (`CMakePresets.json`) and CTest.
+Zireael uses CMake presets (Ninja generator) and CTest.
 
-## Configure / build
-
-Typical POSIX debug build:
+## POSIX (Linux/macOS)
 
 ```text
 cmake --preset posix-clang-debug
@@ -12,7 +10,7 @@ cmake --build --preset posix-clang-debug
 ctest --test-dir out/build/posix-clang-debug --output-on-failure
 ```
 
-Typical Windows debug build (clang-cl):
+## Windows (clang-cl)
 
 ```text
 # PowerShell
@@ -24,8 +22,6 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 
 ## Guardrails
 
-Run:
-
 ```text
 bash scripts/guardrails.sh
 ```
@@ -33,11 +29,4 @@ bash scripts/guardrails.sh
 This enforces:
 
 - platform-boundary OS-header bans (core/unicode/util)
-- forbidden libc calls in deterministic core (core/unicode/util)
-
-## Options (high level)
-
-Project options are defined in `CMakeLists.txt` (top-level). CI typically sets:
-
-- `-DZIREAEL_WARNINGS_AS_ERRORS=ON`
-- `-DZIREAEL_BUILD_EXAMPLES=OFF`
+- libc policy restrictions (deterministic core)

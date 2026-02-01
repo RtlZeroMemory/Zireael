@@ -1,6 +1,6 @@
-# Zireael — Header Skeleton Plan (Normative)
+# Zireael — Header Layering (Normative)
 
-This document defines the include layering rules and the responsibilities of the public/ABI headers.
+This document defines include layering rules and the responsibilities of public/ABI headers.
 
 ## Include layering (locked)
 
@@ -43,4 +43,3 @@ Rules:
 
 - OS-header-free platform boundary interface used by `src/core/**`.
 - Backends implement this interface in `src/platform/posix/**` and `src/platform/win32/**`.
-

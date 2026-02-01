@@ -9,7 +9,7 @@ Reading order (recommended):
 3. `docs/LIBC_POLICY.md`
 4. `docs/ERROR_CODES_CATALOG.md`
 5. `docs/VERSION_PINS.md`
-6. `docs/HEADER_SKELETON_PLAN.md`
+6. `docs/HEADER_LAYERING.md`
 7. `docs/GOLDEN_FIXTURE_FORMAT.md`
 8. `docs/REPO_LAYOUT.md`
 9. `docs/BUILD_TOOLCHAINS_AND_CMAKE.md`
@@ -18,3 +18,7 @@ Reading order (recommended):
 Testing:
 
 - `docs/modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md`
+
+Reference:
+
+- `docs/ABI_REFERENCE.md` (wrapper/FFI integration notes)

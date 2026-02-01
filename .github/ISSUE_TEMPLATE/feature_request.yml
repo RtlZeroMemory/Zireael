@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an enhancement or new capability.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to see added or changed?
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints / compatibility
+      description: Any ABI impact, determinism constraints, platform boundary considerations, etc.
+    validations:
+      required: false

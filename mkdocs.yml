@@ -1,0 +1,44 @@
+site_name: Zireael
+site_description: Deterministic terminal UI core engine (C)
+repo_url: https://github.com/RtlZeroMemory/Zireael
+repo_name: RtlZeroMemory/Zireael
+
+docs_dir: docs-user
+site_dir: out/site
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Build & Test: getting-started/build-and-test.md
+      - Minimal Example: getting-started/minimal-example.md
+  - Concepts:
+      - Engine Model: concepts/engine-model.md
+      - Ownership & Buffers: concepts/ownership.md
+      - Error Model: concepts/errors.md
+      - Determinism Pins: concepts/determinism.md
+  - ABI / Formats:
+      - Overview: abi/overview.md
+      - Drawlist v1: abi/drawlist-v1.md
+      - Event Batch v1: abi/event-batch-v1.md
+  - API:
+      - Overview: api/overview.md
+      - Header Map: api/headers.md
+  - Platform:
+      - POSIX Backend: platform/posix.md
+      - Win32 Backend: platform/win32.md
+  - Development:
+      - Contributing: contributing.md
+      - Security: security.md

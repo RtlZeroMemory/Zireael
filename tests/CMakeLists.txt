@@ -2,6 +2,13 @@ add_executable(zireael_unit_tests
   zr_test.c
   zr_tests_main.c
   unit/unit_smoke.c
+  unit/test_arena.c
+  unit/test_bytes.c
+  unit/test_checked.c
+  unit/test_limits.c
+  unit/test_ring.c
+  unit/test_string_builder.c
+  unit/test_vec.c
   golden/zr_golden.c
   golden/golden_runner_smoke.c
 )

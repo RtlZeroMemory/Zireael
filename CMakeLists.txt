@@ -47,8 +47,18 @@ if (ZIREAEL_SANITIZE_ADDRESS OR ZIREAEL_SANITIZE_UNDEFINED)
   )
 endif ()
 
-add_library(zireael STATIC
+set(ZIREAEL_SOURCES
   src/core/zr_placeholder.c
+  src/util/zr_arena.c
+  src/util/zr_caps.c
+  src/util/zr_log.c
+  src/util/zr_ring.c
+  src/util/zr_string_builder.c
+  src/util/zr_vec.c
+)
+
+add_library(zireael STATIC
+  ${ZIREAEL_SOURCES}
 )
 add_library(Zireael::zireael ALIAS zireael)
 
@@ -66,7 +76,7 @@ target_include_directories(zireael PUBLIC
 
 if (ZIREAEL_BUILD_SHARED)
   add_library(zireael_shared SHARED
-    src/core/zr_placeholder.c
+    ${ZIREAEL_SOURCES}
   )
   add_library(Zireael::zireael_shared ALIAS zireael_shared)
 

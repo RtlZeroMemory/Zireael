@@ -2,23 +2,25 @@
 
 Zireael uses CMake presets (Ninja generator) and CTest.
 
-## POSIX (Linux/macOS)
+## Presets
 
-```text
-cmake --preset posix-clang-debug
-cmake --build --preset posix-clang-debug
-ctest --test-dir out/build/posix-clang-debug --output-on-failure
-```
+=== "POSIX (Linux/macOS)"
 
-## Windows (clang-cl)
+    ```text
+    cmake --preset posix-clang-debug
+    cmake --build --preset posix-clang-debug
+    ctest --test-dir out/build/posix-clang-debug --output-on-failure
+    ```
 
-```text
-# PowerShell
-.\scripts\vsdev.ps1
-cmake --preset windows-clangcl-debug
-cmake --build --preset windows-clangcl-debug
-ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
-```
+=== "Windows (clang-cl)"
+
+    ```text
+    # PowerShell
+    .\scripts\vsdev.ps1
+    cmake --preset windows-clangcl-debug
+    cmake --build --preset windows-clangcl-debug
+    ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
+    ```
 
 ## Guardrails
 

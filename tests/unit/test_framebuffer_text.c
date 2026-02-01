@@ -72,3 +72,36 @@ ZR_TEST_UNIT(framebuffer_draw_text_bytes_wide_at_line_end_renders_replacement) {
   zr_fb_release(&fb);
 }
 
+ZR_TEST_UNIT(framebuffer_draw_text_bytes_wide_clipped_renders_replacement_and_preserves_clip) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
+
+  const zr_style_t s0 = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, &s0), ZR_OK);
+
+  zr_rect_t clip_stack[4];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, clip_stack, 4u), ZR_OK);
+
+  /* Clip excludes x==2, so a wide glyph at x==1 can't fit fully. */
+  ZR_ASSERT_EQ_U32(zr_fb_clip_push(&p, (zr_rect_t){0, 0, 2, 1}), ZR_OK);
+
+  const uint8_t wide[] = {0xE7u, 0x95u, 0x8Cu}; /* U+754C '界' */
+  const uint8_t seq[] = {wide[0], wide[1], wide[2], (uint8_t)'A'};
+
+  ZR_ASSERT_EQ_U32(zr_fb_draw_text_bytes(&p, 1, 0, seq, sizeof(seq), &s0), ZR_OK);
+
+  /* Cell 1 gets U+FFFD; clip ensures cell 2 is untouched (no half-glyph). */
+  const zr_cell_t* c1 = zr_fb_cell_const(&fb, 1u, 0u);
+  const zr_cell_t* c2 = zr_fb_cell_const(&fb, 2u, 0u);
+  ZR_ASSERT_TRUE(c1 != NULL && c2 != NULL);
+  ZR_ASSERT_EQ_U32(c1->width, 1u);
+  ZR_ASSERT_EQ_U32(c1->glyph_len, 3u);
+  ZR_ASSERT_EQ_U32(c1->glyph[0], 0xEFu);
+
+  ZR_ASSERT_EQ_U32(c2->width, 1u);
+  ZR_ASSERT_EQ_U32(c2->glyph_len, 1u);
+  ZR_ASSERT_EQ_U32(c2->glyph[0], (uint8_t)' ');
+
+  zr_fb_release(&fb);
+}

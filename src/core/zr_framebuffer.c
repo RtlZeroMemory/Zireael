@@ -414,6 +414,16 @@ static bool zr_painter_can_touch(const zr_fb_painter_t* p, int32_t x, int32_t y)
   return zr_rect_contains(zr_painter_clip_cur(p), x, y);
 }
 
+static bool zr_painter_can_write_width2(const zr_fb_painter_t* p, uint32_t x, uint32_t y) {
+  if (!p || !p->fb) {
+    return false;
+  }
+  if (x + 1u >= p->fb->cols) {
+    return false;
+  }
+  return zr_painter_can_touch(p, (int32_t)x, (int32_t)y) && zr_painter_can_touch(p, (int32_t)(x + 1u), (int32_t)y);
+}
+
 /*
  * Overwrite a single cell with a width-1 grapheme while preserving wide invariants.
  *
@@ -490,10 +500,7 @@ static bool zr_painter_write_width2(zr_fb_painter_t* p, uint32_t x, uint32_t y, 
   if (!p || !p->fb) {
     return false;
   }
-  if (x + 1u >= p->fb->cols) {
-    return false;
-  }
-  if (!zr_painter_can_touch(p, (int32_t)x, (int32_t)y) || !zr_painter_can_touch(p, (int32_t)(x + 1u), (int32_t)y)) {
+  if (!zr_painter_can_write_width2(p, x, y)) {
     return false;
   }
 
@@ -849,6 +856,12 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
   if (!zr_fb_has_backing(p->fb) || len == 0u) {
     return ZR_OK;
   }
+  if (y < 0) {
+    return ZR_OK;
+  }
+  if ((uint32_t)y >= p->fb->rows) {
+    return ZR_OK;
+  }
 
   int64_t cx = (int64_t)x;
   zr_grapheme_iter_t it;
@@ -858,34 +871,54 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
     const size_t gl = g.size;
-    uint8_t w = zr_width_grapheme_utf8(gb, gl, zr_width_policy_default());
+    const uint8_t w = zr_width_grapheme_utf8(gb, gl, zr_width_policy_default());
     if (w == 0u) {
       continue;
     }
 
-    uint8_t adv = w;
-    if (gl > (size_t)ZR_CELL_GLYPH_MAX) {
-      adv = 1u;
-    } else if (w == 2u) {
-      if (cx == (int64_t)INT32_MAX) {
-        return ZR_ERR_LIMIT;
-      }
-      const int64_t cx1 = cx + 1;
-      if (!zr_i64_fits_i32(cx) || !zr_i64_fits_i32(cx1)) {
-        adv = 1u;
-      } else if (!zr_painter_can_touch(p, (int32_t)cx, y) || !zr_painter_can_touch(p, (int32_t)cx1, y)) {
-        adv = 1u;
+    const uint8_t* out_bytes = gb;
+    size_t out_len = gl;
+    uint8_t out_w = w;
+    uint8_t out_adv = w;
+
+    /* Replacement policy: oversized grapheme -> U+FFFD, width 1. */
+    if (out_len > (size_t)ZR_CELL_GLYPH_MAX) {
+      out_bytes = ZR_UTF8_REPLACEMENT;
+      out_len = ZR_UTF8_REPLACEMENT_LEN;
+      out_w = 1u;
+      out_adv = 1u;
+    }
+
+    /*
+      Replacement policy: a wide glyph must either write both cells or be
+      replaced with U+FFFD (width 1). Clipping/bounds may therefore reduce the
+      on-screen width to 1 when the lead cell is drawable but the continuation is not.
+    */
+    if (out_w == 2u) {
+      out_adv = 2u;
+      if (!zr_i64_fits_i32(cx) || !zr_i64_fits_i32(cx + 1)) {
+        /* Off-range: no draw, but keep logical advance. */
+      } else {
+        const int32_t ix = (int32_t)cx;
+        const bool lead_touch = zr_painter_can_touch(p, ix, y);
+        const bool wide_touch = lead_touch && zr_painter_can_touch(p, ix + 1, y);
+        if (!wide_touch && lead_touch) {
+          out_bytes = ZR_UTF8_REPLACEMENT;
+          out_len = ZR_UTF8_REPLACEMENT_LEN;
+          out_w = 1u;
+          out_adv = 1u;
+        }
       }
     }
 
     if (zr_i64_fits_i32(cx)) {
-      (void)zr_fb_put_grapheme(p, (int32_t)cx, y, gb, gl, w, style);
+      (void)zr_fb_put_grapheme(p, (int32_t)cx, y, out_bytes, out_len, out_w, style);
     }
 
-    if (cx > (int64_t)INT32_MAX - (int64_t)adv) {
+    if (cx > (int64_t)INT32_MAX - (int64_t)out_adv) {
       return ZR_ERR_LIMIT;
     }
-    cx += (int64_t)adv;
+    cx += (int64_t)out_adv;
   }
 
   return ZR_OK;

@@ -10,6 +10,12 @@ zr_limits_t zr_limits_default(void) {
   zr_limits_t l;
   l.arena_max_total_bytes = 4u * 1024u * 1024u;
   l.arena_initial_bytes = 64u * 1024u;
+  l.dl_max_total_bytes = 256u * 1024u;
+  l.dl_max_cmds = 4096u;
+  l.dl_max_strings = 4096u;
+  l.dl_max_blobs = 4096u;
+  l.dl_max_clip_depth = 64u;
+  l.dl_max_text_run_segments = 4096u;
   return l;
 }
 
@@ -23,6 +29,10 @@ zr_result_t zr_limits_validate(const zr_limits_t* limits) {
   if (limits->arena_initial_bytes > limits->arena_max_total_bytes) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  if (limits->dl_max_total_bytes == 0u || limits->dl_max_cmds == 0u || limits->dl_max_strings == 0u ||
+      limits->dl_max_blobs == 0u || limits->dl_max_clip_depth == 0u ||
+      limits->dl_max_text_run_segments == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
   return ZR_OK;
 }
-

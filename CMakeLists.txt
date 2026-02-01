@@ -48,6 +48,8 @@ if (ZIREAEL_SANITIZE_ADDRESS OR ZIREAEL_SANITIZE_UNDEFINED)
 endif ()
 
 set(ZIREAEL_SOURCES
+  src/core/zr_drawlist.c
+  src/core/zr_fb.c
   src/core/zr_placeholder.c
   src/platform/zr_platform_select.c
   src/util/zr_arena.c

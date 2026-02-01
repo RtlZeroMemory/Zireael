@@ -19,11 +19,12 @@ Implementation-ready internal docs live under `docs/` and are **gitignored**. St
 - `docs/ERROR_CODES_CATALOG.md` (LOCKED single error/result catalog)
 - `docs/VERSION_PINS.md` (LOCKED version/policy pins for determinism)
 - `docs/GOLDEN_FIXTURE_FORMAT.md` (LOCKED golden fixture format, byte-for-byte comparison)
-- `docs/CODE_STANDARDS.md`, `docs/REPO_LAYOUT.md`, `docs/BUILD_TOOLCHAINS_AND_CMAKE.md` (normative engineering practices)
+- `docs/CODE_STANDARDS.md` (normative engineering practices; checked in)
+- `docs/REPO_LAYOUT.md`, `docs/BUILD_TOOLCHAINS_AND_CMAKE.md` (normative engineering practices; local-only)
 - `docs/EPIC_PLAN.md` (EPIC/task-ready plan)
 - `docs/modules/` (full module architecture specs)
 
-Do **not** stage/commit anything under `docs/`.
+Do **not** stage/commit internal docs under `docs/` (the only checked-in file there is `docs/CODE_STANDARDS.md`).
 
 ## Non-negotiables (quick checklist)
 

@@ -44,6 +44,12 @@ Ownership:
 
 - The engine does not retain pointers into the config; it may copy values it needs.
 
+Limits:
+
+- `cfg->limits` is `zr_limits_t` from `src/util/zr_caps.h` and includes deterministic caps used by the engine.
+- `zr_limits_t.out_max_bytes_per_frame` bounds the maximum bytes emitted by `engine_present()` and enables the
+  single-flush-per-present contract.
+
 ABI requirements:
 
 - `uint8_t` toggles are boolean-like and MUST be encoded as `0` or `1`.
@@ -111,4 +117,3 @@ v1 validation rules (high level):
 - Reserved/padding fields MUST be zero (`ZR_ERR_INVALID_ARGUMENT`).
 - Unsupported requested versions fail with `ZR_ERR_UNSUPPORTED`.
 - Cap/limit validation is delegated to `zr_limits_validate()` and is deterministic.
-

@@ -110,7 +110,7 @@ static void zr_build_line0(char* dst, size_t cap, const zr_metrics_t* m) {
   off = zr_line_write_lit(dst, cap, off, "FPS:");
   off = zr_line_write_u32_dec(dst, cap, off, m ? m->fps : 0u);
   off = zr_line_write_lit(dst, cap, off, "  BYTES:");
-  off = zr_line_write_u32_dec(dst, cap, off, m ? m->bytes_emitted_last_frame : 0u);
+  (void)zr_line_write_u32_dec(dst, cap, off, m ? m->bytes_emitted_last_frame : 0u);
 }
 
 static void zr_build_line1(char* dst, size_t cap, const zr_metrics_t* m) {
@@ -119,7 +119,7 @@ static void zr_build_line1(char* dst, size_t cap, const zr_metrics_t* m) {
   off = zr_line_write_lit(dst, cap, off, "DIRTY L:");
   off = zr_line_write_u32_dec(dst, cap, off, m ? m->dirty_lines_last_frame : 0u);
   off = zr_line_write_lit(dst, cap, off, " C:");
-  off = zr_line_write_u32_dec(dst, cap, off, m ? m->dirty_cols_last_frame : 0u);
+  (void)zr_line_write_u32_dec(dst, cap, off, m ? m->dirty_cols_last_frame : 0u);
 }
 
 static void zr_build_line2(char* dst, size_t cap, const zr_metrics_t* m) {
@@ -132,7 +132,7 @@ static void zr_build_line2(char* dst, size_t cap, const zr_metrics_t* m) {
   off = zr_line_write_lit(dst, cap, off, " df:");
   off = zr_line_write_u32_dec(dst, cap, off, m ? m->us_diff_last_frame : 0u);
   off = zr_line_write_lit(dst, cap, off, " wr:");
-  off = zr_line_write_u32_dec(dst, cap, off, m ? m->us_write_last_frame : 0u);
+  (void)zr_line_write_u32_dec(dst, cap, off, m ? m->us_write_last_frame : 0u);
 }
 
 static void zr_build_line3(char* dst, size_t cap, const zr_metrics_t* m) {
@@ -141,7 +141,7 @@ static void zr_build_line3(char* dst, size_t cap, const zr_metrics_t* m) {
   off = zr_line_write_lit(dst, cap, off, "EV out:");
   off = zr_line_write_u32_dec(dst, cap, off, m ? m->events_out_last_poll : 0u);
   off = zr_line_write_lit(dst, cap, off, " drop:");
-  off = zr_line_write_u32_dec(dst, cap, off, m ? m->events_dropped_total : 0u);
+  (void)zr_line_write_u32_dec(dst, cap, off, m ? m->events_dropped_total : 0u);
 }
 
 typedef void (*zr_overlay_build_fn_t)(char* dst, size_t cap, const zr_metrics_t* m);

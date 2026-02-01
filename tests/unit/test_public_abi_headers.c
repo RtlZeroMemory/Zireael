@@ -12,7 +12,12 @@
 #include "core/zr_drawlist.h"
 #include "core/zr_version.h"
 
+#include "unit/mock_platform.h"
+
 ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
+  mock_plat_reset();
+  mock_plat_set_size(80u, 24u);
+
   zr_engine_config_t cfg = zr_engine_config_default();
   ZR_ASSERT_TRUE(zr_engine_config_validate(&cfg) == ZR_OK);
 
@@ -21,11 +26,11 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V1 == 1u);
   ZR_ASSERT_TRUE(ZR_EVENT_BATCH_VERSION_V1 == 1u);
 
-  /* Ensure the public engine symbols link, even before full engine wiring. */
+  /* Ensure the public engine symbols link and are callable. */
   zr_engine_t* e = NULL;
   zr_result_t rc = engine_create(&e, &cfg);
-  ZR_ASSERT_TRUE(rc == ZR_ERR_UNSUPPORTED);
-  ZR_ASSERT_TRUE(e == NULL);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
 
   zr_engine_runtime_config_t r;
   r.limits = cfg.limits;
@@ -68,4 +73,6 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   dl.reserved0 = 0u;
   (void)h;
   (void)dl;
+
+  engine_destroy(e);
 }

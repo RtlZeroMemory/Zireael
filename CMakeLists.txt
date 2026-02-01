@@ -52,7 +52,7 @@ set(ZIREAEL_SOURCES
         src/core/zr_diff.c
         src/core/zr_debug_overlay.c
         src/core/zr_drawlist.c
-        src/core/zr_engine_stub.c
+        src/core/zr_engine.c
         src/core/zr_event_pack.c
         src/core/zr_event_queue.c
         src/core/zr_framebuffer.c

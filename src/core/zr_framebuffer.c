@@ -259,7 +259,13 @@ static zr_result_t zr_fb_alloc_cells(uint32_t cols, uint32_t rows, zr_cell_t** o
   if (!zr_checked_mul_size((size_t)cols, (size_t)rows, &count)) {
     return ZR_ERR_LIMIT;
   }
+  if (count == 0u) {
+    return ZR_ERR_LIMIT;
+  }
   if (!zr_checked_mul_size(count, sizeof(zr_cell_t), &bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+  if (bytes == 0u) {
     return ZR_ERR_LIMIT;
   }
 
@@ -741,12 +747,12 @@ zr_result_t zr_fb_put_grapheme(zr_fb_painter_t* p,
   const zr_style_t s = *style;
   const uint8_t* out_bytes = bytes;
   size_t out_len = len;
-  uint8_t out_width = width;
+  bool try_wide = (width == 2u);
 
   if (out_len > (size_t)ZR_CELL_GLYPH_MAX) {
     out_bytes = ZR_UTF8_REPLACEMENT;
     out_len = ZR_UTF8_REPLACEMENT_LEN;
-    out_width = 1u;
+    try_wide = false;
   }
 
   if (x < 0 || y < 0) {
@@ -758,7 +764,7 @@ zr_result_t zr_fb_put_grapheme(zr_fb_painter_t* p,
     return ZR_OK;
   }
 
-  if (out_width == 2u) {
+  if (try_wide) {
     const bool can_wide = zr_painter_write_width2(p, ux, uy, out_bytes, out_len, s);
     if (can_wide) {
       return ZR_OK;
@@ -766,7 +772,6 @@ zr_result_t zr_fb_put_grapheme(zr_fb_painter_t* p,
     /* Replacement policy: never half-glyph. */
     out_bytes = ZR_UTF8_REPLACEMENT;
     out_len = ZR_UTF8_REPLACEMENT_LEN;
-    out_width = 1u;
   }
 
   (void)zr_painter_write_width1(p, ux, uy, out_bytes, out_len, s);

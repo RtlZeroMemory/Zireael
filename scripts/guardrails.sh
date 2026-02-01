@@ -33,7 +33,7 @@ run_rg() {
 print_section "Platform boundary (OS headers forbidden in core/unicode/util)"
 
 # Matches OS headers only in #include lines. Keep this list focused to avoid false positives.
-os_include_re='^\\s*#\\s*include\\s*[<"](?:windows\\.h|winsock2\\.h|ws2tcpip\\.h|winnt\\.h|winuser\\.h|winternl\\.h|ntdef\\.h|ntstatus\\.h|io\\.h|direct\\.h|unistd\\.h|termios\\.h|fcntl\\.h|poll\\.h|sys/[^>"]+|arpa/[^>"]+|net/[^>"]+|netinet/[^>"]+|linux/[^>"]+|mach/[^>"]+|CoreFoundation/[^>"]+|dispatch/[^>"]+)[>"]'
+os_include_re='^\s*#\s*include\s*[<"](?:windows\.h|winsock2\.h|ws2tcpip\.h|winnt\.h|winuser\.h|winternl\.h|ntdef\.h|ntstatus\.h|io\.h|direct\.h|unistd\.h|termios\.h|fcntl\.h|poll\.h|sys/[^>"]+|arpa/[^>"]+|net/[^>"]+|netinet/[^>"]+|linux/[^>"]+|mach/[^>"]+|CoreFoundation/[^>"]+|dispatch/[^>"]+)[>"]'
 
 os_hits="$(run_rg -g'*.{c,h}' "${os_include_re}" "${scan_dirs[@]}" || true)"
 if [[ -n "${os_hits}" ]]; then
@@ -68,7 +68,7 @@ forbidden_calls=(
 )
 
 for name in "${forbidden_calls[@]}"; do
-  hits="$(run_rg -g'*.{c,h}' "\\b${name}\\s*\\(" "${scan_dirs[@]}" || true)"
+  hits="$(run_rg -g'*.{c,h}' "\b${name}\s*\(" "${scan_dirs[@]}" || true)"
   if [[ -n "${hits}" ]]; then
     echo "${hits}"
     has_violations=1

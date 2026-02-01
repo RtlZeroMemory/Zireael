@@ -23,13 +23,13 @@
 #define ZR_CORE_ZR_ENGINE_H_INCLUDED
 
 #include "core/zr_config.h"
+#include "core/zr_metrics.h"
 
 #include "util/zr_result.h"
 
 #include <stdint.h>
 
 typedef struct zr_engine_t zr_engine_t;
-typedef struct zr_metrics_t zr_metrics_t;
 
 zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cfg);
 void        engine_destroy(zr_engine_t* e);
@@ -44,4 +44,3 @@ zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics);
 zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg);
 
 #endif /* ZR_CORE_ZR_ENGINE_H_INCLUDED */
-

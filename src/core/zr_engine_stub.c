@@ -6,6 +6,7 @@
 */
 
 #include "core/zr_engine.h"
+#include "core/zr_metrics_internal.h"
 
 zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cfg) {
   if (!out_engine || !cfg) {
@@ -66,7 +67,15 @@ zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics) {
   if (!e || !out_metrics) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  return ZR_ERR_UNSUPPORTED;
+
+  /*
+    Prefix-copy contract:
+      - Caller sets out_metrics->struct_size to the number of bytes they can
+        receive (possibly 0).
+      - Engine copies only what fits and never allocates.
+  */
+  const zr_metrics_t snap = zr_metrics__default_snapshot();
+  return zr_metrics__copy_out(out_metrics, &snap);
 }
 
 zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg) {
@@ -75,4 +84,3 @@ zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* 
   }
   return ZR_ERR_UNSUPPORTED;
 }
-

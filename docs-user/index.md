@@ -28,11 +28,11 @@ Zireael handles terminal I/O, input parsing, diff-based rendering, and Unicode t
 
 <div class="grid cards" markdown>
 
--   :material-hammer-wrench:{ .lg .middle } **Build & Test**
+-   :material-code-tags:{ .lg .middle } **Examples**
 
-    Build the library and run tests.
+    Complete C and Go examples showing usage patterns.
 
-    [:octicons-arrow-right-24: Getting Started](getting-started/build-and-test.md)
+    [:octicons-arrow-right-24: View Examples](getting-started/examples.md)
 
 -   :material-file-document:{ .lg .middle } **ABI Reference**
 

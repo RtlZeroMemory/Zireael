@@ -57,6 +57,7 @@ Do **not** stage/commit anything under `docs/`.
 
 - Configure/build via presets in `CMakePresets.json`.
 - Tests run via CTest (`ctest --output-on-failure`) once implementation lands.
+- Windows (clang-cl presets): run `.\scripts\vsdev.ps1` in your shell before `cmake --preset windows-clangcl-*` so MSVC/Windows-SDK libs are discoverable.
 
 ## Codex skills (repo-scoped)
 

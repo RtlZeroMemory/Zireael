@@ -8,7 +8,8 @@ Defined by `src/core/zr_event.h`:
 
 - Batch begins with `zr_evbatch_header_t`.
 - Records are framed by `zr_ev_record_header_t.size` and are 4-byte aligned.
-- If output buffer is too small, the batch is truncated as a **success**: `ZR_EV_BATCH_TRUNCATED` is set and only complete records are emitted.
+- If output buffer is too small, the batch is truncated as a **success**: `ZR_EV_BATCH_TRUNCATED` is set and only
+  complete records are emitted.
 
 ## Forward compatibility
 

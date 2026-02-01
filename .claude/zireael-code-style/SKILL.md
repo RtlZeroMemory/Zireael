@@ -128,12 +128,12 @@ if (ptr == NULL) return ZR_ERR_INVALID_ARGUMENT;
 
 ## Naming conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Functions | `module_action_noun()` | `arena_alloc_aligned()` |
-| Variables | `snake_case` descriptive | `bytes_remaining` |
-| Constants | `ZR_MODULE_NAME` | `ZR_DL_MAGIC` |
-| Types | `zr_name_t` | `zr_arena_t` |
+| Type      | Convention               | Example                 |
+|-----------|--------------------------|-------------------------|
+| Functions | `module_action_noun()`   | `arena_alloc_aligned()` |
+| Variables | `snake_case` descriptive | `bytes_remaining`       |
+| Constants | `ZR_MODULE_NAME`         | `ZR_DL_MAGIC`           |
+| Types     | `zr_name_t`              | `zr_arena_t`            |
 
 ## Review checklist
 

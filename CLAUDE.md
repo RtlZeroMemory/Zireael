@@ -27,12 +27,12 @@ Implementation-ready internal docs live under `docs/` and are checked in. Start 
 
 - Engine-only repo: **no TypeScript**, no Node tooling, no monorepo structure.
 - Hard platform boundary:
-  - `src/core`, `src/unicode`, `src/util` **MUST NOT** include OS headers.
-  - All OS code must live in `src/platform/win32` and `src/platform/posix`.
-  - Avoid `#ifdef` in core/unicode/util (allowed only in platform backends).
+    - `src/core`, `src/unicode`, `src/util` **MUST NOT** include OS headers.
+    - All OS code must live in `src/platform/win32` and `src/platform/posix`.
+    - Avoid `#ifdef` in core/unicode/util (allowed only in platform backends).
 - Ownership model is locked:
-  - engine owns its allocations; caller never frees engine memory
-  - caller provides drawlist bytes and event output buffers
+    - engine owns its allocations; caller never frees engine memory
+    - caller provides drawlist bytes and event output buffers
 - Error model: `0 = OK`, negative codes for failures.
 - Hot paths: no per-frame heap churn; buffer output; single flush per present.
 - Safe C: follow `docs/SAFETY_RULESET.md` and `docs/LIBC_POLICY.md`.
@@ -76,18 +76,18 @@ This repo defines project skills under `.claude/skills/` (checked in).
 
 **Recommended skills by task:**
 
-| Task | Skill to Read |
-|------|---------------|
-| Any task (start here) | `.claude/skills/zireael-spec-guardian/SKILL.md` |
-| Code style/comments | `.claude/skills/zireael-code-style/SKILL.md` |
-| Platform code | `.claude/skills/zireael-platform-boundary/SKILL.md` |
-| Unicode/text | `.claude/skills/zireael-unicode-text/SKILL.md` |
-| ABI/formats | `.claude/skills/zireael-abi-formats/SKILL.md` |
-| Error handling | `.claude/skills/zireael-error-contracts/SKILL.md` |
-| Diff renderer | `.claude/skills/zireael-rendering-diff/SKILL.md` |
-| Golden tests | `.claude/skills/zireael-golden-fixtures/SKILL.md` |
-| Headers/includes | `.claude/skills/zireael-header-layering/SKILL.md` |
-| Build/CI/tests | `.claude/skills/zireael-build-test-ci/SKILL.md` |
+| Task                  | Skill to Read                                       |
+|-----------------------|-----------------------------------------------------|
+| Any task (start here) | `.claude/skills/zireael-spec-guardian/SKILL.md`     |
+| Code style/comments   | `.claude/skills/zireael-code-style/SKILL.md`        |
+| Platform code         | `.claude/skills/zireael-platform-boundary/SKILL.md` |
+| Unicode/text          | `.claude/skills/zireael-unicode-text/SKILL.md`      |
+| ABI/formats           | `.claude/skills/zireael-abi-formats/SKILL.md`       |
+| Error handling        | `.claude/skills/zireael-error-contracts/SKILL.md`   |
+| Diff renderer         | `.claude/skills/zireael-rendering-diff/SKILL.md`    |
+| Golden tests          | `.claude/skills/zireael-golden-fixtures/SKILL.md`   |
+| Headers/includes      | `.claude/skills/zireael-header-layering/SKILL.md`   |
+| Build/CI/tests        | `.claude/skills/zireael-build-test-ci/SKILL.md`     |
 
 ## Quick navigation
 

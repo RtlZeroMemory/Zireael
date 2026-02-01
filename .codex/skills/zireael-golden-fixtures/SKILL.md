@@ -25,17 +25,17 @@ Use this skill when:
 - Goldens compare **raw bytes** byte-for-byte
 - No normalization allowed for diff-output goldens
 - Fixtures must pin:
-  - `plat_caps_t` (color mode, attr support)
-  - initial terminal state (`zr_term_state_t`)
-  - Unicode width policy
+    - `plat_caps_t` (color mode, attr support)
+    - initial terminal state (`zr_term_state_t`)
+    - Unicode width policy
 
 ## Adding a new fixture
 
 1. Create directory: `tests/golden/fixtures/<fixture_id>/`
 2. Add:
-   - `case.txt` (meta + prev/next grids)
-   - `expected.bin` (canonical bytes)
-   - `expected.hex.txt` (hex dump for review)
+    - `case.txt` (meta + prev/next grids)
+    - `expected.bin` (canonical bytes)
+    - `expected.hex.txt` (hex dump for review)
 3. Ensure `cols/rows` match grid dimensions exactly
 4. Use `~` as continuation marker for wide glyphs
 

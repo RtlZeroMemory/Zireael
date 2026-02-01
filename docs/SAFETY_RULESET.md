@@ -17,8 +17,8 @@ This document defines the project’s non-negotiable “Safe C” subset and det
 - Use checked integer math helpers (`zr_checked_*`) when computing sizes/offsets for parsing and writes.
 - Unaligned reads MUST use byte loads or `memcpy` (no casts to wider integer types).
 - Out-parameters MUST be either:
-  - fully written on success and left in a documented safe state on failure, or
-  - explicitly zeroed at the start of the function.
+    - fully written on success and left in a documented safe state on failure, or
+    - explicitly zeroed at the start of the function.
 
 ## Forbidden practices
 

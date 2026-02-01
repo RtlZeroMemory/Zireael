@@ -18,8 +18,8 @@ Use this skill when working on:
 
 - `src/core`, `src/unicode`, `src/util` MUST NOT include OS headers (Win32 or POSIX).
 - OS-specific code MUST be isolated to:
-  - `src/platform/win32/`
-  - `src/platform/posix/`
+    - `src/platform/win32/`
+    - `src/platform/posix/`
 - Avoid `#ifdef` in core/unicode/util; allowed only in platform backends and minimal selection glue.
 
 ## Platform interface design

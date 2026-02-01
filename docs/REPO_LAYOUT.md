@@ -8,8 +8,8 @@ Zireael is an engine-only C repository.
 - `src/unicode/`: UTF-8 decode, grapheme segmentation, width, wrapping.
 - `src/core/`: framebuffer, drawlist parsing/execution, diff renderer, event batch ABI.
 - `src/platform/`: platform boundary and OS-specific backends:
-  - `src/platform/posix/`
-  - `src/platform/win32/`
+    - `src/platform/posix/`
+    - `src/platform/win32/`
 - `tests/`: unit, golden, fuzz, and integration tests.
 - `examples/`: small C examples only.
 

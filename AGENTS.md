@@ -27,12 +27,12 @@ Implementation-ready internal docs live under `docs/` and are checked in. Start 
 
 - Engine-only repo: **no TypeScript**, no Node tooling, no monorepo structure.
 - Hard platform boundary:
-  - `src/core`, `src/unicode`, `src/util` **MUST NOT** include OS headers.
-  - All OS code must live in `src/platform/win32` and `src/platform/posix`.
-  - Avoid `#ifdef` in core/unicode/util (allowed only in platform backends).
+    - `src/core`, `src/unicode`, `src/util` **MUST NOT** include OS headers.
+    - All OS code must live in `src/platform/win32` and `src/platform/posix`.
+    - Avoid `#ifdef` in core/unicode/util (allowed only in platform backends).
 - Ownership model is locked:
-  - engine owns its allocations; caller never frees engine memory
-  - caller provides drawlist bytes and event output buffers
+    - engine owns its allocations; caller never frees engine memory
+    - caller provides drawlist bytes and event output buffers
 - Error model: `0 = OK`, negative codes for failures.
 - Hot paths: no per-frame heap churn; buffer output; single flush per present.
 - Safe C: follow `docs/SAFETY_RULESET.md` and `docs/LIBC_POLICY.md`.

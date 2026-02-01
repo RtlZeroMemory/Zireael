@@ -29,14 +29,14 @@ Use this skill when:
 
 ## Error codes
 
-| Code | Meaning |
-|------|---------|
-| `ZR_ERR_INVALID_ARGUMENT` | NULL or invalid parameter |
-| `ZR_ERR_OOM` | Allocation/arena growth failed |
-| `ZR_ERR_LIMIT` | Caps exceeded or buffer too small |
-| `ZR_ERR_FORMAT` | Malformed input bytes |
-| `ZR_ERR_UNSUPPORTED` | Unknown version/opcode/feature |
-| `ZR_ERR_PLATFORM` | Backend/OS failure |
+| Code                      | Meaning                           |
+|---------------------------|-----------------------------------|
+| `ZR_ERR_INVALID_ARGUMENT` | NULL or invalid parameter         |
+| `ZR_ERR_OOM`              | Allocation/arena growth failed    |
+| `ZR_ERR_LIMIT`            | Caps exceeded or buffer too small |
+| `ZR_ERR_FORMAT`           | Malformed input bytes             |
+| `ZR_ERR_UNSUPPORTED`      | Unknown version/opcode/feature    |
+| `ZR_ERR_PLATFORM`         | Backend/OS failure                |
 
 ## Implementation checklist
 

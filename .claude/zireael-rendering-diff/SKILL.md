@@ -28,10 +28,10 @@ Use this skill when working on:
 - Cell model: Unicode grapheme-safe, colors, attrs
 - Clipping stack (push/pop) respected by all draw ops
 - Diff renderer:
-  - computes minimal changes (prev → next)
-  - tracks cursor/style to minimize escape sequences
-  - dirty-line detection + span emission
-  - builds output into one buffer, single flush per frame
+    - computes minimal changes (prev → next)
+    - tracks cursor/style to minimize escape sequences
+    - dirty-line detection + span emission
+    - builds output into one buffer, single flush per frame
 
 ## Grapheme safety invariants
 

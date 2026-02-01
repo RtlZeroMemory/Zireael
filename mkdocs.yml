@@ -91,6 +91,7 @@ nav:
   - Getting Started:
       - Build & Test: getting-started/build-and-test.md
       - Integration: getting-started/cmake-integration.md
+      - Examples: getting-started/examples.md
   - ABI Reference:
       - Overview: abi/overview.md
       - Configuration: abi/config.md

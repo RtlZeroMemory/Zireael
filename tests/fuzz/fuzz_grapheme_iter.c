@@ -24,6 +24,15 @@ static uint32_t zr_xorshift32(uint32_t* state) {
   return x;
 }
 
+/*
+ * Fuzz one input: iterate all graphemes and verify progress invariants.
+ *
+ * Invariants verified:
+ *   1. Every grapheme has size >= 1
+ *   2. Grapheme offsets are contiguous (offset matches running total)
+ *   3. Total bytes consumed equals input size (no skipped bytes)
+ *   4. Iteration count never exceeds input size (no infinite loops)
+ */
 static void zr_fuzz_one(const uint8_t* data, size_t size) {
   zr_grapheme_iter_t it;
   zr_grapheme_iter_init(&it, data, size);
@@ -32,16 +41,19 @@ static void zr_fuzz_one(const uint8_t* data, size_t size) {
   size_t count = 0u;
   zr_grapheme_t g;
   while (zr_grapheme_next(&it, &g)) {
+    /* Each grapheme must have non-zero size and contiguous offset. */
     if (g.size == 0u || g.offset != total) {
       zr_fuzz_trap();
     }
     total += g.size;
     count++;
+    /* Guard against infinite loops. */
     if (count > size) {
       zr_fuzz_trap();
     }
   }
 
+  /* All input bytes must be consumed. */
   if (total != size) {
     zr_fuzz_trap();
   }

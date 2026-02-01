@@ -53,6 +53,7 @@ static void zr_fb_set_ascii(zr_fb_t* fb, uint32_t x, uint32_t y, uint8_t ch, zr_
   c->style = style;
 }
 
+/* Set a cell to a UTF-8 grapheme with specified width (for wide glyphs). */
 static void zr_fb_set_utf8(zr_fb_t* fb,
                            uint32_t x,
                            uint32_t y,
@@ -73,6 +74,16 @@ static void zr_fb_set_utf8(zr_fb_t* fb,
   c->style = style;
 }
 
+/*
+ * Test: diff_001_min_text_origin
+ *
+ * Scenario: Minimal diff with two ASCII characters at origin (0,0).
+ *           Cursor starts at origin, so no CUP needed; just emit "Hi".
+ *
+ * Arrange: 2x1 framebuffer, prev=clear, next="Hi".
+ * Act:     Render diff.
+ * Assert:  Output matches pinned golden fixture.
+ */
 ZR_TEST_GOLDEN(diff_001_min_text_origin) {
   zr_fb_t prev;
   zr_fb_t next;
@@ -101,7 +112,18 @@ ZR_TEST_GOLDEN(diff_001_min_text_origin) {
   zr_fb_release(&next);
 }
 
+/*
+ * Test: diff_002_style_change_single_glyph
+ *
+ * Scenario: Single character with style (red foreground, bold).
+ *           Tests SGR sequence generation for RGB color + attributes.
+ *
+ * Arrange: 1x1 framebuffer, next='A' with fg=0xFF0000 (red), attrs=bold.
+ * Act:     Render diff.
+ * Assert:  Output matches pinned golden fixture with SGR codes.
+ */
 ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
+  /* --- Arrange --- */
   zr_fb_t prev;
   zr_fb_t next;
   (void)zr_fb_init(&prev, 1u, 1u);
@@ -111,7 +133,7 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
   (void)zr_fb_clear(&next, &s0);
 
   zr_style_t s = s0;
-  s.fg_rgb = 0xFF0000u;
+  s.fg_rgb = 0xFF0000u; /* Red foreground */
   s.bg_rgb = 0x000000u;
   s.attrs = 1u; /* bold (v1) */
   zr_fb_set_ascii(&next, 0u, 0u, (uint8_t)'A', s);
@@ -119,6 +141,7 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
   const zr_term_state_t initial = zr_term_default();
 
+  /* --- Act --- */
   uint8_t out[128];
   size_t out_len = 0u;
   zr_term_state_t final_state;
@@ -127,13 +150,26 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
       zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
+  /* --- Assert --- */
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_002_style_change_single_glyph", out, out_len) == 0);
 
+  /* --- Cleanup --- */
   zr_fb_release(&prev);
   zr_fb_release(&next);
 }
 
+/*
+ * Test: diff_003_wide_glyph_lead_only
+ *
+ * Scenario: Wide glyph (emoji U+1F642) at position (1,0). Tests that only
+ *           the lead cell emits bytes; continuation cell is implicitly handled.
+ *
+ * Arrange: 4x1 framebuffer, emoji at x=1 (lead cell width=2, continuation at x=2).
+ * Act:     Render diff.
+ * Assert:  Output matches pinned golden fixture (CUP to x=1, then emoji bytes).
+ */
 ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
+  /* --- Arrange --- */
   zr_fb_t prev;
   zr_fb_t next;
   (void)zr_fb_init(&prev, 4u, 1u);
@@ -142,13 +178,15 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
   (void)zr_fb_clear(&prev, &s);
   (void)zr_fb_clear(&next, &s);
 
+  /* U+1F642 "slightly smiling face" in UTF-8 */
   const uint8_t emoji[4] = {0xF0u, 0x9Fu, 0x99u, 0x82u};
-  zr_fb_set_utf8(&next, 1u, 0u, emoji, 4u, 2u, s);
-  zr_fb_set_utf8(&next, 2u, 0u, (const uint8_t[4]){0u, 0u, 0u, 0u}, 0u, 0u, s);
+  zr_fb_set_utf8(&next, 1u, 0u, emoji, 4u, 2u, s); /* Lead cell */
+  zr_fb_set_utf8(&next, 2u, 0u, (const uint8_t[4]){0u, 0u, 0u, 0u}, 0u, 0u, s); /* Continuation */
 
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
   const zr_term_state_t initial = zr_term_default();
 
+  /* --- Act --- */
   uint8_t out[128];
   size_t out_len = 0u;
   zr_term_state_t final_state;
@@ -157,8 +195,10 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
       zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
+  /* --- Assert --- */
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_003_wide_glyph_lead_only", out, out_len) == 0);
 
+  /* --- Cleanup --- */
   zr_fb_release(&prev);
   zr_fb_release(&next);
 }

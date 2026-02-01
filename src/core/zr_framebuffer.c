@@ -179,6 +179,7 @@ static bool zr_i64_fits_i32(int64_t v) {
   return v >= (int64_t)INT32_MIN && v <= (int64_t)INT32_MAX;
 }
 
+/* Initialize framebuffer with specified dimensions; allocates backing store. */
 zr_result_t zr_fb_init(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
   if (!fb) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -189,6 +190,7 @@ zr_result_t zr_fb_init(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
   return zr_fb_resize(fb, cols, rows);
 }
 
+/* Release framebuffer backing store and zero out dimensions. */
 void zr_fb_release(zr_fb_t* fb) {
   if (!fb) {
     return;
@@ -199,6 +201,7 @@ void zr_fb_release(zr_fb_t* fb) {
   fb->rows = 0u;
 }
 
+/* Get mutable pointer to cell at (x,y); returns NULL if out of bounds. */
 zr_cell_t* zr_fb_cell(zr_fb_t* fb, uint32_t x, uint32_t y) {
   size_t idx = 0u;
   if (!zr_fb_cell_index(fb, x, y, &idx)) {
@@ -207,6 +210,7 @@ zr_cell_t* zr_fb_cell(zr_fb_t* fb, uint32_t x, uint32_t y) {
   return &fb->cells[idx];
 }
 
+/* Get const pointer to cell at (x,y); returns NULL if out of bounds. */
 const zr_cell_t* zr_fb_cell_const(const zr_fb_t* fb, uint32_t x, uint32_t y) {
   size_t idx = 0u;
   if (!zr_fb_cell_index(fb, x, y, &idx)) {
@@ -215,6 +219,7 @@ const zr_cell_t* zr_fb_cell_const(const zr_fb_t* fb, uint32_t x, uint32_t y) {
   return &fb->cells[idx];
 }
 
+/* Fill all cells with spaces using the given style; ignores clip stack. */
 zr_result_t zr_fb_clear(zr_fb_t* fb, const zr_style_t* style) {
   if (!fb) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -235,6 +240,7 @@ zr_result_t zr_fb_clear(zr_fb_t* fb, const zr_style_t* style) {
   return ZR_OK;
 }
 
+/* Allocate cell array for cols*rows with overflow-safe size calculation. */
 static zr_result_t zr_fb_alloc_cells(uint32_t cols, uint32_t rows, zr_cell_t** out_cells) {
   if (!out_cells) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -307,6 +313,12 @@ static void zr_fb_repair_row(zr_fb_t* fb, uint32_t y) {
   }
 }
 
+/*
+ * Resize framebuffer to new dimensions, preserving content where possible.
+ *
+ * On success, allocates new backing store and copies intersecting cells.
+ * On failure (OOM/limit), returns error and leaves fb unchanged (no partial effects).
+ */
 zr_result_t zr_fb_resize(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
   if (!fb) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -352,6 +364,12 @@ zr_result_t zr_fb_resize(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
   return ZR_OK;
 }
 
+/*
+ * Initialize a painter with caller-provided clip stack storage.
+ *
+ * The clip stack starts with the full framebuffer bounds as the initial clip.
+ * All drawing ops will be intersected with the current clip rectangle.
+ */
 zr_result_t zr_fb_painter_begin(zr_fb_painter_t* p, zr_fb_t* fb, zr_rect_t* clip_stack, uint32_t clip_cap) {
   if (!p || !fb) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -375,6 +393,7 @@ static zr_rect_t zr_painter_clip_cur(const zr_fb_painter_t* p) {
   return p->clip_stack[p->clip_len - 1u];
 }
 
+/* Push a new clip rectangle; intersected with current clip and framebuffer bounds. */
 zr_result_t zr_fb_clip_push(zr_fb_painter_t* p, zr_rect_t clip) {
   if (!p || !p->clip_stack || !p->fb) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -390,6 +409,7 @@ zr_result_t zr_fb_clip_push(zr_fb_painter_t* p, zr_rect_t clip) {
   return ZR_OK;
 }
 
+/* Pop the most recent clip rectangle; returns ZR_ERR_LIMIT if at initial clip. */
 zr_result_t zr_fb_clip_pop(zr_fb_painter_t* p) {
   if (!p || !p->clip_stack) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -524,6 +544,7 @@ static bool zr_painter_write_width2(zr_fb_painter_t* p, uint32_t x, uint32_t y, 
   return true;
 }
 
+/* Fill a rectangle with spaces using the given style; clip-aware. */
 zr_result_t zr_fb_fill_rect(zr_fb_painter_t* p, zr_rect_t r, const zr_style_t* style) {
   if (!p || !p->fb || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -580,10 +601,12 @@ static zr_result_t zr_draw_repeat_ascii(zr_fb_painter_t* p, int32_t x, int32_t y
   return ZR_OK;
 }
 
+/* Draw a horizontal line of '-' characters; clip-aware. */
 zr_result_t zr_fb_draw_hline(zr_fb_painter_t* p, int32_t x, int32_t y, int32_t len, const zr_style_t* style) {
   return zr_draw_repeat_ascii(p, x, y, len, (uint8_t)'-', style);
 }
 
+/* Draw a vertical line of '|' characters; clip-aware. */
 zr_result_t zr_fb_draw_vline(zr_fb_painter_t* p, int32_t x, int32_t y, int32_t len, const zr_style_t* style) {
   if (!p || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -599,6 +622,7 @@ zr_result_t zr_fb_draw_vline(zr_fb_painter_t* p, int32_t x, int32_t y, int32_t l
   return ZR_OK;
 }
 
+/* Draw an ASCII box outline using '+', '-', and '|' characters; clip-aware. */
 zr_result_t zr_fb_draw_box(zr_fb_painter_t* p, zr_rect_t r, const zr_style_t* style) {
   if (!p || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -657,6 +681,7 @@ zr_result_t zr_fb_draw_box(zr_fb_painter_t* p, zr_rect_t r, const zr_style_t* st
   return ZR_OK;
 }
 
+/* Draw a vertical scrollbar with track background and '#' thumb; clip-aware. */
 zr_result_t zr_fb_draw_scrollbar_v(zr_fb_painter_t* p, zr_rect_t track, zr_rect_t thumb,
                                    const zr_style_t* track_style, const zr_style_t* thumb_style) {
   if (!p || !track_style || !thumb_style) {
@@ -678,11 +703,21 @@ zr_result_t zr_fb_draw_scrollbar_v(zr_fb_painter_t* p, zr_rect_t track, zr_rect_
   return ZR_OK;
 }
 
+/* Draw a horizontal scrollbar (delegates to vertical implementation). */
 zr_result_t zr_fb_draw_scrollbar_h(zr_fb_painter_t* p, zr_rect_t track, zr_rect_t thumb,
                                    const zr_style_t* track_style, const zr_style_t* thumb_style) {
   return zr_fb_draw_scrollbar_v(p, track, thumb, track_style, thumb_style);
 }
 
+/*
+ * Place a pre-segmented grapheme at (x,y) with specified display width.
+ *
+ * Replacement policy (LOCKED):
+ *   - len > ZR_CELL_GLYPH_MAX: render U+FFFD (width 1)
+ *   - width==2 but cannot fully fit: render U+FFFD (width 1)
+ *
+ * This ensures wide glyphs are never split (no half-glyph state).
+ */
 zr_result_t zr_fb_put_grapheme(zr_fb_painter_t* p,
                                int32_t x,
                                int32_t y,
@@ -743,6 +778,12 @@ static bool zr_rects_overlap(zr_rect_t a, zr_rect_t b) {
   return i.w > 0 && i.h > 0;
 }
 
+/*
+ * Copy cells from src rect to dst rect with memmove-like overlap safety.
+ *
+ * Preserves wide-glyph invariants by skipping continuation cells (their lead
+ * cells handle the copy). Clip-aware for the destination.
+ */
 zr_result_t zr_fb_blit_rect(zr_fb_painter_t* p, zr_rect_t dst, zr_rect_t src) {
   if (!p || !p->fb) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -826,6 +867,7 @@ zr_result_t zr_fb_blit_rect(zr_fb_painter_t* p, zr_rect_t dst, zr_rect_t src) {
   return ZR_OK;
 }
 
+/* Count total display width (in cells) for UTF-8 text using pinned width policy. */
 size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
   if (!bytes || len == 0u) {
     return 0u;
@@ -844,6 +886,13 @@ size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
   return total;
 }
 
+/*
+ * Draw UTF-8 text by iterating graphemes with pinned width policy.
+ *
+ * Applies replacement policy for oversized graphemes and wide glyphs that
+ * cannot fit within clip. Cursor advancement is stable regardless of clipping
+ * to maintain deterministic layout.
+ */
 zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
                                   int32_t x,
                                   int32_t y,

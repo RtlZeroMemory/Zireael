@@ -1,30 +1,107 @@
-# Zireael — Code Standards (Readability + Safety)
+# Code Standards (Normative)
+
+## Purpose and scope (what it owns / what it does NOT own)
+
+This document defines Zireael’s coding standards that are not purely “safety rules”:
+
+- naming conventions and module structure
+- documentation/comment requirements
+- assert usage policy
+- macro/global-state policy
+
+It complements (and must not contradict):
+
+- `docs/SAFETY_RULESET.md` (LOCKED safety + determinism + concurrency rules)
+- `docs/LIBC_POLICY.md` (LOCKED libc policy)
+
+## Readability and structure
 
 These rules exist to keep the engine **boring, readable, and deterministic**. Favor obvious code over clever code.
 
 This document uses **MUST / MUST NOT / SHOULD** language on purpose.
 
-## 1) Readability First
+### Readability first
 
 - Code MUST optimize for maintainability by humans and future LLM contributors.
 - Micro-optimizations MUST NOT be accepted if they materially harm clarity.
 - Dense expressions SHOULD be split into named intermediate variables.
 
-## 2) Function Size and Shape
+### Function size and shape
 
 - Functions SHOULD be **20–40 lines** and MUST generally be **< 50 lines**.
 - A function MUST do one thing. If you need comments to explain the structure of the function, it is too big.
 - Prefer “parse/validate/execute” style decomposition over multi-purpose helpers.
 
-## 3) Naming
+### Comments policy (Why > What)
 
-- Names MUST describe intent:
-  - Functions: `arena_alloc_aligned()`, `dl_validate_header_v1()`, `fb_cell_index()`
-  - Variables: `write_offset`, `bytes_remaining`, `span_index_bytes`
-- Avoid one-letter names except for trivial loops (`i`, `j`) or small, obvious scopes.
+- Comments MUST explain:
+  - why something is done
+  - what invariant is being protected
+  - what assumption the code relies on (e.g., “validated view”)
+- Comments MUST NOT restate code line-by-line.
+- Tricky parsing/framing logic SHOULD be annotated with brief “shape” comments (header → ranges → spans → stream).
+
+### File header comments (required)
+
+Every `.c`/`.h` file MUST start with a brief “what/why” header.
+
+Example:
+
+```c
+/*
+  src/core/zr_drawlist.c — Drawlist validator and executor.
+
+  Why: Validates wrapper-provided bytes and executes drawing into the framebuffer safely.
+  Invariants:
+    - No OOB reads; all offsets/sizes validated before access.
+    - No partial effects: validate fully before mutating the framebuffer.
+  Failure modes:
+    - Invalid format -> ZR_ERR_FORMAT / ZR_ERR_UNSUPPORTED.
+    - Caps exceeded -> ZR_ERR_LIMIT.
+*/
+```
+
+## Public API (function signatures and types; include header file names)
+
+Public-facing code conventions (applies repo-wide):
+
+- filename conventions, header layout, include discipline
+- stable prefixes for public and internal symbols
+
+## Invariants (explicit MUST-always-hold statements)
+
+### Naming (normative)
+
+Function prefixes MUST be explicit and stable:
+
+- `engine_*` — public ABI and orchestration
+- `dl_*` — drawlist parsing/validation/execution
+- `fb_*` — framebuffer operations
+- `diff_*` — diff renderer
+- `utf8_*` / `grapheme_*` / `width_*` / `wrap_*` — Unicode primitives
+- `plat_*` — platform interface and backends
+- `zr_*` — shared base types/utilities
+
+Names MUST describe intent:
+
+- Functions: `arena_alloc_aligned()`, `dl_validate_header_v1()`, `fb_cell_index()`
+- Variables: `write_offset`, `bytes_remaining`, `span_index_bytes`
+
+Avoid one-letter names except for trivial loops (`i`, `j`) or small, obvious scopes.
+
+Type naming:
+
+- typedef’d structs/enums MUST use `*_t` suffix.
+- ABI-visible types MUST use fixed-width integers (`uint32_t`, `int32_t`, etc.).
 - Public ABI surfaces MUST keep stable names and signatures; refactors MUST NOT rename public API.
 
-## 4) Ownership, Lifetimes, and Out-Params
+### Module structure (normative)
+
+- Code MUST be split into modules with single responsibility (`foo.h` + `foo.c`).
+- Headers MUST minimize includes and MUST NOT leak platform headers across boundaries.
+- OS types MUST NOT cross the platform boundary (use POD + opaque handles).
+
+### Ownership, lifetimes, and out-params (normative)
 
 - Every struct that contains pointers MUST document:
   - who owns the pointed-to memory
@@ -35,7 +112,7 @@ This document uses **MUST / MUST NOT / SHOULD** language on purpose.
   - fully written on success and left in a documented safe state on failure, or
   - explicitly zeroed at the start of the function (before any early returns).
 
-## 5) Pointer Arithmetic and Bounds Checks
+### Pointer arithmetic and bounds checks (normative)
 
 - Pointer arithmetic MUST be written in steps with checked math:
   - compute offsets with `zr_checked_*`
@@ -43,7 +120,38 @@ This document uses **MUST / MUST NOT / SHOULD** language on purpose.
 - Avoid “clever” casts. Unaligned reads MUST use byte loads or `memcpy` helpers (no type-punning).
 - Any non-obvious boundary check MUST have a brief comment explaining the invariant being protected.
 
-## 6) Error Handling and “No Partial Effects”
+### Macro policy (normative)
+
+- Macro-heavy “generic programming” is discouraged.
+- Macros are allowed only for:
+  - assertions
+  - small constants/caps
+  - carefully-audited `ZR_MIN`/`ZR_MAX` (if used)
+- Macros MUST NOT hide allocations or complex control flow.
+
+### Global state policy (normative)
+
+- Global mutable state is FORBIDDEN (except immutable tables in Unicode/data).
+
+### Assertions (normative)
+
+- Asserts are for internal invariants and programmer errors only.
+- Asserts MUST NOT be used to validate untrusted input (drawlists, platform input bytes).
+
+## Failure modes & error codes
+
+Coding standard violations are treated as bugs and are handled via:
+
+- compile failures (warnings-as-errors in CI where feasible)
+- test failures
+- debug assertions
+
+| Condition | Required behavior | Return code |
+|---|---|---:|
+| Untrusted input validation done via assert | Treat as bug; refactor to bounds-checked error returns | n/a |
+| Module includes OS headers in core/unicode/util | Treat as bug; CI guardrail should fail | n/a |
+
+## Error handling and “No Partial Effects”
 
 - Success is `ZR_OK == 0`. Failures are negative `ZR_ERR_*` codes.
 - Failure paths MUST be obvious:
@@ -53,33 +161,51 @@ This document uses **MUST / MUST NOT / SHOULD** language on purpose.
   - validate fully before mutating state when possible
   - do not partially write output buffers unless the API explicitly allows it
 
-## 7) Macros
+Example cleanup pattern:
 
-- Macros MUST be small and local.
-- Macros MUST NOT hide control flow or perform non-trivial memory manipulation.
-- If a macro is required (e.g., test auto-registration), it MUST be documented with:
-  - why a function cannot be used instead
-  - which compilers/platforms it targets
+```c
+zr_result_t rc = ZR_OK;
+resource_t* r = NULL;
 
-## 8) Comments Policy (Why > What)
+r = alloc_resource();
+if (!r) { rc = ZR_ERR_OOM; goto cleanup; }
 
-- Comments MUST explain:
-  - why something is done
-  - what invariant is being protected
-  - what assumption the code relies on (e.g., “validated view”)
-- Comments MUST NOT restate code line-by-line.
-- Tricky parsing/framing logic SHOULD be annotated with brief “shape” comments (header → ranges → spans → stream).
+cleanup:
+free_resource(r);
+return rc;
+```
 
-## 9) Platform Boundary (Hard Rule)
+## Performance notes (hot paths, allocation rules, complexity targets)
 
-- Files under `src/core/`, `src/unicode/`, and `src/util/` MUST NOT include OS headers.
-- OS-specific code MUST live under `src/platform/posix/` and `src/platform/win32/`.
-- `#ifdef _WIN32` MUST be confined to platform backends and minimal backend-selection glue.
+- Keep hot path code simple and auditable:
+  - small focused functions
+  - minimal branching where possible
+  - avoid hidden allocations
+- Prefer contiguous buffers and explicit bounds checks in parsers.
 
-## 10) Determinism
+## Concurrency rules (what can be called from which thread; locking)
 
-- Tests and core logic MUST be deterministic:
-  - no locale-dependent behavior
-  - no wall-clock dependencies in unit tests
-  - no random seeds unless they are fixed and documented
+Concurrency rules are locked in `docs/SAFETY_RULESET.md`.
 
+Coding standards requirement:
+
+- Thread-affinity and thread-safety requirements MUST be documented in each module header for any public/engine entrypoints.
+
+## Deterministic behavior guarantees
+
+Determinism requirements are locked in `docs/SAFETY_RULESET.md`.
+
+Coding standards requirement:
+
+- Any behavior change that affects:
+  - binary formats
+  - output byte streams
+  - event ordering/coalescing
+  must update the corresponding module doc and tests/fixtures in the same change.
+
+## Test plan
+
+- Unit tests and fuzz targets must cover parsers and invariants.
+- Golden tests must pin output byte streams and prevent regressions.
+
+See `docs/modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md`.

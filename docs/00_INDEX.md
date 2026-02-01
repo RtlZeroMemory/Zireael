@@ -14,3 +14,6 @@ Reading order (recommended):
 8. `docs/BUILD_TOOLCHAINS_AND_CMAKE.md`
 9. `docs/modules/` (module specs)
 
+Testing:
+
+- `docs/modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md`

@@ -19,14 +19,20 @@ typedef struct zr_style_t {
   uint32_t attrs;
 } zr_style_t;
 
+/*
+ * Maximum UTF-8 bytes per grapheme cluster stored in a cell.
+ * 32 bytes covers virtually all graphemes including complex emoji sequences
+ * like family emoji (👨‍👩‍👧‍👦 = ~25 bytes).
+ */
+#define ZR_FB_GLYPH_MAX_BYTES 32u
+
 typedef struct zr_fb_cell_t {
   /*
     glyph:
-      - UTF-8 bytes for a single codepoint (1..4 bytes) as emitted/consumed by
-        the framebuffer's decode policy.
-      - Note: this is a placeholder until full grapheme-aware rendering lands.
+      - UTF-8 bytes for a complete grapheme cluster.
+      - Graphemes exceeding ZR_FB_GLYPH_MAX_BYTES are replaced with U+FFFD.
   */
-  uint8_t   glyph[4];
+  uint8_t   glyph[ZR_FB_GLYPH_MAX_BYTES];
   uint8_t   glyph_len;
   uint8_t   flags;
   uint16_t  _pad0;

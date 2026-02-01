@@ -9,6 +9,7 @@
 #include "util/zr_bytes.h"
 #include "util/zr_checked.h"
 
+#include <limits.h>
 #include <string.h>
 
 enum {
@@ -749,7 +750,14 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
           if (rc != ZR_OK) {
             return rc;
           }
-          cx += (int32_t)byte_len;
+          const size_t adv_cells = zr_fb_count_cells_utf8(sbytes, (size_t)byte_len);
+          if (adv_cells > (size_t)INT32_MAX) {
+            return ZR_ERR_LIMIT;
+          }
+          if (cx > (INT32_MAX - (int32_t)adv_cells)) {
+            return ZR_ERR_LIMIT;
+          }
+          cx += (int32_t)adv_cells;
         }
         break;
       }

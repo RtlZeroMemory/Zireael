@@ -52,8 +52,10 @@ zr_result_t zr_fb_fill_rect(zr_fb_t* fb, zr_fb_rect_i32_t r, const zr_style_t* s
 zr_result_t zr_fb_draw_text_bytes(zr_fb_t* fb, int32_t x, int32_t y, const uint8_t* bytes,
                                   size_t len, const zr_style_t* style, zr_fb_rect_i32_t clip);
 
+/* Deterministic UTF-8 cell count using the framebuffer's decode policy. */
+size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len);
+
 zr_fb_rect_i32_t zr_fb_full_clip(const zr_fb_t* fb);
 zr_fb_rect_i32_t zr_fb_clip_intersect(zr_fb_rect_i32_t a, zr_fb_rect_i32_t b);
 
 #endif /* ZR_CORE_ZR_FB_H_INCLUDED */
-

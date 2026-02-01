@@ -1,6 +1,6 @@
 ---
 name: zireael-platform-boundary
-description: Design/enforce the strict platform boundary: core/unicode/util stay OS-header-free; OS code lives in platform backends.
+description: "Design/enforce the strict platform boundary: core/unicode/util stay OS-header-free; OS code lives in platform backends."
 metadata:
   short-description: Platform interface + backend rules
 ---

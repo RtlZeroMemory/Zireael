@@ -5,6 +5,7 @@ add_executable(zireael_unit_tests
   unit/test_arena.c
   unit/test_bytes.c
   unit/test_checked.c
+  unit/test_diff_color_quant.c
   unit/test_diff_spans.c
   unit/test_drawlist_execute.c
   unit/test_drawlist_validate.c

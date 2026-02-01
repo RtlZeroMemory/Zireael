@@ -29,6 +29,9 @@ static void zr_evq_unlock(zr_event_queue_t* q) {
 }
 
 static uint32_t zr_evq_index(const zr_event_queue_t* q, uint32_t i) {
+  if (!q || q->cap == 0u) {
+    return 0u;
+  }
   return (q->head + i) % q->cap;
 }
 
@@ -183,7 +186,7 @@ zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_
 }
 
 zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev) {
-  if (!q || !ev) {
+  if (!q || !ev || !q->events || q->cap == 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -208,7 +211,7 @@ zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev) {
 
 zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag,
                                      const uint8_t* payload, uint32_t payload_len) {
-  if (!q || (!payload && payload_len != 0u)) {
+  if (!q || !q->events || q->cap == 0u || (!payload && payload_len != 0u)) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -254,7 +257,7 @@ zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint
 }
 
 bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev) {
-  if (!q || !out_ev) {
+  if (!q || !out_ev || !q->events || q->cap == 0u) {
     return false;
   }
 
@@ -270,7 +273,7 @@ bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev) {
 }
 
 bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev) {
-  if (!q || !out_ev) {
+  if (!q || !out_ev || !q->events || q->cap == 0u) {
     return false;
   }
 
@@ -295,7 +298,7 @@ bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev) {
 
 bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
                                       const uint8_t** out_bytes, uint32_t* out_len) {
-  if (!q || !ev || !out_bytes || !out_len) {
+  if (!q || !q->events || q->cap == 0u || !ev || !out_bytes || !out_len) {
     return false;
   }
   if (ev->type != ZR_EV_USER) {

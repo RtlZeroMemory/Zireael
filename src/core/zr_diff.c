@@ -77,7 +77,8 @@ static uint8_t zr_xterm256_component_level(uint8_t v) {
   uint8_t best_i = 0u;
   uint32_t best_d = 0xFFFFFFFFu;
   for (uint8_t i = 0u; i < 6u; i++) {
-    const uint32_t d = (uint32_t)((int32_t)v - (int32_t)levels[i]) * (uint32_t)((int32_t)v - (int32_t)levels[i]);
+    const int32_t diff = (int32_t)v - (int32_t)levels[i];
+    const uint32_t d = (uint32_t)(diff * diff);
     if (d < best_d) {
       best_d = d;
       best_i = i;

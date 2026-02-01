@@ -221,6 +221,15 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   }
   *out_plat = NULL;
 
+  /*
+    SIGWINCH wake is handled via a process-global signal handler, which needs a
+    single global self-pipe write fd. Disallow multiple concurrent plat
+    instances to avoid clobbering this global.
+  */
+  if (g_posix_wake_write_fd >= 0) {
+    return ZR_ERR_PLATFORM;
+  }
+
   plat_t* plat = (plat_t*)calloc(1u, sizeof(*plat));
   if (!plat) {
     return ZR_ERR_OOM;
@@ -276,6 +285,7 @@ void plat_destroy(plat_t* plat) {
   (void)plat_leave_raw(plat);
 
   if (plat->sigwinch_installed) {
+    g_posix_wake_write_fd = -1;
     (void)sigaction(SIGWINCH, &plat->sigwinch_prev, NULL);
     plat->sigwinch_installed = false;
   }
@@ -289,7 +299,6 @@ void plat_destroy(plat_t* plat) {
     plat->wake_write_fd = -1;
   }
 
-  g_posix_wake_write_fd = -1;
   free(plat);
 }
 
@@ -348,7 +357,9 @@ zr_result_t plat_leave_raw(plat_t* plat) {
       - Attempt to restore the terminal even if we were never marked active.
       - Never block indefinitely.
   */
-  zr_posix_emit_leave_sequences(plat);
+  if (plat->raw_active) {
+    zr_posix_emit_leave_sequences(plat);
+  }
 
   if (plat->termios_valid) {
     (void)tcsetattr(plat->stdin_fd, TCSANOW, &plat->termios_saved);
@@ -453,6 +464,7 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
   for (;;) {
     if (g_posix_sigwinch_pending) {
       g_posix_sigwinch_pending = 0;
+      zr_posix_drain_fd_best_effort(plat->wake_read_fd);
       return 1;
     }
 
@@ -460,7 +472,7 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
     if (timeout_ms >= 0) {
       uint64_t now_ms = plat_now_ms();
       uint64_t remaining = (now_ms >= deadline_ms) ? 0ull : (deadline_ms - now_ms);
-      poll_timeout = remaining > (uint64_t)INT32_MAX ? INT32_MAX : (int)remaining;
+      poll_timeout = remaining > (uint64_t)INT_MAX ? INT_MAX : (int)remaining;
     }
 
     fds[0].revents = 0;

@@ -8,6 +8,21 @@
 #ifndef ZR_UTIL_ZR_CHECKED_H_INCLUDED
 #define ZR_UTIL_ZR_CHECKED_H_INCLUDED
 
+/*
+ * Checked arithmetic helpers for size_t and uint32_t.
+ *
+ * Pattern:
+ *   - Returns true on success, false on overflow
+ *   - On failure, *out is NOT modified (enables chaining without partial writes)
+ *   - NULL out pointer returns false
+ *
+ * Usage:
+ *   size_t total;
+ *   if (!zr_checked_add_size(a, b, &total)) return ZR_ERR_LIMIT;
+ *   if (!zr_checked_mul_size(total, c, &total)) return ZR_ERR_LIMIT;
+ *   // total is valid only if both checks passed
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -95,4 +110,3 @@ static inline bool zr_checked_align_up_size(size_t value, size_t align, size_t* 
 }
 
 #endif /* ZR_UTIL_ZR_CHECKED_H_INCLUDED */
-

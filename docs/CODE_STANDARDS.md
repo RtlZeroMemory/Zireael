@@ -41,6 +41,33 @@ This document uses **MUST / MUST NOT / SHOULD** language on purpose.
 - Comments MUST NOT restate code line-by-line.
 - Tricky parsing/framing logic SHOULD be annotated with brief “shape” comments (header → ranges → spans → stream).
 
+#### Comment style (format and tone)
+
+- Prefer **short, structured block comments** for non-trivial reasoning (typically 5–20 lines).
+- Use `/* ... */` for single-line comments and multi-line blocks; avoid `//` in engine code.
+- Multi-line blocks SHOULD follow the aligned `*` style when the comment spans more than ~2 lines:
+
+```c
+/*
+ * What this block does (high-level).
+ *
+ * Why it exists (invariant, deterministic policy, or subtle edge case).
+ * Any important caller/callee contract notes.
+ */
+```
+
+- Comments SHOULD be factual and specific; avoid generic filler (no “AI-sounding” commentary).
+
+#### Strategic comments (where to add them)
+
+Add comments only where they carry real information that is not obvious from the code:
+
+- **Algorithm shape and invariants** (e.g., ring buffer head/tail layouts, wrap-around behavior).
+- **Deterministic policy notes** (e.g., invalid UTF-8 replacement behavior, tie-break rules).
+- **State machines** (e.g., grapheme boundary rule state tracking like GB11).
+- **Long functions**: add short section markers when a function has multiple conceptual phases (reset → attrs → colors → finalize).
+- **Defensive NULL checks**: only when non-obvious (e.g., “cleanup path accepts NULL”, “lock is no-op on NULL for error paths”).
+
 ### File header comments (required)
 
 Every `.c`/`.h` file MUST start with a brief “what/why” header.
@@ -117,6 +144,7 @@ Type naming:
 - Pointer arithmetic MUST be written in steps with checked math:
   - compute offsets with `zr_checked_*`
   - validate ranges before creating derived pointers
+- Prefer `if (!ptr)` / `if (ptr)` for NULL checks in simple conditions; keep explicit `== NULL` / `!= NULL` only when it materially improves readability in complex boolean expressions.
 - Avoid “clever” casts. Unaligned reads MUST use byte loads or `memcpy` helpers (no type-punning).
 - Any non-obvious boundary check MUST have a brief comment explaining the invariant being protected.
 

@@ -37,7 +37,7 @@ uint8_t zr_width_codepoint(uint32_t scalar) {
 }
 
 uint8_t zr_width_grapheme_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t policy) {
-  if (len == 0u || bytes == NULL) {
+  if (len == 0u || !bytes) {
     return 0u;
   }
 

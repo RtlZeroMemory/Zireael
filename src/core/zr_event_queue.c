@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+/* Lock accepts NULL to simplify error paths (becomes no-op). */
 static void zr_evq_lock(zr_event_queue_t* q) {
   if (!q) {
     return;
@@ -46,6 +47,18 @@ static bool zr_evq_is_mouse_coalescible(const zr_event_t* ev) {
   return (ev->u.mouse.kind == (uint32_t)ZR_MOUSE_MOVE) || (ev->u.mouse.kind == (uint32_t)ZR_MOUSE_DRAG);
 }
 
+/*
+ * Event coalescing: replace the last matching event rather than appending.
+ *
+ * Coalesced event types:
+ *   - RESIZE: Only the final terminal size matters; intermediate sizes
+ *     are stale by the time they're processed.
+ *   - MOUSE MOVE/DRAG: Position updates can collapse; only latest matters
+ *     for hover/drag tracking.
+ *
+ * Returns true if the event was coalesced (caller should NOT push).
+ * Returns false if no coalescible match found (caller should push normally).
+ */
 static bool zr_evq_try_coalesce_locked(zr_event_queue_t* q, const zr_event_t* ev) {
   if (!q || !ev || q->count == 0u) {
     return false;
@@ -77,6 +90,27 @@ static bool zr_evq_try_coalesce_locked(zr_event_queue_t* q, const zr_event_t* ev
   return true;
 }
 
+/*
+ * Ring buffer allocation for user event payloads.
+ *
+ * Layout based on head/tail positions:
+ *
+ *   Case 1: tail >= head (normal or empty)
+ *     [....head=====tail....]
+ *           ^         ^
+ *           |         +-- write here first
+ *           +-- read from here
+ *     Try space at end, then wrap to start if needed.
+ *
+ *   Case 2: tail < head (wrapped)
+ *     [====tail......head====]
+ *          ^          ^
+ *          |          +-- read from here
+ *          +-- write here
+ *     Contiguous space between tail and head only.
+ *
+ * Returns true and sets *out_off on success; false if insufficient space.
+ */
 static bool zr_evq_user_alloc_locked(zr_event_queue_t* q, uint32_t n, uint32_t* out_off) {
   if (!q || !out_off) {
     return false;

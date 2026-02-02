@@ -18,9 +18,9 @@
 
 ## What is Zireael?
 
-Zireael is a low-level terminal rendering engine for embedding in TUI frameworks. It provides a small, stable C ABI that lets any language drive rendering by submitting a versioned, binary **drawlist** and receiving a packed **event batch**.
+Zireael is a low-level terminal rendering engine for embedding in higher-level TUI frameworks. It provides a small, stable C ABI that lets any language drive rendering by submitting a versioned, binary **drawlist** and receiving a packed **event batch**.
 
-This engine is the foundation for **Zireael-UI**, a TypeScript TUI framework (coming soon).
+This engine is being built to power **Zireael-UI** (a TypeScript framework in progress), and to serve as a reusable, performance-focused core for other wrappers (Rust, Go, etc.).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -40,6 +40,17 @@ This engine is the foundation for **Zireael-UI**, a TypeScript TUI framework (co
 **Engine returns:** packed event batch bytes (keys, mouse, resize, text)
 **Engine handles:** terminal setup, diff-based rendering, efficient output, pinned Unicode policies
 
+## Motivation
+
+Modern terminal apps are no longer just “CLI output”. They are interactive UIs, often running long sessions, and increasingly used for workflows like agentic coding where the UI updates continuously while the program performs real work in the background.
+
+In that environment you want two things at the same time:
+
+- **High performance rendering** (large surfaces, frequent updates, minimal terminal I/O).
+- **A portable core** that can be called from any language and reused across products.
+
+C is a practical choice for the core: it gives a stable ABI boundary and predictable performance characteristics. Zireael exists so higher-level frameworks don’t have to reimplement terminal I/O, Unicode policies, diff rendering, input parsing, and the “edge case” behavior that makes terminal UIs reliable across platforms and terminals.
+
 ## Why Zireael?
 
 Building a TUI framework requires solving the same hard problems repeatedly:
@@ -49,7 +60,13 @@ Building a TUI framework requires solving the same hard problems repeatedly:
 - Unicode — grapheme clusters, character widths, text wrapping
 - Input parsing — ANSI sequences, mouse protocols, bracketed paste
 
-Zireael solves these once behind a strict platform boundary and exposes a **deterministic**, bounded surface for wrappers.
+Zireael solves these once behind a strict platform boundary and exposes a deterministic, bounded surface for wrappers:
+
+- **Binary in, binary out**: wrappers send drawlist bytes; the engine returns event batches.
+- **Defensive validation**: drawlists/events are treated as untrusted bytes at the boundary.
+- **Pinned policies**: Unicode grapheme + width policy are stable and deterministic (no locale-dependent surprises).
+- **Bounded work**: explicit caps for drawlist sizes, counts, and output bytes per frame.
+- **Backend isolation**: core/unicode/util stay OS-header-free; OS code lives in `src/platform/*`.
 
 ## Design Principles
 
@@ -67,6 +84,8 @@ Zireael solves these once behind a strict platform boundary and exposes a **dete
 - A diff renderer that minimizes terminal traffic (cursor/SGR/output coalescing)
 - Pinned Unicode grapheme + width policy for stable layout and wrapping
 - A strict platform boundary so core stays OS-header-free
+
+Practically: a high-level framework can focus on widgets, layout, state management, and application logic while delegating terminal correctness and performance to the engine.
 
 ## Example
 

@@ -33,4 +33,3 @@ var scenarios = []scenarioDef{
 		desc: "High-command-count particle renderer to stress parsing/execution and Go wrapper throughput.",
 	},
 }
-

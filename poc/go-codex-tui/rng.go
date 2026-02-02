@@ -21,4 +21,3 @@ func (r *xorshift32) Next() uint32 {
 	r.s = x
 	return x
 }
-

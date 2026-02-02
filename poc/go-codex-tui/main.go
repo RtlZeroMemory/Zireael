@@ -22,8 +22,8 @@ const (
 
 type fpsCounter struct {
 	windowStart time.Time
-	frames       int
-	fps          int
+	frames      int
+	fps         int
 }
 
 func (c *fpsCounter) Reset(now time.Time) {
@@ -296,7 +296,7 @@ func (a *app) drawHelpOverlay(b *dlBuilder, r rect) {
 		"Q: quit",
 		"H or ?: toggle help",
 		"+/-: increase/decrease phantom stress commands",
-		"[/]: decrease/increase Element Storm density",
+		"[/]: decrease/increase Particle Storm visible density",
 	}
 	y := card.y + 4
 	for _, line := range lines {
@@ -322,7 +322,8 @@ func main() {
 	var (
 		flagScenario = flag.String("scenario", "", "start scenario by name (agentic|matrix|storm); default shows menu")
 		flagBenchSec = flag.Int("bench-seconds", 0, "run for N seconds then exit (still renders to terminal)")
-		flagStormN   = flag.Int("storm-n", 60000, "total particles per frame for Neon Particle Storm (excess becomes phantom stress)")
+		flagStormN   = flag.Int("storm-n", 60000, "total particle segments per frame for Neon Particle Storm (excess becomes phantom stress)")
+		flagStormVis = flag.Int("storm-visible", 20000, "max visible particle segments per frame for Neon Particle Storm")
 		flagPhantom  = flag.Int("phantom", 0, "phantom commands per frame (parse/dispatch stress)")
 		flagFPS      = flag.Int("fps", 0, "target render FPS (0=uncapped)")
 	)
@@ -350,13 +351,14 @@ func main() {
 	}()
 
 	a := &app{
-		th:               defaultTheme(),
-		mode:             modeMenu,
-		menuIndex:        0,
-		active:           scenarioAgentic,
+		th:                defaultTheme(),
+		mode:              modeMenu,
+		menuIndex:         0,
+		active:            scenarioAgentic,
 		stressPhantomCmds: *flagPhantom,
 	}
 	a.storm.SetCount(*flagStormN)
+	a.storm.SetVisibleMax(*flagStormVis)
 	a.fps.Reset(time.Now())
 
 	if w, h, ok := ttySize(os.Stdout.Fd()); ok {

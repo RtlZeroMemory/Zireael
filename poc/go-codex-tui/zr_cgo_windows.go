@@ -13,4 +13,3 @@ package main
 import "errors"
 
 var errWindowsUnsupported = errors.New("poc/go-codex-tui: Windows runner not wired yet (use POSIX for now)")
-

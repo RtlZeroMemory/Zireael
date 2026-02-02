@@ -144,4 +144,3 @@ func parseEventBatch(buf []byte) ([]appEvent, error) {
 	}
 	return out, nil
 }
-

@@ -150,10 +150,15 @@ Optional frame cap (useful for stable comparisons):
 bash scripts/poc-go-codex-tui.sh -scenario matrix -fps 60
 ```
 
+Notes:
+
+- `-fps` is a *cap*. Omit it (default) to run uncapped.
+- Many terminal emulators effectively refresh around ~60–144 Hz; uncapped mode may still report FPS near that while you increase backend stress via `-storm-n` and `-phantom`.
+
 Benchmark example (10 seconds, Neon Particle Storm):
 
 ```bash
-bash scripts/poc-go-codex-tui.sh -scenario storm -bench-seconds 10 -storm-n 150000 -phantom 200000
+bash scripts/poc-go-codex-tui.sh -scenario storm -bench-seconds 10 -storm-n 150000 -storm-visible 25000 -phantom 200000
 ```
 
 Source: `poc/go-codex-tui/`

@@ -166,6 +166,9 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 
 ## DEMO — Go stress-test TUI
 
+![Zireael-Coding](https://github.com/user-attachments/assets/801ef14a-43ca-4b37-87e6-0771eca8c5b5)
+![Zireael-Matrix](https://github.com/user-attachments/assets/26629c78-d13f-48b8-9527-9120945fc67e)
+
 This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
 
 - scenario picker (menu)
@@ -238,10 +241,6 @@ Go PoC summary:
   bytes_total: 10092464
   bytes_last:  24684
 ```
-
-![Zireael-Coding](https://github.com/user-attachments/assets/801ef14a-43ca-4b37-87e6-0771eca8c5b5)
-![Zireael-Matrix](https://github.com/user-attachments/assets/26629c78-d13f-48b8-9527-9120945fc67e)
-
 
 Source: `poc/go-codex-tui/`
 

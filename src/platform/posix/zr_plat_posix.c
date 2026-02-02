@@ -58,6 +58,63 @@ struct plat_t {
 static volatile sig_atomic_t g_posix_sigwinch_pending = 0;
 static int                  g_posix_wake_write_fd = -1;
 
+static const char* zr_posix_getenv_nonempty(const char* key) {
+  if (!key) {
+    return NULL;
+  }
+  const char* v = getenv(key);
+  if (!v || v[0] == '\0') {
+    return NULL;
+  }
+  return v;
+}
+
+static bool zr_posix_term_is_dumb(void) {
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  if (!term) {
+    return true;
+  }
+  return strcmp(term, "dumb") == 0;
+}
+
+static uint8_t zr_posix_detect_scroll_region(void) {
+  /*
+    Scroll regions (DECSTBM + SU/SD) are part of the common VT/xterm feature
+    set. Avoid emitting them only for "dumb" terminals (where any VT output is
+    likely ineffective).
+  */
+  return zr_posix_term_is_dumb() ? 0u : 1u;
+}
+
+static uint8_t zr_posix_detect_sync_update(void) {
+  /*
+    Synchronized output (DEC private mode ?2026) is not universally supported.
+    Use a conservative allowlist based on well-known environment markers.
+  */
+  if (zr_posix_term_is_dumb()) {
+    return 0u;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID")) {
+    return 1u;
+  }
+  if (zr_posix_getenv_nonempty("WEZTERM_PANE") || zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+    return 1u;
+  }
+
+  const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
+  if (term_program && strcmp(term_program, "iTerm.app") == 0) {
+    return 1u;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  if (term && (strstr(term, "kitty") || strstr(term, "wezterm"))) {
+    return 1u;
+  }
+
+  return 0u;
+}
+
 static void zr_posix_sigwinch_handler(int signo) {
   (void)signo;
   g_posix_sigwinch_pending = 1;
@@ -291,9 +348,9 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_bracketed_paste = 1u;
   plat->caps.supports_focus_events = 1u;
   plat->caps.supports_osc52 = 1u;
-  plat->caps._pad[0] = 0u;
-  plat->caps._pad[1] = 0u;
-  plat->caps._pad[2] = 0u;
+  plat->caps.supports_sync_update = zr_posix_detect_sync_update();
+  plat->caps.supports_scroll_region = zr_posix_detect_scroll_region();
+  plat->caps._pad0 = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
   zr_result_t r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);

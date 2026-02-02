@@ -80,7 +80,7 @@ ZR_TEST_UNIT(diff_span_separates_and_uses_cup) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {
@@ -127,7 +127,7 @@ ZR_TEST_UNIT(diff_continuation_includes_lead) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'2', (uint8_t)'H',
@@ -167,7 +167,7 @@ ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {(uint8_t)'X'};
@@ -201,7 +201,7 @@ ZR_TEST_UNIT(diff_returns_limit_without_claiming_bytes) {
   size_t out_len = 123u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len,
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len,
                                        &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_ERR_LIMIT);
   ZR_ASSERT_EQ_U32(out_len, 0u);

@@ -26,8 +26,9 @@ const (
 )
 
 type dlStyle struct {
-	fg uint32
-	bg uint32
+	fg    uint32
+	bg    uint32
+	attrs uint32
 }
 
 type dlSpan struct {
@@ -42,6 +43,9 @@ type dlBuilder struct {
 	stringsSpans []dlSpan
 	stringsBytes []byte
 
+	blobsSpans []dlSpan
+	blobsBytes []byte
+
 	out []byte
 }
 
@@ -50,6 +54,8 @@ func (b *dlBuilder) Reset() {
 	b.cmdCount = 0
 	b.stringsSpans = b.stringsSpans[:0]
 	b.stringsBytes = b.stringsBytes[:0]
+	b.blobsSpans = b.blobsSpans[:0]
+	b.blobsBytes = b.blobsBytes[:0]
 }
 
 func (b *dlBuilder) Reserve(cmdBytesCap int, stringsBytesCap int, stringsCap int) {
@@ -66,6 +72,58 @@ func (b *dlBuilder) Reserve(cmdBytesCap int, stringsBytesCap int, stringsCap int
 
 func dlAlign4(v uint32) uint32 { return (v + 3) &^ 3 }
 
+func putU16LE(p []byte, v uint16) {
+	p[0] = byte(v)
+	p[1] = byte(v >> 8)
+}
+
+func putU32LE(p []byte, v uint32) {
+	p[0] = byte(v)
+	p[1] = byte(v >> 8)
+	p[2] = byte(v >> 16)
+	p[3] = byte(v >> 24)
+}
+
+func (b *dlBuilder) ReserveBlobs(bytesCap int, blobsCap int) {
+	if cap(b.blobsBytes) < bytesCap {
+		b.blobsBytes = make([]byte, 0, bytesCap)
+	}
+	if cap(b.blobsSpans) < blobsCap {
+		b.blobsSpans = make([]dlSpan, 0, blobsCap)
+	}
+}
+
+func (b *dlBuilder) appendTo(buf []byte, n int) ([]byte, []byte) {
+	if n <= 0 {
+		return buf, nil
+	}
+	old := len(buf)
+	need := old + n
+	if need > cap(buf) {
+		newCap := cap(buf) * 2
+		if newCap < need {
+			newCap = need
+		}
+		tmp := make([]byte, old, newCap)
+		copy(tmp, buf)
+		buf = tmp
+	}
+	buf = buf[:need]
+	return buf, buf[old:need]
+}
+
+func (b *dlBuilder) appendCmdBytes(n int) []byte {
+	var out []byte
+	b.cmd, out = b.appendTo(b.cmd, n)
+	return out
+}
+
+func (b *dlBuilder) appendBlobBytes(n int) []byte {
+	var out []byte
+	b.blobsBytes, out = b.appendTo(b.blobsBytes, n)
+	return out
+}
+
 func (b *dlBuilder) AddStringBytes(s []byte) uint32 {
 	off := uint32(len(b.stringsBytes))
 	b.stringsBytes = append(b.stringsBytes, s...)
@@ -75,79 +133,119 @@ func (b *dlBuilder) AddStringBytes(s []byte) uint32 {
 
 func (b *dlBuilder) AddString(s string) uint32 { return b.AddStringBytes([]byte(s)) }
 
+type dlTextRunSeg struct {
+	style dlStyle
+
+	stringIndex uint32
+	byteOff     uint32
+	byteLen     uint32
+}
+
+func (b *dlBuilder) AddTextRunBlob(segs []dlTextRunSeg) uint32 {
+	off := uint32(len(b.blobsBytes))
+	aligned := dlAlign4(off)
+	if aligned != off {
+		pad := int(aligned - off)
+		p := b.appendBlobBytes(pad)
+		for i := range p {
+			p[i] = 0
+		}
+		off = aligned
+	}
+
+	const segSize = 28
+	blobLen := 4 + len(segs)*segSize
+	if blobLen == 0 {
+		blobLen = 4
+	}
+
+	p := b.appendBlobBytes(blobLen)
+	putU32LE(p[0:], uint32(len(segs)))
+	wp := 4
+	for i := 0; i < len(segs); i++ {
+		s := segs[i]
+		putU32LE(p[wp+0:], s.style.fg)
+		putU32LE(p[wp+4:], s.style.bg)
+		putU32LE(p[wp+8:], s.style.attrs)
+		putU32LE(p[wp+12:], 0)
+		putU32LE(p[wp+16:], s.stringIndex)
+		putU32LE(p[wp+20:], s.byteOff)
+		putU32LE(p[wp+24:], s.byteLen)
+		wp += segSize
+	}
+
+	b.blobsSpans = append(b.blobsSpans, dlSpan{off: off, len: uint32(blobLen)})
+	return uint32(len(b.blobsSpans) - 1)
+}
+
 func (b *dlBuilder) CmdClear() {
 	const cmdSize = 8
-	b.cmd = append(b.cmd, make([]byte, cmdSize)...)
-	p := b.cmd[len(b.cmd)-cmdSize:]
-	binary.LittleEndian.PutUint16(p[0:], zrDlOpClear)
-	binary.LittleEndian.PutUint16(p[2:], 0)
-	binary.LittleEndian.PutUint32(p[4:], uint32(cmdSize))
+	p := b.appendCmdBytes(cmdSize)
+	putU16LE(p[0:], zrDlOpClear)
+	putU16LE(p[2:], 0)
+	putU32LE(p[4:], uint32(cmdSize))
 	b.cmdCount++
 }
 
 func (b *dlBuilder) CmdPushClip(x, y, w, h int32) {
 	const cmdSize = 8 + 16
-	b.cmd = append(b.cmd, make([]byte, cmdSize)...)
-	p := b.cmd[len(b.cmd)-cmdSize:]
-	binary.LittleEndian.PutUint16(p[0:], zrDlOpPushClip)
-	binary.LittleEndian.PutUint16(p[2:], 0)
-	binary.LittleEndian.PutUint32(p[4:], uint32(cmdSize))
-	binary.LittleEndian.PutUint32(p[8:], uint32(x))
-	binary.LittleEndian.PutUint32(p[12:], uint32(y))
-	binary.LittleEndian.PutUint32(p[16:], uint32(w))
-	binary.LittleEndian.PutUint32(p[20:], uint32(h))
+	p := b.appendCmdBytes(cmdSize)
+	putU16LE(p[0:], zrDlOpPushClip)
+	putU16LE(p[2:], 0)
+	putU32LE(p[4:], uint32(cmdSize))
+	putU32LE(p[8:], uint32(x))
+	putU32LE(p[12:], uint32(y))
+	putU32LE(p[16:], uint32(w))
+	putU32LE(p[20:], uint32(h))
 	b.cmdCount++
 }
 
 func (b *dlBuilder) CmdPopClip() {
 	const cmdSize = 8
-	b.cmd = append(b.cmd, make([]byte, cmdSize)...)
-	p := b.cmd[len(b.cmd)-cmdSize:]
-	binary.LittleEndian.PutUint16(p[0:], zrDlOpPopClip)
-	binary.LittleEndian.PutUint16(p[2:], 0)
-	binary.LittleEndian.PutUint32(p[4:], uint32(cmdSize))
+	p := b.appendCmdBytes(cmdSize)
+	putU16LE(p[0:], zrDlOpPopClip)
+	putU16LE(p[2:], 0)
+	putU32LE(p[4:], uint32(cmdSize))
 	b.cmdCount++
 }
 
 func (b *dlBuilder) CmdFillRect(x, y, w, h int32, st dlStyle) {
 	const cmdSize = 8 + 32
-	b.cmd = append(b.cmd, make([]byte, cmdSize)...)
-	p := b.cmd[len(b.cmd)-cmdSize:]
-	binary.LittleEndian.PutUint16(p[0:], zrDlOpFillRect)
-	binary.LittleEndian.PutUint16(p[2:], 0)
-	binary.LittleEndian.PutUint32(p[4:], uint32(cmdSize))
+	p := b.appendCmdBytes(cmdSize)
+	putU16LE(p[0:], zrDlOpFillRect)
+	putU16LE(p[2:], 0)
+	putU32LE(p[4:], uint32(cmdSize))
 
-	binary.LittleEndian.PutUint32(p[8:], uint32(x))
-	binary.LittleEndian.PutUint32(p[12:], uint32(y))
-	binary.LittleEndian.PutUint32(p[16:], uint32(w))
-	binary.LittleEndian.PutUint32(p[20:], uint32(h))
+	putU32LE(p[8:], uint32(x))
+	putU32LE(p[12:], uint32(y))
+	putU32LE(p[16:], uint32(w))
+	putU32LE(p[20:], uint32(h))
 
-	binary.LittleEndian.PutUint32(p[24:], st.fg)
-	binary.LittleEndian.PutUint32(p[28:], st.bg)
-	binary.LittleEndian.PutUint32(p[32:], 0) // attrs
-	binary.LittleEndian.PutUint32(p[36:], 0) // reserved0
+	putU32LE(p[24:], st.fg)
+	putU32LE(p[28:], st.bg)
+	putU32LE(p[32:], st.attrs)
+	putU32LE(p[36:], 0) // reserved0
 	b.cmdCount++
 }
 
 func (b *dlBuilder) CmdDrawTextSlice(x, y int32, stringIndex uint32, byteOff, byteLen uint32, st dlStyle) {
 	const cmdSize = 8 + 40
-	b.cmd = append(b.cmd, make([]byte, cmdSize)...)
-	p := b.cmd[len(b.cmd)-cmdSize:]
-	binary.LittleEndian.PutUint16(p[0:], zrDlOpDrawText)
-	binary.LittleEndian.PutUint16(p[2:], 0)
-	binary.LittleEndian.PutUint32(p[4:], uint32(cmdSize))
+	p := b.appendCmdBytes(cmdSize)
+	putU16LE(p[0:], zrDlOpDrawText)
+	putU16LE(p[2:], 0)
+	putU32LE(p[4:], uint32(cmdSize))
 
-	binary.LittleEndian.PutUint32(p[8:], uint32(x))
-	binary.LittleEndian.PutUint32(p[12:], uint32(y))
-	binary.LittleEndian.PutUint32(p[16:], stringIndex)
-	binary.LittleEndian.PutUint32(p[20:], byteOff)
-	binary.LittleEndian.PutUint32(p[24:], byteLen)
+	putU32LE(p[8:], uint32(x))
+	putU32LE(p[12:], uint32(y))
+	putU32LE(p[16:], stringIndex)
+	putU32LE(p[20:], byteOff)
+	putU32LE(p[24:], byteLen)
 
-	binary.LittleEndian.PutUint32(p[28:], st.fg)
-	binary.LittleEndian.PutUint32(p[32:], st.bg)
-	binary.LittleEndian.PutUint32(p[36:], 0) // attrs
-	binary.LittleEndian.PutUint32(p[40:], 0) // style.reserved0
-	binary.LittleEndian.PutUint32(p[44:], 0) // cmd.reserved0
+	putU32LE(p[28:], st.fg)
+	putU32LE(p[32:], st.bg)
+	putU32LE(p[36:], st.attrs)
+	putU32LE(p[40:], 0) // style.reserved0
+	putU32LE(p[44:], 0) // cmd.reserved0
 	b.cmdCount++
 }
 
@@ -156,25 +254,58 @@ func (b *dlBuilder) CmdDrawText(x, y int32, s string, st dlStyle) {
 	b.CmdDrawTextSlice(x, y, idx, 0, uint32(len(s)), st)
 }
 
+func (b *dlBuilder) CmdDrawTextRun(x, y int32, blobIndex uint32) {
+	const cmdSize = 8 + 16
+	p := b.appendCmdBytes(cmdSize)
+	putU16LE(p[0:], zrDlOpDrawTextRun)
+	putU16LE(p[2:], 0)
+	putU32LE(p[4:], uint32(cmdSize))
+
+	putU32LE(p[8:], uint32(x))
+	putU32LE(p[12:], uint32(y))
+	putU32LE(p[16:], blobIndex)
+	putU32LE(p[20:], 0)
+	b.cmdCount++
+}
+
 func (b *dlBuilder) Build() []byte {
 	/*
 		Drawlist v1 layout:
-		  [header][cmd bytes][string spans][string bytes][(no blobs)]
+		  [header][cmd bytes][string spans][string bytes][blob spans][blob bytes]
 	*/
 	const headerSize = 64
 
 	cmdOff := uint32(headerSize)
 	cmdBytes := uint32(len(b.cmd))
 
-	stringsSpanOff := dlAlign4(cmdOff + cmdBytes)
 	stringsCount := uint32(len(b.stringsSpans))
 	stringsSpanBytes := stringsCount * 8
-
-	stringsBytesOff := dlAlign4(stringsSpanOff + stringsSpanBytes)
 	stringsBytesLenRaw := uint32(len(b.stringsBytes))
 	stringsBytesLen := dlAlign4(stringsBytesLenRaw)
 
+	blobsCount := uint32(len(b.blobsSpans))
+	blobsSpanBytes := blobsCount * 8
+	blobsBytesLenRaw := uint32(len(b.blobsBytes))
+	blobsBytesLen := dlAlign4(blobsBytesLenRaw)
+
+	stringsSpanOff := uint32(0)
+	stringsBytesOff := uint32(0)
+	if stringsCount != 0 {
+		stringsSpanOff = dlAlign4(cmdOff + cmdBytes)
+		stringsBytesOff = dlAlign4(stringsSpanOff + stringsSpanBytes)
+	}
+
+	blobsSpanOff := uint32(0)
+	blobsBytesOff := uint32(0)
+	if blobsCount != 0 {
+		blobsSpanOff = dlAlign4(stringsBytesOff + stringsBytesLen)
+		blobsBytesOff = dlAlign4(blobsSpanOff + blobsSpanBytes)
+	}
+
 	totalSize := stringsBytesOff + stringsBytesLen
+	if blobsCount != 0 {
+		totalSize = blobsBytesOff + blobsBytesLen
+	}
 
 	if cap(b.out) < int(totalSize) {
 		b.out = make([]byte, totalSize)
@@ -194,24 +325,40 @@ func (b *dlBuilder) Build() []byte {
 	binary.LittleEndian.PutUint32(h[32:], stringsCount)
 	binary.LittleEndian.PutUint32(h[36:], stringsBytesOff)
 	binary.LittleEndian.PutUint32(h[40:], stringsBytesLen)
-	binary.LittleEndian.PutUint32(h[44:], 0) // blobs_span_offset
-	binary.LittleEndian.PutUint32(h[48:], 0) // blobs_count
-	binary.LittleEndian.PutUint32(h[52:], 0) // blobs_bytes_offset
-	binary.LittleEndian.PutUint32(h[56:], 0) // blobs_bytes_len
+	binary.LittleEndian.PutUint32(h[44:], blobsSpanOff)
+	binary.LittleEndian.PutUint32(h[48:], blobsCount)
+	binary.LittleEndian.PutUint32(h[52:], blobsBytesOff)
+	binary.LittleEndian.PutUint32(h[56:], blobsBytesLen)
 	binary.LittleEndian.PutUint32(h[60:], 0) // reserved0
 
 	copy(b.out[cmdOff:cmdOff+cmdBytes], b.cmd)
 
-	spanBase := b.out[stringsSpanOff : stringsSpanOff+stringsSpanBytes]
-	for i, sp := range b.stringsSpans {
-		p := spanBase[i*8 : i*8+8]
-		binary.LittleEndian.PutUint32(p[0:], sp.off)
-		binary.LittleEndian.PutUint32(p[4:], sp.len)
+	if stringsCount != 0 {
+		spanBase := b.out[stringsSpanOff : stringsSpanOff+stringsSpanBytes]
+		for i, sp := range b.stringsSpans {
+			p := spanBase[i*8 : i*8+8]
+			binary.LittleEndian.PutUint32(p[0:], sp.off)
+			binary.LittleEndian.PutUint32(p[4:], sp.len)
+		}
+
+		copy(b.out[stringsBytesOff:stringsBytesOff+stringsBytesLenRaw], b.stringsBytes)
+		for i := stringsBytesOff + stringsBytesLenRaw; i < stringsBytesOff+stringsBytesLen; i++ {
+			b.out[i] = 0
+		}
 	}
 
-	copy(b.out[stringsBytesOff:stringsBytesOff+stringsBytesLenRaw], b.stringsBytes)
-	for i := stringsBytesOff + stringsBytesLenRaw; i < stringsBytesOff+stringsBytesLen; i++ {
-		b.out[i] = 0
+	if blobsCount != 0 {
+		bspanBase := b.out[blobsSpanOff : blobsSpanOff+blobsSpanBytes]
+		for i, sp := range b.blobsSpans {
+			p := bspanBase[i*8 : i*8+8]
+			binary.LittleEndian.PutUint32(p[0:], sp.off)
+			binary.LittleEndian.PutUint32(p[4:], sp.len)
+		}
+
+		copy(b.out[blobsBytesOff:blobsBytesOff+blobsBytesLenRaw], b.blobsBytes)
+		for i := blobsBytesOff + blobsBytesLenRaw; i < blobsBytesOff+blobsBytesLen; i++ {
+			b.out[i] = 0
+		}
 	}
 	return b.out
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -61,9 +62,9 @@ type app struct {
 
 	dl dlBuilder
 
-	thinking thinkingState
-	matrix   matrixState
-	storm    stormState
+	agentic agenticState
+	matrix  matrixRainState
+	storm   particleStormState
 
 	fps fpsCounter
 
@@ -82,12 +83,12 @@ func (a *app) setSize(cols, rows int) {
 func (a *app) resetScenario(id scenarioID, now time.Time) {
 	a.active = id
 	switch id {
-	case scenarioThinking:
-		a.thinking.Reset(now)
+	case scenarioAgentic:
+		a.agentic.Reset(now)
 	case scenarioMatrix:
 		a.matrix.Reset()
 	case scenarioStorm:
-		a.storm.Reset()
+		a.storm.Reset(now)
 	}
 }
 
@@ -152,17 +153,14 @@ func (a *app) handleText(r rune) (quit bool) {
 		a.stressPhantomCmds = 0
 	case ']':
 		if a.active == scenarioStorm {
-			a.storm.n += 5000
-			if a.storm.n > 250000 {
-				a.storm.n = 250000
+			a.storm.SetVisibleMax(a.storm.visibleMax + 5000)
+			if a.storm.visibleMax > 100000 {
+				a.storm.SetVisibleMax(100000)
 			}
 		}
 	case '[':
 		if a.active == scenarioStorm {
-			a.storm.n -= 5000
-			if a.storm.n < 0 {
-				a.storm.n = 0
-			}
+			a.storm.SetVisibleMax(a.storm.visibleMax - 5000)
 		}
 	}
 	return false
@@ -218,7 +216,7 @@ func (a *app) drawMenu(b *dlBuilder, r rect) {
 
 func (a *app) drawTopBar(b *dlBuilder, r rect, fps int) {
 	uiFill(b, r, a.th.text, a.th.panel2)
-	title := "Zireael • Go PoC — Codex-like Stress TUI"
+	title := "Zireael • Go PoC — Stress-test TUI"
 	ty := r.y
 	if r.h >= 2 {
 		ty = r.y + 1
@@ -237,12 +235,12 @@ func (a *app) drawContent(b *dlBuilder, r rect, now time.Time) {
 		a.drawScenarioPreview(b, r)
 	case modeRun:
 		switch a.active {
-		case scenarioThinking:
-			a.thinking.Draw(b, r, a.th, now)
+		case scenarioAgentic:
+			a.agentic.Draw(b, r, a.th, now)
 		case scenarioMatrix:
-			a.matrix.Draw(b, r, a.th)
+			a.matrix.Draw(b, r, a.th, now)
 		case scenarioStorm:
-			a.storm.Draw(b, r, a.th)
+			a.storm.Draw(b, r, a.th, now)
 		default:
 			uiFill(b, r, a.th.text, a.th.bg)
 		}
@@ -305,7 +303,7 @@ func (a *app) appendPhantomStress(b *dlBuilder) {
 	if a.stressPhantomCmds <= 0 {
 		return
 	}
-	st := dlStyle{fg: a.th.text, bg: a.th.bg}
+	st := dlStyle{fg: a.th.text, bg: a.th.bg, attrs: 0}
 	for i := 0; i < a.stressPhantomCmds; i++ {
 		b.CmdFillRect(-1000000, -1000000, 1, 1, st)
 	}
@@ -313,18 +311,19 @@ func (a *app) appendPhantomStress(b *dlBuilder) {
 
 func main() {
 	var (
-		flagScenario = flag.String("scenario", "", "start scenario by name (thinking|matrix|storm); default shows menu")
+		flagScenario = flag.String("scenario", "", "start scenario by name (agentic|matrix|storm); default shows menu")
 		flagBenchSec = flag.Int("bench-seconds", 0, "run for N seconds then exit (still renders to terminal)")
-		flagStormN   = flag.Int("storm-n", 75000, "elements per frame for Element Storm")
+		flagStormN   = flag.Int("storm-n", 60000, "total particles per frame for Neon Particle Storm (excess becomes phantom stress)")
 		flagPhantom  = flag.Int("phantom", 0, "phantom commands per frame (parse/dispatch stress)")
+		flagFPS      = flag.Int("fps", 0, "target render FPS (0=uncapped)")
 	)
 	flag.Parse()
 
 	cfg := zrDefaultConfig()
-	cfg.limits.out_max_bytes_per_frame = 8 * 1024 * 1024
-	cfg.limits.dl_max_total_bytes = 32 * 1024 * 1024
-	cfg.limits.dl_max_cmds = 400000
-	cfg.limits.dl_max_strings = 200000
+	cfg.limits.out_max_bytes_per_frame = 16 * 1024 * 1024
+	cfg.limits.dl_max_total_bytes = 64 * 1024 * 1024
+	cfg.limits.dl_max_cmds = 800000
+	cfg.limits.dl_max_strings = 400000
 	cfg.limits.dl_max_blobs = 4096
 	cfg.limits.dl_max_text_run_segments = 4096
 
@@ -344,10 +343,10 @@ func main() {
 		th:               defaultTheme(),
 		mode:             modeMenu,
 		menuIndex:        0,
-		active:           scenarioThinking,
+		active:           scenarioAgentic,
 		stressPhantomCmds: *flagPhantom,
 	}
-	a.storm.n = *flagStormN
+	a.storm.SetCount(*flagStormN)
 	a.fps.Reset(time.Now())
 
 	if w, h, ok := ttySize(os.Stdout.Fd()); ok {
@@ -387,6 +386,15 @@ func main() {
 	var lastDirtyCols uint32
 	var lastDirtyRows uint32
 	var runErr error
+	var ms runtime.MemStats
+	var goAlloc uint64
+	var goSys uint64
+	lastMemSample := time.Time{}
+
+	nextDeadline := time.Time{}
+	if *flagFPS > 0 {
+		nextDeadline = time.Now()
+	}
 
 	for !quit {
 		select {
@@ -426,17 +434,54 @@ func main() {
 		}
 
 		fps := a.fps.Tick(now)
-		a.perf = collectPerfSample(a.lastFrame, fps, lastEngineBytes, lastDirtyCols, lastDirtyRows)
+		if lastMemSample.IsZero() || now.Sub(lastMemSample) >= 250*time.Millisecond {
+			runtime.ReadMemStats(&ms)
+			goAlloc = ms.Alloc
+			goSys = ms.Sys
+			lastMemSample = now
+		}
+		a.perf = collectPerfSample(now, a.lastFrame, fps, lastEngineBytes, lastDirtyCols, lastDirtyRows, goAlloc, goSys)
 		a.lastFrame = now
 
 		root, top, left, content := a.layout()
 		a.dl.Reset()
 
-		estCmds := 2048 + a.stressPhantomCmds
-		if a.active == scenarioStorm {
-			estCmds += a.storm.n
+		cmdCount := 256 + a.stressPhantomCmds
+		if a.mode == modeRun && a.active == scenarioStorm {
+			cmdCount += a.storm.n + 8
 		}
-		a.dl.Reserve(estCmds*64, a.cols*a.rows, 1024)
+		if a.mode == modeRun && a.active == scenarioMatrix {
+			cmdCount += a.rows + 16
+		}
+		if a.mode == modeRun && a.active == scenarioAgentic {
+			cmdCount += 512
+		}
+
+		cmdBytesCap := cmdCount * 48
+		if cmdBytesCap < 64*1024 {
+			cmdBytesCap = 64 * 1024
+		}
+		stringsBytesCap := 64 * 1024
+		if a.mode == modeRun && a.active == scenarioMatrix {
+			stringsBytesCap = (a.cols * a.rows * 3) + 128*1024
+		}
+		stringsCap := 2048
+		if a.mode == modeRun && a.active == scenarioMatrix {
+			stringsCap = a.rows + 4096
+		}
+		blobsBytesCap := 64 * 1024
+		blobsCap := 1024
+		if a.mode == modeRun && a.active == scenarioMatrix {
+			blobsBytesCap = (a.rows * (a.cols*28 + 16)) + 128*1024
+			blobsCap = a.rows + 1024
+		}
+		if a.mode == modeRun && a.active == scenarioAgentic {
+			blobsBytesCap = 256 * 1024
+			blobsCap = 2048
+		}
+
+		a.dl.Reserve(cmdBytesCap, stringsBytesCap, stringsCap)
+		a.dl.ReserveBlobs(blobsBytesCap, blobsCap)
 
 		a.dl.CmdClear()
 		uiFill(&a.dl, root, a.th.text, a.th.bg)
@@ -483,7 +528,20 @@ func main() {
 			lastDirtyRows = uint32(m.dirty_lines_last_frame)
 		}
 
-		time.Sleep(time.Second / 60)
+		if *flagFPS > 0 {
+			frameDur := time.Second / time.Duration(*flagFPS)
+			if nextDeadline.IsZero() {
+				nextDeadline = now.Add(frameDur)
+			} else {
+				nextDeadline = nextDeadline.Add(frameDur)
+			}
+			sleep := time.Until(nextDeadline)
+			if sleep > 0 {
+				time.Sleep(sleep)
+			} else if sleep < -250*time.Millisecond {
+				nextDeadline = time.Now()
+			}
+		}
 	}
 
 	finalM, _ := e.Metrics()

@@ -65,13 +65,13 @@ ensure_go() {
 ensure_engine_build() {
   need_cmd cmake
 
-  local lib="${ROOT}/out/build/posix-clang-debug/libzireael.a"
-  if [[ -f "${lib}" ]]; then
-    return
+  local build_dir="${ROOT}/out/build/posix-clang-debug"
+  if [[ ! -d "${build_dir}" ]]; then
+    echo "Configuring Zireael (posix-clang-debug)..."
+    cmake --preset posix-clang-debug
   fi
 
   echo "Building Zireael (posix-clang-debug)..."
-  cmake --preset posix-clang-debug
   cmake --build --preset posix-clang-debug
 }
 
@@ -80,4 +80,3 @@ ensure_engine_build
 
 cd "${ROOT}/poc/go-codex-tui"
 exec go run . "$@"
-

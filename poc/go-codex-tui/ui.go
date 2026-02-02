@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -61,14 +60,14 @@ func defaultTheme() theme {
 }
 
 func uiFill(b *dlBuilder, r rect, fg, bg uint32) {
-	b.CmdFillRect(int32(r.x), int32(r.y), int32(r.w), int32(r.h), dlStyle{fg: fg, bg: bg})
+	b.CmdFillRect(int32(r.x), int32(r.y), int32(r.w), int32(r.h), dlStyle{fg: fg, bg: bg, attrs: 0})
 }
 
 func uiText(b *dlBuilder, x, y int, s string, fg, bg uint32) {
 	if s == "" {
 		return
 	}
-	b.CmdDrawText(int32(x), int32(y), s, dlStyle{fg: fg, bg: bg})
+	b.CmdDrawText(int32(x), int32(y), s, dlStyle{fg: fg, bg: bg, attrs: 0})
 }
 
 func uiTextClamp(b *dlBuilder, x, y, maxW int, s string, fg, bg uint32) {
@@ -84,6 +83,37 @@ func uiRule(b *dlBuilder, r rect, fg, bg uint32) {
 	}
 	line := strings.Repeat("─", r.w)
 	uiText(b, r.x, r.y, line, fg, bg)
+}
+
+type uiRunSeg struct {
+	text string
+	fg   uint32
+}
+
+func uiTextRun(b *dlBuilder, x, y int, segs []uiRunSeg, bg uint32) {
+	if len(segs) == 0 {
+		return
+	}
+
+	run := make([]dlTextRunSeg, 0, len(segs))
+	for i := 0; i < len(segs); i++ {
+		if segs[i].text == "" {
+			continue
+		}
+		idx := b.AddString(segs[i].text)
+		run = append(run, dlTextRunSeg{
+			style:       dlStyle{fg: segs[i].fg, bg: bg, attrs: 0},
+			stringIndex: idx,
+			byteOff:     0,
+			byteLen:     uint32(len(segs[i].text)),
+		})
+	}
+	if len(run) == 0 {
+		return
+	}
+
+	blob := b.AddTextRunBlob(run)
+	b.CmdDrawTextRun(int32(x), int32(y), blob)
 }
 
 func truncateRunes(s string, maxRunes int) string {
@@ -112,17 +142,16 @@ type perfSample struct {
 	goSys   uint64
 }
 
-func collectPerfSample(prevFrame time.Time, fps int, zrBytesLast, zrDirtyCols, zrDirtyRows uint32) perfSample {
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
+func collectPerfSample(now time.Time, prevFrame time.Time, fps int, zrBytesLast, zrDirtyCols, zrDirtyRows uint32,
+	goAlloc uint64, goSys uint64) perfSample {
 	return perfSample{
-		frameDur:    time.Since(prevFrame),
+		frameDur:    now.Sub(prevFrame),
 		fps:         fps,
 		zrBytesLast: zrBytesLast,
 		zrDirtyCols: zrDirtyCols,
 		zrDirtyRows: zrDirtyRows,
-		goAlloc:     ms.Alloc,
-		goSys:       ms.Sys,
+		goAlloc:     goAlloc,
+		goSys:       goSys,
 	}
 }
 

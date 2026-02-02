@@ -21,7 +21,7 @@ Pinned versions:
 
 Binary formats:
 
-- `src/core/zr_drawlist.h` (drawlist v1)
+- `include/zr/zr_drawlist.h` (drawlist v1 + v2)
 - `src/core/zr_event.h` (packed event batch v1)
 
 ## Result / error model
@@ -65,7 +65,57 @@ Pinned versions are defined in `src/core/zr_version.h`.
 - Event records are **4-byte aligned** and self-framed by `zr_ev_record_header_t.size`.
 - Reserved/padding fields in v1 structs **MUST be 0** when passed by the caller.
 
-Drawlist v1 and event batch v1 are specified by:
+Drawlist v1/v2 and event batch v1 are specified by:
 
 - `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
 - `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`
+
+## Drawlist v2
+
+Drawlist v2 extends v1 with the `SET_CURSOR` opcode (opcode 7). All v1 opcodes
+remain unchanged. The engine accepts both versions; version is indicated in the
+drawlist header.
+
+```c
+typedef struct zr_dl_cmd_set_cursor_t {
+  int32_t x;        // 0-based cell; -1 = unchanged
+  int32_t y;        // 0-based cell; -1 = unchanged
+  uint8_t shape;    // 0=block, 1=underline, 2=bar
+  uint8_t visible;  // 0/1
+  uint8_t blink;    // 0/1
+  uint8_t reserved0; // must be 0
+} zr_dl_cmd_set_cursor_t;
+```
+
+## Platform capabilities
+
+The engine detects terminal capabilities at init. Wrappers can query these
+through `engine_get_metrics()` or by inspecting the returned `plat_caps_t`:
+
+| Capability | Description |
+|------------|-------------|
+| `color_mode` | 16 / 256 / RGB |
+| `supports_mouse` | Mouse input available |
+| `supports_bracketed_paste` | Bracketed paste mode |
+| `supports_focus_events` | Focus in/out events |
+| `supports_osc52` | Clipboard via OSC 52 |
+| `supports_sync_update` | Synchronized output (CSI ?2026) |
+| `supports_scroll_region` | DECSTBM scroll regions |
+| `supports_cursor_shape` | DECSCUSR cursor shapes |
+
+## Damage tracking
+
+The diff renderer tracks changed regions as damage rectangles. Configure via
+`zr_limits_t.diff_max_damage_rects`. Metrics report:
+
+- `damage_rects_last_frame` — number of damage rectangles
+- `damage_cells_last_frame` — total cells in damage regions
+- `damage_full_frame` — 1 if entire frame was dirty
+
+## Performance optimizations
+
+The engine automatically enables optimizations when supported:
+
+- **Synchronized output**: Frames wrapped in sync sequences for tear-free rendering.
+- **Scroll regions**: Bulk scrolling via DECSTBM instead of line-by-line redraw.
+- **Damage skipping**: Unchanged regions skipped during diff emission.

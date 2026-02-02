@@ -77,6 +77,11 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
 
 Creates engine instance. Takes ownership of terminal I/O (raw mode).
 
+## Platform Constraints
+
+- **POSIX:** The backend installs a process-global SIGWINCH handler and uses a global wake fd. Only one active engine is allowed; a second `engine_create()` fails with `ZR_ERR_PLATFORM`.
+- **Windows:** Multiple engines may be creatable, but they will contend for the same console. Treat the process as “single active engine” unless you fully control stdio and console mode ownership.
+
 ### engine_destroy
 
 ```c
@@ -93,9 +98,9 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
 
 Polls for input. Returns bytes written or negative error.
 
-- `timeout_ms = -1`: Block until event
 - `timeout_ms = 0`: Non-blocking
 - `timeout_ms > 0`: Wait up to N milliseconds
+- `timeout_ms < 0`: Invalid (`ZR_ERR_INVALID_ARGUMENT`)
 
 ### engine_submit_drawlist
 
@@ -128,8 +133,8 @@ Runtime introspection and reconfiguration.
 
 ## Threading
 
-- All functions except `engine_post_user_event()` require the engine thread
-- One engine instance per process (singleton)
+- `engine_post_user_event()` is safe to call from another thread to wake an engine blocked in `engine_poll_events()`.
+- All other functions are engine-thread only (treat the engine as not thread-safe).
 
 ## Next
 

@@ -2,7 +2,7 @@
 
 A deterministic terminal UI core engine in C.
 
-Zireael handles terminal I/O, input parsing, diff-based rendering, and Unicode text handling. You embed it via FFI and drive it with binary commands.
+Zireael is a low-level engine for embedding in higher-level TUI frameworks. It exposes a small, stable C ABI that can be called from any language (TypeScript, Rust, Go, …) and is being built to power **Zireael-UI** (TypeScript, in progress).
 
 ## Quick Overview
 
@@ -20,9 +20,19 @@ Zireael handles terminal I/O, input parsing, diff-based rendering, and Unicode t
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**You provide:** Binary drawlist (rendering commands)
-**Engine returns:** Packed event batch (input events)
-**Engine handles:** Terminal setup, efficient output, Unicode width
+**You provide:** Binary drawlist (rendering commands)  
+**Engine returns:** Packed event batch (input events)  
+**Engine handles:** Terminal setup/restore, input parsing, diff rendering, pinned Unicode policy
+
+## Typical wrapper loop
+
+```c
+engine_poll_events(e, timeout_ms, event_buf, event_cap);
+
+/* build drawlist bytes (little-endian) */
+engine_submit_drawlist(e, drawlist_bytes, drawlist_len);
+engine_present(e);
+```
 
 ## Start Here
 
@@ -59,9 +69,10 @@ Zireael handles terminal I/O, input parsing, diff-based rendering, and Unicode t
 | Property | Description |
 |----------|-------------|
 | Deterministic | Same inputs + config = same outputs |
-| Zero allocations at boundary | Caller provides buffers |
+| Buffer-oriented boundary | Caller provides the event output buffer; wrapper provides drawlist bytes |
 | Single flush per frame | One write() call per present() |
-| Unicode 15.1 | Grapheme segmentation, width calculation |
+| Validated formats | Drawlists / event batches are treated as untrusted bytes |
+| Unicode 15.1 | Grapheme segmentation, width calculation (pinned) |
 | Cross-platform | Windows (ConPTY), Linux, macOS |
 
 ## Target Audience

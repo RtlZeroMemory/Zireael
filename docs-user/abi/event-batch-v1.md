@@ -2,6 +2,11 @@
 
 The engine writes input events as a packed binary batch into a caller-provided buffer via `engine_poll_events()`.
 
+`engine_poll_events()` only accepts `timeout_ms >= 0`:
+
+- `timeout_ms = 0`: non-blocking
+- `timeout_ms > 0`: wait up to N milliseconds
+
 ## Layout
 
 ```
@@ -199,39 +204,58 @@ Offset  Size  Field      Description
 
 ## Parsing Example (C)
 
+Casting `uint8_t*` to structs can be undefined behavior if the buffer pointer is not sufficiently aligned. The safest approach is to parse using explicit little-endian reads.
+
 ```c
+static uint32_t rd_u32le(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8u) | ((uint32_t)p[2] << 16u) | ((uint32_t)p[3] << 24u);
+}
+
 void parse_events(const uint8_t* buf, int len) {
-    if (len < sizeof(zr_evbatch_header_t)) return;
+    if (!buf || len < 24) return;
+    const uint32_t magic = rd_u32le(buf + 0);
+    const uint32_t version = rd_u32le(buf + 4);
+    const uint32_t total = rd_u32le(buf + 8);
+    const uint32_t count = rd_u32le(buf + 12);
+    const uint32_t flags = rd_u32le(buf + 16);
 
-    const zr_evbatch_header_t* hdr = (const zr_evbatch_header_t*)buf;
-    if (hdr->magic != ZR_EV_MAGIC) return;
-    if (hdr->version != 1) return;
+    if (magic != ZR_EV_MAGIC || version != 1) return;
+    if (total > (uint32_t)len) return;
 
-    const uint8_t* ptr = buf + sizeof(zr_evbatch_header_t);
-    const uint8_t* end = buf + hdr->total_size;
+    const uint8_t* ptr = buf + 24;
+    const uint8_t* end = buf + total;
 
-    for (uint32_t i = 0; i < hdr->event_count && ptr < end; i++) {
-        const zr_ev_record_header_t* rec = (const zr_ev_record_header_t*)ptr;
+    for (uint32_t i = 0; i < count && ptr + 16 <= end; i++) {
+        const uint32_t type = rd_u32le(ptr + 0);
+        const uint32_t size = rd_u32le(ptr + 4);
+        if ((size & 3u) != 0u || size < 16u || ptr + size > end) break;
 
-        switch (rec->type) {
+        const uint8_t* payload = ptr + 16;
+        switch (type) {
         case ZR_EV_KEY: {
-            const zr_ev_key_t* key = (const zr_ev_key_t*)(ptr + sizeof(*rec));
-            // Handle key event
+            if (size < 16u + 16u) break;
+            uint32_t key = rd_u32le(payload + 0);
+            uint32_t mods = rd_u32le(payload + 4);
+            uint32_t action = rd_u32le(payload + 8);
+            (void)key; (void)mods; (void)action;
             break;
         }
         case ZR_EV_RESIZE: {
-            const zr_ev_resize_t* resize = (const zr_ev_resize_t*)(ptr + sizeof(*rec));
-            // Handle resize
+            if (size < 16u + 16u) break;
+            uint32_t cols = rd_u32le(payload + 0);
+            uint32_t rows = rd_u32le(payload + 4);
+            (void)cols; (void)rows;
             break;
         }
-        // ... other event types
+        default:
+            break; /* forward-compatible skip */
         }
 
-        ptr += rec->size;  // Records are self-framed
+        ptr += size;
     }
 
-    if (hdr->flags & ZR_EV_BATCH_TRUNCATED) {
-        // Some events were dropped; consider larger buffer
+    if (flags & ZR_EV_BATCH_TRUNCATED) {
+        /* some events were dropped; consider a larger buffer */
     }
 }
 ```

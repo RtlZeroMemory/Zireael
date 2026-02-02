@@ -81,7 +81,7 @@ Used by FILL_RECT and DRAW_TEXT:
 ```
 Offset  Size  Field      Description
 ──────  ────  ─────      ───────────
-0x00    4     fg         Foreground color (0xRRGGBB or palette index)
+0x00    4     fg         Foreground color (0x00RRGGBB)
 0x04    4     bg         Background color
 0x08    4     attrs      Attribute flags (bold, italic, etc.)
 0x0C    4     reserved0  Must be 0
@@ -94,8 +94,13 @@ Attribute flags:
 | Bold | 0 | Bold text |
 | Italic | 1 | Italic text |
 | Underline | 2 | Underlined text |
-| Strikethrough | 3 | Strikethrough |
-| Reverse | 4 | Swap fg/bg |
+| Reverse | 3 | Swap fg/bg |
+| Strikethrough | 4 | Strikethrough |
+
+Color notes:
+
+- Colors are always specified as RGB `0x00RRGGBB`.
+- The engine will deterministically downgrade to 256-color or 16-color terminals as needed.
 
 ## Command Payloads
 
@@ -162,10 +167,10 @@ A drawlist that clears and draws "Hello":
 
 ```
 Header (64 bytes):
-  magic=0x4C44525A version=1 header_size=64 total_size=137
+  magic=0x4C44525A version=1 header_size=64 total_size=136
   cmd_offset=64 cmd_bytes=56 cmd_count=2
   strings_span_offset=120 strings_count=1
-  strings_bytes_offset=128 strings_bytes_len=5
+  strings_bytes_offset=128 strings_bytes_len=8
   blobs_span_offset=0 blobs_count=0
   blobs_bytes_offset=0 blobs_bytes_len=0
   reserved0=0
@@ -176,15 +181,36 @@ Command 0: CLEAR (8 bytes)
 Command 1: DRAW_TEXT (48 bytes)
   opcode=3 flags=0 size=48
   x=0 y=0 string_index=0 byte_off=0 byte_len=5
-  style: fg=0xFFFFFF bg=0x000000 attrs=0 reserved0=0
+  style: fg=0x00FFFFFF bg=0x00000000 attrs=0 reserved0=0
   reserved0=0
 
 String spans (8 bytes):
   [0]: off=0 len=5
 
-String bytes (5 bytes):
-  "Hello"
+String bytes (8 bytes, padded to 4-byte alignment):
+  "Hello\0\0\0"
 ```
+
+Alignment rules enforced by validation:
+
+- `total_size`, `cmd_bytes`, `strings_bytes_len`, `blobs_bytes_len` must be 4-byte aligned.
+- All section offsets must be 4-byte aligned.
+- Command sizes must be 4-byte aligned and match opcode expectations exactly.
+
+## DRAW_TEXT_RUN blob format (v1)
+
+`DRAW_TEXT_RUN` references a blob span. The blob payload is:
+
+```
+u32 seg_count
+repeat seg_count times:
+  zr_dl_style_t style   (16 bytes)
+  u32 string_index
+  u32 byte_off
+  u32 byte_len
+```
+
+Total blob length must be exactly `4 + seg_count * 28`, and the blob span must be 4-byte aligned.
 
 ## Validation
 

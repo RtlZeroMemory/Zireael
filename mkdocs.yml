@@ -95,6 +95,7 @@ nav:
   - ABI Reference:
       - Overview: abi/overview.md
       - Configuration: abi/config.md
+      - Metrics: abi/metrics.md
       - Drawlist v1: abi/drawlist-v1.md
       - Event Batch v1: abi/event-batch-v1.md
   - Concepts:

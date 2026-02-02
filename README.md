@@ -16,6 +16,9 @@
 
 ---
 
+![Zireael-Matrix-1](https://github.com/user-attachments/assets/1197ee78-d1be-43f3-a352-d2fe9a589a56)
+
+
 ## What is Zireael?
 
 Zireael is a low-level terminal rendering engine for embedding in higher-level TUI frameworks. It provides a small, stable C ABI that lets any language drive rendering by submitting a versioned, binary **drawlist** and receiving a packed **event batch**.
@@ -166,8 +169,10 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 
 ## DEMO — Go stress-test TUI
 
-![Zireael-Coding](https://github.com/user-attachments/assets/801ef14a-43ca-4b37-87e6-0771eca8c5b5)
-![Zireael-Matrix](https://github.com/user-attachments/assets/26629c78-d13f-48b8-9527-9120945fc67e)
+![Zireael-Matrix-2](https://github.com/user-attachments/assets/bda0ce1d-c19c-4a43-8bb5-0b7c18b4442e)
+![Zireael-Matrix-3](https://github.com/user-attachments/assets/7250e92b-944a-4296-9be8-0437c1107b65)
+
+
 
 This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
 

@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <strong>A deterministic terminal UI core engine in C</strong><br>
   <em>The foundation for cross-platform TUI frameworks</em>
 </p>
 

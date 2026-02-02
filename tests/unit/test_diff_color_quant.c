@@ -50,12 +50,16 @@ ZR_TEST_UNIT(diff_xterm256_component_distance_is_symmetric) {
   initial.cursor_y = 0u;
   initial.style = base;
 
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
   uint8_t out[128];
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   /* Expected: ESC[0;38;5;88;48;5;16mX (no CUP, cursor starts at 0,0). */

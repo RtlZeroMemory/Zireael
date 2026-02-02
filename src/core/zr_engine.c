@@ -8,6 +8,8 @@
 
 #include "core/zr_engine.h"
 
+#include "core/zr_cursor.h"
+#include "core/zr_damage.h"
 #include "core/zr_diff.h"
 #include "core/zr_drawlist.h"
 #include "core/zr_event_pack.h"
@@ -18,6 +20,7 @@
 #include "platform/zr_platform.h"
 
 #include "util/zr_arena.h"
+#include "util/zr_checked.h"
 
 #include <limits.h>
 #include <stdbool.h>
@@ -42,10 +45,15 @@ struct zr_engine_t {
   zr_fb_t fb_stage;
 
   zr_term_state_t term_state;
+  zr_cursor_state_t cursor_desired;
 
   /* --- Output buffer (single flush per present) --- */
   uint8_t* out_buf;
   size_t out_cap;
+
+  /* --- Damage scratch (rect list is internal; only metrics are exported) --- */
+  zr_damage_rect_t* damage_rects;
+  uint32_t          damage_rect_cap;
 
   /* --- Input/event pipeline --- */
   zr_event_queue_t evq;
@@ -77,11 +85,39 @@ static uint32_t zr_engine_now_ms_u32(void) {
   return (uint32_t)plat_now_ms();
 }
 
+static zr_cursor_state_t zr_engine_cursor_default(void) {
+  zr_cursor_state_t s;
+  s.x = -1;
+  s.y = -1;
+  s.shape = ZR_CURSOR_SHAPE_BLOCK;
+  s.visible = 0u;
+  s.blink = 0u;
+  s.reserved0 = 0u;
+  return s;
+}
+
 static size_t zr_engine_cells_bytes(const zr_fb_t* fb) {
   if (!fb || !fb->cells) {
     return 0u;
   }
   return (size_t)fb->cols * (size_t)fb->rows * sizeof(zr_cell_t);
+}
+
+static int32_t zr_engine_output_wait_timeout_ms(const zr_engine_runtime_config_t* cfg) {
+  if (!cfg) {
+    return 0;
+  }
+  if (cfg->target_fps == 0u) {
+    return 0;
+  }
+  uint32_t ms_u32 = 1000u / cfg->target_fps;
+  if (ms_u32 == 0u) {
+    ms_u32 = 1u;
+  }
+  if (ms_u32 > (uint32_t)INT32_MAX) {
+    ms_u32 = (uint32_t)INT32_MAX;
+  }
+  return (int32_t)ms_u32;
 }
 
 static void zr_engine_fb_copy(const zr_fb_t* src, zr_fb_t* dst) {
@@ -258,7 +294,7 @@ static void zr_engine_runtime_from_create_cfg(zr_engine_t* e, const zr_engine_co
   e->cfg_runtime.enable_scroll_optimizations = cfg->enable_scroll_optimizations;
   e->cfg_runtime.enable_debug_overlay = cfg->enable_debug_overlay;
   e->cfg_runtime.enable_replay_recording = cfg->enable_replay_recording;
-  e->cfg_runtime._pad0 = 0u;
+  e->cfg_runtime.wait_for_output_drain = cfg->wait_for_output_drain;
 }
 
 /* Seed the metrics snapshot with negotiated ABI versions from create config. */
@@ -285,6 +321,31 @@ static zr_result_t zr_engine_alloc_out_buf(zr_engine_t* e) {
   if (!e->out_buf) {
     return ZR_ERR_OOM;
   }
+  return ZR_OK;
+}
+
+static zr_result_t zr_engine_alloc_damage_rects(zr_engine_t* e) {
+  if (!e) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  e->damage_rects = NULL;
+  e->damage_rect_cap = 0u;
+
+  const uint32_t cap = e->cfg_runtime.limits.diff_max_damage_rects;
+  if (cap == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  size_t bytes = 0u;
+  if (!zr_checked_mul_size((size_t)cap, sizeof(zr_damage_rect_t), &bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  e->damage_rects = (zr_damage_rect_t*)calloc(cap, sizeof(zr_damage_rect_t));
+  if (!e->damage_rects) {
+    return ZR_ERR_OOM;
+  }
+  e->damage_rect_cap = cap;
   return ZR_OK;
 }
 
@@ -357,10 +418,16 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
     return ZR_ERR_OOM;
   }
 
+  e->cursor_desired = zr_engine_cursor_default();
+
   zr_engine_runtime_from_create_cfg(e, cfg);
   zr_engine_metrics_init(e, cfg);
 
   rc = zr_engine_alloc_out_buf(e);
+  if (rc != ZR_OK) {
+    goto cleanup;
+  }
+  rc = zr_engine_alloc_damage_rects(e);
   if (rc != ZR_OK) {
     goto cleanup;
   }
@@ -413,6 +480,10 @@ void engine_destroy(zr_engine_t* e) {
   e->out_buf = NULL;
   e->out_cap = 0u;
 
+  free(e->damage_rects);
+  e->damage_rects = NULL;
+  e->damage_rect_cap = 0u;
+
   free(e->ev_storage);
   e->ev_storage = NULL;
   e->ev_cap = 0u;
@@ -446,12 +517,14 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
 
   zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
 
-  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits);
+  zr_cursor_state_t cursor_stage = e->cursor_desired;
+  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, &cursor_stage);
   if (rc != ZR_OK) {
     return rc;
   }
 
   zr_engine_fb_swap(&e->fb_next, &e->fb_stage);
+  e->cursor_desired = cursor_stage;
   return ZR_OK;
 }
 
@@ -463,7 +536,8 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e,
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_result_t rc = zr_diff_render(&e->fb_prev, &e->fb_next, &e->caps, &e->term_state,
+  zr_result_t rc = zr_diff_render(&e->fb_prev, &e->fb_next, &e->caps, &e->term_state, &e->cursor_desired,
+                                  &e->cfg_runtime.limits, e->damage_rects, e->damage_rect_cap,
                                   e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts,
                                   stats);
   if (rc != ZR_OK) {
@@ -515,6 +589,12 @@ static void zr_engine_present_commit(zr_engine_t* e,
   e->metrics.bytes_emitted_last_frame = (uint32_t)out_len;
   e->metrics.dirty_lines_last_frame = stats->dirty_lines;
   e->metrics.dirty_cols_last_frame = stats->dirty_cells;
+  e->metrics.damage_rects_last_frame = stats->damage_rects;
+  e->metrics.damage_cells_last_frame = stats->damage_cells;
+  e->metrics.damage_full_frame = stats->damage_full_frame;
+  e->metrics._pad2[0] = 0u;
+  e->metrics._pad2[1] = 0u;
+  e->metrics._pad2[2] = 0u;
 }
 
 /*
@@ -530,6 +610,14 @@ zr_result_t engine_present(zr_engine_t* e) {
 
   /* Enforced contract: the per-frame arena is reset exactly once per present. */
   zr_arena_reset(&e->arena_frame);
+
+  if (e->cfg_runtime.wait_for_output_drain != 0u) {
+    const int32_t timeout_ms = zr_engine_output_wait_timeout_ms(&e->cfg_runtime);
+    zr_result_t rc = plat_wait_output_writable(e->plat, timeout_ms);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+  }
 
   size_t out_len = 0u;
   zr_term_state_t final_ts;
@@ -669,6 +757,31 @@ zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics) {
   return zr_metrics__copy_out(out_metrics, &e->metrics);
 }
 
+zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps) {
+  if (!e || !out_caps) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_terminal_caps_t c;
+  memset(&c, 0, sizeof(c));
+  c.color_mode = e->caps.color_mode;
+  c.supports_mouse = e->caps.supports_mouse;
+  c.supports_bracketed_paste = e->caps.supports_bracketed_paste;
+  c.supports_focus_events = e->caps.supports_focus_events;
+  c.supports_osc52 = e->caps.supports_osc52;
+  c.supports_sync_update = e->caps.supports_sync_update;
+  c.supports_scroll_region = e->caps.supports_scroll_region;
+  c.supports_cursor_shape = e->caps.supports_cursor_shape;
+  c.supports_output_wait_writable = e->caps.supports_output_wait_writable;
+  c._pad0[0] = 0u;
+  c._pad0[1] = 0u;
+  c._pad0[2] = 0u;
+  c.sgr_attrs_supported = e->caps.sgr_attrs_supported;
+
+  *out_caps = c;
+  return ZR_OK;
+}
+
 static zr_result_t zr_engine_set_config_prepare_out_buf(zr_engine_t* e,
                                                         const zr_engine_runtime_config_t* cfg,
                                                         uint8_t** out_buf_new,
@@ -691,6 +804,41 @@ static zr_result_t zr_engine_set_config_prepare_out_buf(zr_engine_t* e,
   if (!*out_buf_new) {
     return ZR_ERR_OOM;
   }
+  return ZR_OK;
+}
+
+static zr_result_t zr_engine_set_config_prepare_damage_rects(zr_engine_t* e,
+                                                            const zr_engine_runtime_config_t* cfg,
+                                                            zr_damage_rect_t** out_damage_rects_new,
+                                                            uint32_t* out_damage_rect_cap_new,
+                                                            bool* want_damage_rects) {
+  if (!e || !cfg || !out_damage_rects_new || !out_damage_rect_cap_new || !want_damage_rects) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  *out_damage_rects_new = NULL;
+  *out_damage_rect_cap_new = e->damage_rect_cap;
+  *want_damage_rects = (cfg->limits.diff_max_damage_rects != e->cfg_runtime.limits.diff_max_damage_rects);
+
+  if (!*want_damage_rects) {
+    return ZR_OK;
+  }
+
+  const uint32_t cap = cfg->limits.diff_max_damage_rects;
+  if (cap == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  size_t bytes = 0u;
+  if (!zr_checked_mul_size((size_t)cap, sizeof(zr_damage_rect_t), &bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  *out_damage_rects_new = (zr_damage_rect_t*)calloc(cap, sizeof(zr_damage_rect_t));
+  if (!*out_damage_rects_new) {
+    return ZR_ERR_OOM;
+  }
+  *out_damage_rect_cap_new = cap;
   return ZR_OK;
 }
 
@@ -732,10 +880,13 @@ static void zr_engine_set_config_commit(zr_engine_t* e,
                                         bool want_out_buf,
                                         uint8_t** out_buf_new,
                                         size_t out_cap_new,
+                                        bool want_damage_rects,
+                                        zr_damage_rect_t** damage_rects_new,
+                                        uint32_t damage_rect_cap_new,
                                         bool want_arena_reinit,
                                         zr_arena_t* arena_frame_new,
                                         zr_arena_t* arena_persistent_new) {
-  if (!e || !cfg || !out_buf_new || !arena_frame_new || !arena_persistent_new) {
+  if (!e || !cfg || !out_buf_new || !damage_rects_new || !arena_frame_new || !arena_persistent_new) {
     return;
   }
 
@@ -744,6 +895,13 @@ static void zr_engine_set_config_commit(zr_engine_t* e,
     e->out_buf = *out_buf_new;
     e->out_cap = out_cap_new;
     *out_buf_new = NULL;
+  }
+
+  if (want_damage_rects) {
+    free(e->damage_rects);
+    e->damage_rects = *damage_rects_new;
+    e->damage_rect_cap = damage_rect_cap_new;
+    *damage_rects_new = NULL;
   }
 
   if (want_arena_reinit) {
@@ -778,13 +936,20 @@ zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* 
 
   uint8_t* out_buf_new = NULL;
   size_t out_cap_new = e->out_cap;
+  zr_damage_rect_t* damage_rects_new = NULL;
+  uint32_t damage_rect_cap_new = e->damage_rect_cap;
   zr_arena_t arena_frame_new = {0};
   zr_arena_t arena_persistent_new = {0};
 
   bool want_out_buf = false;
+  bool want_damage_rects = false;
   bool want_arena_reinit = false;
 
   rc = zr_engine_set_config_prepare_out_buf(e, cfg, &out_buf_new, &out_cap_new, &want_out_buf);
+  if (rc != ZR_OK) {
+    goto cleanup;
+  }
+  rc = zr_engine_set_config_prepare_damage_rects(e, cfg, &damage_rects_new, &damage_rect_cap_new, &want_damage_rects);
   if (rc != ZR_OK) {
     goto cleanup;
   }
@@ -794,12 +959,13 @@ zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* 
   }
 
   /* Commit (no partial effects): allocations succeeded; now swap in new resources. */
-  zr_engine_set_config_commit(e, cfg, want_out_buf, &out_buf_new, out_cap_new, want_arena_reinit, &arena_frame_new,
-                              &arena_persistent_new);
+  zr_engine_set_config_commit(e, cfg, want_out_buf, &out_buf_new, out_cap_new, want_damage_rects, &damage_rects_new,
+                              damage_rect_cap_new, want_arena_reinit, &arena_frame_new, &arena_persistent_new);
   return ZR_OK;
 
 cleanup:
   free(out_buf_new);
+  free(damage_rects_new);
   zr_arena_release(&arena_frame_new);
   zr_arena_release(&arena_persistent_new);
   return rc;

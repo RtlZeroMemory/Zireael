@@ -60,6 +60,12 @@ typedef struct zr_metrics_t {
   /* --- Arena high-water marks (bytes) --- */
   uint64_t arena_frame_high_water_bytes;
   uint64_t arena_persistent_high_water_bytes;
+
+  /* --- Damage summary (last frame) --- */
+  uint32_t damage_rects_last_frame;
+  uint32_t damage_cells_last_frame;
+  uint8_t  damage_full_frame;
+  uint8_t  _pad2[3];
 } zr_metrics_t;
 
 #endif /* ZR_ZR_METRICS_H_INCLUDED */

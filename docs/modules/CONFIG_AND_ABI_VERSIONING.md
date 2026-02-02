@@ -24,11 +24,11 @@ See also:
 - drawlist format (`ZR_DRAWLIST_VERSION_V1`)
 - packed event batch format (`ZR_EVENT_BATCH_VERSION_V1`)
 
-v1 negotiation rules:
+Negotiation rules:
 
-- Requested versions MUST match the pinned versions exactly.
-- If any requested version is not supported, `engine_create()` fails with `ZR_ERR_UNSUPPORTED` and performs no partial
-  effects.
+- Requested engine ABI and event batch versions MUST match pinned versions exactly.
+- Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1` or `ZR_DRAWLIST_VERSION_V2`).
+- If any requested version is not supported, `engine_create()` fails with `ZR_ERR_UNSUPPORTED` and performs no partial effects.
 
 Pinned versions are defined in `src/core/zr_version.h`.
 
@@ -53,7 +53,7 @@ Limits:
 ABI requirements:
 
 - `uint8_t` toggles are boolean-like and MUST be encoded as `0` or `1`.
-- Reserved/padding fields MUST be `0` in v1.
+- Reserved/padding fields MUST be `0`.
 
 ```c
 typedef struct zr_engine_config_t {
@@ -74,7 +74,7 @@ typedef struct zr_engine_config_t {
   uint8_t enable_scroll_optimizations;
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
-  uint8_t _pad0; /* must be 0 in v1 */
+  uint8_t wait_for_output_drain;
 } zr_engine_config_t;
 ```
 
@@ -94,7 +94,7 @@ typedef struct zr_engine_runtime_config_t {
   uint8_t enable_scroll_optimizations;
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
-  uint8_t _pad0; /* must be 0 in v1 */
+  uint8_t wait_for_output_drain;
 } zr_engine_runtime_config_t;
 ```
 
@@ -103,6 +103,16 @@ Notes:
 - `width_policy` is encoded as a fixed-width integer for ABI stability; its values correspond to `zr_width_policy_t`
   enumerators in `src/unicode/zr_width.h` (currently: `ZR_WIDTH_EMOJI_NARROW` or `ZR_WIDTH_EMOJI_WIDE`).
 - `enable_replay_recording` is currently a reserved toggle (accepted as 0/1 in v1) and does not change runtime behavior.
+- `wait_for_output_drain` enables a bounded wait for output writability before `engine_present()` emits bytes (see
+  `docs/modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md` and `docs/modules/PLATFORM_INTERFACE.md`).
+
+## Runtime capability reporting
+
+The engine exposes runtime terminal capabilities via:
+
+- `engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out)`
+
+This returns the backend-discovered and engine-derived capability snapshot used for output emission decisions.
 
 ## Defaults and validation
 

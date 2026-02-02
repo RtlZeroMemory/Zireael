@@ -1,0 +1,8 @@
+# fixture_id: diff_006_cursor_hide_only
+# purpose: cursor hide sequence only (ESC[?25l) with no framebuffer changes.
+#
+# pinned:
+#   - initial_term_state.cursor_visible = 1
+#   - desired_cursor.visible = 0
+#
+# prev == next: cleared

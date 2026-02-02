@@ -1,5 +1,6 @@
 add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/core/zr_config.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_damage.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_diff.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_debug_overlay.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_drawlist.c
@@ -37,10 +38,14 @@ add_executable(zireael_unit_tests
         unit/test_arena.c
         unit/test_bytes.c
         unit/test_checked.c
+        unit/test_damage_rects.c
         unit/test_diff_color_quant.c
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c
         unit/test_engine_poll_events_truncation.c
+        unit/test_engine_get_caps.c
+        unit/test_engine_metrics_damage.c
+        unit/test_engine_present_backpressure.c
         unit/test_engine_present_single_flush.c
         unit/test_engine_submit_drawlist_no_partial_effects.c
         unit/test_engine_version_negotiation.c

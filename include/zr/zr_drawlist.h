@@ -1,8 +1,10 @@
 /*
-  include/zr/zr_drawlist.h — Drawlist v1 ABI structs.
+  include/zr/zr_drawlist.h — Drawlist ABI structs (v1 + v2).
 
   Why: Defines the versioned, little-endian drawlist command stream used by
-  wrappers to drive rendering through engine_submit_drawlist().
+  wrappers to drive rendering through engine_submit_drawlist(). v1 remains
+  supported and behavior-stable; v2 adds new opcodes without changing v1
+  layouts.
 */
 
 #ifndef ZR_ZR_DRAWLIST_H_INCLUDED
@@ -52,7 +54,10 @@ typedef enum zr_dl_opcode_t {
   ZR_DL_OP_DRAW_TEXT = 3,
   ZR_DL_OP_PUSH_CLIP = 4,
   ZR_DL_OP_POP_CLIP = 5,
-  ZR_DL_OP_DRAW_TEXT_RUN = 6
+  ZR_DL_OP_DRAW_TEXT_RUN = 6,
+
+  /* v2: cursor control (does not draw glyphs into the framebuffer). */
+  ZR_DL_OP_SET_CURSOR = 7
 } zr_dl_opcode_t;
 
 typedef struct zr_dl_style_t {
@@ -93,5 +98,14 @@ typedef struct zr_dl_cmd_draw_text_run_t {
   uint32_t blob_index;
   uint32_t reserved0; /* must be 0 in v1 */
 } zr_dl_cmd_draw_text_run_t;
+
+typedef struct zr_dl_cmd_set_cursor_t {
+  int32_t x; /* 0-based cell; -1 means "leave unchanged" */
+  int32_t y; /* 0-based cell; -1 means "leave unchanged" */
+  uint8_t shape;   /* 0=block, 1=underline, 2=bar */
+  uint8_t visible; /* 0/1 */
+  uint8_t blink;   /* 0/1 */
+  uint8_t reserved0; /* must be 0 */
+} zr_dl_cmd_set_cursor_t;
 
 #endif /* ZR_ZR_DRAWLIST_H_INCLUDED */

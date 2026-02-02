@@ -30,7 +30,11 @@ All on-buffer/on-wire formats are:
 
 Defined in `src/core/zr_drawlist.h` (version pins are centralized in `src/core/zr_version.h`):
 
-- Drawlist header `version` is pinned to v1 (`ZR_DRAWLIST_VERSION_V1 = 1`).
+- Supported drawlist header versions:
+  - v1 (`ZR_DRAWLIST_VERSION_V1 = 1`) — baseline; must remain behavior-stable.
+  - v2 (`ZR_DRAWLIST_VERSION_V2 = 2`) — adds new opcodes (e.g. cursor control) while preserving v1 layout rules.
+
+Wrappers select the version via `zr_engine_config_t.requested_drawlist_version` at `engine_create()`.
 
 ### Packed event batches
 

@@ -75,12 +75,16 @@ ZR_TEST_UNIT(diff_span_separates_and_uses_cup) {
   initial.cursor_y = 0u;
   initial.style = s;
 
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
   uint8_t out[64];
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {
@@ -122,12 +126,16 @@ ZR_TEST_UNIT(diff_continuation_includes_lead) {
   initial.cursor_y = 0u;
   initial.style = s;
 
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
   uint8_t out[64];
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'2', (uint8_t)'H',
@@ -162,12 +170,16 @@ ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
   initial.cursor_y = 0u;
   initial.style = s;
 
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
   uint8_t out[64];
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {(uint8_t)'X'};
@@ -197,12 +209,16 @@ ZR_TEST_UNIT(diff_returns_limit_without_claiming_bytes) {
   initial.cursor_y = 0u;
   initial.style = s;
 
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
   uint8_t out[1];
   size_t out_len = 123u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len,
-                                       &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_ERR_LIMIT);
   ZR_ASSERT_EQ_U32(out_len, 0u);
 

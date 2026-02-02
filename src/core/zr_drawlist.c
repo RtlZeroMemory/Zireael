@@ -1,5 +1,5 @@
 /*
-  src/core/zr_drawlist.c — Drawlist v1 validator + executor.
+  src/core/zr_drawlist.c — Drawlist validator + executor (v1 + v2).
 
   Why: Validates wrapper-provided drawlist bytes (bounds/caps/version) and
   executes deterministic drawing into the framebuffer without UB.
@@ -185,6 +185,28 @@ static zr_result_t zr_dl_read_cmd_draw_text_run(zr_byte_reader_t* r, zr_dl_cmd_d
   return ZR_OK;
 }
 
+static zr_result_t zr_dl_read_cmd_set_cursor(zr_byte_reader_t* r, zr_dl_cmd_set_cursor_t* out) {
+  zr_result_t rc = ZR_OK;
+  if (!out) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  rc = zr_dl_read_i32le(r, &out->x);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_dl_read_i32le(r, &out->y);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  if (!zr_byte_reader_read_u8(r, &out->shape) || !zr_byte_reader_read_u8(r, &out->visible) ||
+      !zr_byte_reader_read_u8(r, &out->blink) || !zr_byte_reader_read_u8(r, &out->reserved0)) {
+    return ZR_ERR_FORMAT;
+  }
+
+  return ZR_OK;
+}
+
 static zr_result_t zr_dl_read_header(const uint8_t* bytes, size_t bytes_len, zr_dl_header_t* out) {
   if (!out) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -279,9 +301,8 @@ typedef struct zr_dl_v1_ranges_t {
   zr_dl_range_t blobs_bytes;
 } zr_dl_v1_ranges_t;
 
-/* Validate drawlist v1 header: magic, version, alignment, caps, and section offsets. */
-static zr_result_t zr_dl_validate_header_v1(const zr_dl_header_t* hdr, size_t bytes_len,
-                                            const zr_limits_t* lim) {
+/* Validate drawlist header: magic, version, alignment, caps, and section offsets. */
+static zr_result_t zr_dl_validate_header(const zr_dl_header_t* hdr, size_t bytes_len, const zr_limits_t* lim) {
   if (!hdr || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -289,7 +310,7 @@ static zr_result_t zr_dl_validate_header_v1(const zr_dl_header_t* hdr, size_t by
   if (hdr->magic != ZR_DL_MAGIC) {
     return ZR_ERR_FORMAT;
   }
-  if (hdr->version != ZR_DRAWLIST_VERSION_V1) {
+  if (hdr->version != ZR_DRAWLIST_VERSION_V1 && hdr->version != ZR_DRAWLIST_VERSION_V2) {
     return ZR_ERR_UNSUPPORTED;
   }
   if (hdr->header_size != (uint32_t)sizeof(zr_dl_header_t)) {
@@ -422,8 +443,7 @@ static zr_result_t zr_dl_validate_span_table_v1(const uint8_t* bytes, uint32_t s
 }
 
 /* Initialize a validated view structure with pointers into the drawlist buffer. */
-static void zr_dl_view_init_v1(zr_dl_view_t* view, const zr_dl_header_t* hdr, const uint8_t* bytes,
-                               size_t bytes_len) {
+static void zr_dl_view_init(zr_dl_view_t* view, const zr_dl_header_t* hdr, const uint8_t* bytes, size_t bytes_len) {
   memset(view, 0, sizeof(*view));
   view->hdr = *hdr;
   view->bytes = bytes;
@@ -574,6 +594,163 @@ static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const 
   return ZR_OK;
 }
 
+/* Walk and validate every command in the command stream (v2: includes cursor op). */
+static zr_result_t zr_dl_validate_cmd_stream_v2(const zr_dl_view_t* view, const zr_limits_t* lim) {
+  if (!view || !lim) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_byte_reader_t r;
+  zr_byte_reader_init(&r, view->cmd_bytes, view->cmd_bytes_len);
+
+  uint32_t clip_depth = 0u;
+
+  for (uint32_t ci = 0u; ci < view->hdr.cmd_count; ci++) {
+    zr_dl_cmd_header_t ch;
+    zr_result_t rc = zr_dl_read_cmd_header(&r, &ch);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+    if (ch.flags != 0u) {
+      return ZR_ERR_FORMAT;
+    }
+    if (ch.size < (uint32_t)sizeof(zr_dl_cmd_header_t) || (ch.size & 3u) != 0u) {
+      return ZR_ERR_FORMAT;
+    }
+    const size_t payload = (size_t)ch.size - sizeof(zr_dl_cmd_header_t);
+    if (zr_byte_reader_remaining(&r) < payload) {
+      return ZR_ERR_FORMAT;
+    }
+
+    switch ((zr_dl_opcode_t)ch.opcode) {
+      case ZR_DL_OP_CLEAR: {
+        if (ch.size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
+          return ZR_ERR_FORMAT;
+        }
+        break;
+      }
+      case ZR_DL_OP_FILL_RECT: {
+        if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_fill_rect_t))) {
+          return ZR_ERR_FORMAT;
+        }
+        zr_dl_cmd_fill_rect_t cmd;
+        rc = zr_dl_read_cmd_fill_rect(&r, &cmd);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        if (cmd.style.reserved0 != 0u) {
+          return ZR_ERR_FORMAT;
+        }
+        break;
+      }
+      case ZR_DL_OP_DRAW_TEXT: {
+        if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_t))) {
+          return ZR_ERR_FORMAT;
+        }
+        zr_dl_cmd_draw_text_t cmd;
+        rc = zr_dl_read_cmd_draw_text(&r, &cmd);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        if (cmd.style.reserved0 != 0u || cmd.reserved0 != 0u) {
+          return ZR_ERR_FORMAT;
+        }
+        if (cmd.string_index >= view->hdr.strings_count) {
+          return ZR_ERR_FORMAT;
+        }
+        const size_t span_off = (size_t)cmd.string_index * sizeof(zr_dl_span_t);
+        zr_dl_span_t span;
+        if (zr_dl_span_read_host(view->strings_span_bytes + span_off, &span) != ZR_OK) {
+          return ZR_ERR_FORMAT;
+        }
+        uint32_t slice_end = 0u;
+        if (!zr_checked_add_u32(cmd.byte_off, cmd.byte_len, &slice_end)) {
+          return ZR_ERR_FORMAT;
+        }
+        if (slice_end > span.len) {
+          return ZR_ERR_FORMAT;
+        }
+        break;
+      }
+      case ZR_DL_OP_PUSH_CLIP: {
+        if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_push_clip_t))) {
+          return ZR_ERR_FORMAT;
+        }
+        zr_dl_cmd_push_clip_t cmd;
+        rc = zr_dl_read_cmd_push_clip(&r, &cmd);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        clip_depth++;
+        if (clip_depth > lim->dl_max_clip_depth) {
+          return ZR_ERR_LIMIT;
+        }
+        break;
+      }
+      case ZR_DL_OP_POP_CLIP: {
+        if (ch.size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
+          return ZR_ERR_FORMAT;
+        }
+        if (clip_depth == 0u) {
+          return ZR_ERR_FORMAT;
+        }
+        clip_depth--;
+        break;
+      }
+      case ZR_DL_OP_DRAW_TEXT_RUN: {
+        if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_run_t))) {
+          return ZR_ERR_FORMAT;
+        }
+        zr_dl_cmd_draw_text_run_t cmd;
+        rc = zr_dl_read_cmd_draw_text_run(&r, &cmd);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        if (cmd.reserved0 != 0u) {
+          return ZR_ERR_FORMAT;
+        }
+        rc = zr_dl_validate_text_run_blob(view, cmd.blob_index, lim);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        break;
+      }
+      case ZR_DL_OP_SET_CURSOR: {
+        if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_set_cursor_t))) {
+          return ZR_ERR_FORMAT;
+        }
+        zr_dl_cmd_set_cursor_t cmd;
+        rc = zr_dl_read_cmd_set_cursor(&r, &cmd);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        if (cmd.reserved0 != 0u) {
+          return ZR_ERR_FORMAT;
+        }
+        if (cmd.x < -1 || cmd.y < -1) {
+          return ZR_ERR_FORMAT;
+        }
+        if (cmd.shape > ZR_CURSOR_SHAPE_BAR) {
+          return ZR_ERR_FORMAT;
+        }
+        if (cmd.visible > 1u || cmd.blink > 1u) {
+          return ZR_ERR_FORMAT;
+        }
+        break;
+      }
+      default: {
+        return ZR_ERR_UNSUPPORTED;
+      }
+    }
+  }
+
+  if (zr_byte_reader_remaining(&r) != 0u) {
+    return ZR_ERR_FORMAT;
+  }
+
+  return ZR_OK;
+}
+
 /* Validate a text run blob: segment count, alignment, and all string references. */
 static zr_result_t zr_dl_validate_text_run_blob(const zr_dl_view_t* v, uint32_t blob_index,
                                                 const zr_limits_t* lim) {
@@ -681,7 +858,7 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
     return rc;
   }
 
-  rc = zr_dl_validate_header_v1(&hdr, bytes_len, lim);
+  rc = zr_dl_validate_header(&hdr, bytes_len, lim);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -717,8 +894,14 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
 
   /* Command stream framing + opcode validation. */
   zr_dl_view_t view;
-  zr_dl_view_init_v1(&view, &hdr, bytes, bytes_len);
-  rc = zr_dl_validate_cmd_stream_v1(&view, lim);
+  zr_dl_view_init(&view, &hdr, bytes, bytes_len);
+  if (hdr.version == ZR_DRAWLIST_VERSION_V1) {
+    rc = zr_dl_validate_cmd_stream_v1(&view, lim);
+  } else if (hdr.version == ZR_DRAWLIST_VERSION_V2) {
+    rc = zr_dl_validate_cmd_stream_v2(&view, lim);
+  } else {
+    rc = ZR_ERR_UNSUPPORTED;
+  }
   if (rc != ZR_OK) {
     return rc;
   }
@@ -899,9 +1082,39 @@ static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_vie
   return ZR_OK;
 }
 
+static zr_result_t zr_dl_exec_set_cursor(zr_byte_reader_t* r, zr_cursor_state_t* inout_cursor_state) {
+  if (!r || !inout_cursor_state) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_dl_cmd_set_cursor_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_set_cursor(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  /* Assumes validation has enforced enum/boolean/rsvd constraints. */
+  zr_cursor_state_t s;
+  s.x = cmd.x;
+  s.y = cmd.y;
+  s.shape = cmd.shape;
+  s.visible = cmd.visible;
+  s.blink = cmd.blink;
+  s.reserved0 = 0u;
+  *inout_cursor_state = s;
+
+  return ZR_OK;
+}
+
 /* Execute a validated drawlist into the framebuffer; assumes view came from zr_dl_validate. */
-zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim) {
+zr_result_t zr_dl_execute(const zr_dl_view_t* v,
+                          zr_fb_t* dst,
+                          const zr_limits_t* lim,
+                          zr_cursor_state_t* inout_cursor_state) {
   if (!v || !dst || !lim) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!inout_cursor_state) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -966,6 +1179,16 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
       }
       case ZR_DL_OP_DRAW_TEXT_RUN: {
         rc = zr_dl_exec_draw_text_run(&r, v, &painter);
+        if (rc != ZR_OK) {
+          return rc;
+        }
+        break;
+      }
+      case ZR_DL_OP_SET_CURSOR: {
+        if (v->hdr.version < ZR_DRAWLIST_VERSION_V2) {
+          return ZR_ERR_UNSUPPORTED;
+        }
+        rc = zr_dl_exec_set_cursor(&r, inout_cursor_state);
         if (rc != ZR_OK) {
           return rc;
         }

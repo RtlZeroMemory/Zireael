@@ -1,0 +1,10 @@
+# fixture_id: diff_005_cursor_show_shape_move
+# purpose: cursor control (DECSCUSR + show + CUP) with no framebuffer changes.
+#
+# pinned:
+#   - caps.supports_cursor_shape = 1
+#   - initial_term_state.cursor = (0,0)
+#   - initial_term_state.cursor_visible = 0
+#   - desired_cursor: shape=bar blink=1 visible=1 pos=(2,1)
+#
+# prev == next: cleared

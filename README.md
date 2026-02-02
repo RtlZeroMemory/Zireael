@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="720" alt="Zireael" src="https://github.com/user-attachments/assets/000b7a71-50ca-4d9f-9ef1-fd3cde6173d1" />
+  <img width="720" alt="Zireael" src="https://github.com/user-attachments/assets/179a0cbe-b3f1-410c-a99a-537781a1134d" />
 </p>
 
 <p align="center">
@@ -15,7 +15,8 @@
 
 ---
 
-![Zireael-Matrix-1](https://github.com/user-attachments/assets/1197ee78-d1be-43f3-a352-d2fe9a589a56)
+![Zireael-Matrix-1](https://github.com/user-attachments/assets/463365ae-55cc-41af-b562-b20473c6452e)
+
 
 
 ## What is Zireael?
@@ -168,9 +169,8 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 
 ## DEMO — Go stress-test TUI
 
-![Zireael-Matrix-2](https://github.com/user-attachments/assets/bda0ce1d-c19c-4a43-8bb5-0b7c18b4442e)
-![Zireael-Matrix-3](https://github.com/user-attachments/assets/7250e92b-944a-4296-9be8-0437c1107b65)
-
+![Zireael-Matrix-2](https://github.com/user-attachments/assets/49a1c964-be0f-4fcc-a348-b166ce2a6bde)
+![Zireael-Matrix-3](https://github.com/user-attachments/assets/5235bd58-2474-47f4-b855-29bf233b8549)
 
 
 This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
@@ -273,4 +273,3 @@ Apache-2.0
 <p align="center">
   <sub>Internal specs for contributors: <a href="docs/00_INDEX.md">docs/00_INDEX.md</a></sub>
 </p>
-

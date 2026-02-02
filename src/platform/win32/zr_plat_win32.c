@@ -309,9 +309,9 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_bracketed_paste = 1u;
   plat->caps.supports_focus_events = 1u;
   plat->caps.supports_osc52 = 1u;
-  plat->caps._pad[0] = 0u;
-  plat->caps._pad[1] = 0u;
-  plat->caps._pad[2] = 0u;
+  plat->caps.supports_sync_update = 1u;
+  plat->caps.supports_scroll_region = 1u;
+  plat->caps._pad0 = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
   (void)zr_win32_query_size_best_effort(plat->h_out, &plat->last_size);

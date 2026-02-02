@@ -1,0 +1,14 @@
+# fixture_id: diff_004_scroll_region_scroll_up_fullscreen
+# purpose: detect a fullscreen scroll-up by 1 line and use DECSTBM+SU to avoid redrawing moved rows.
+#
+# pinned:
+#   - caps.color_mode = RGB (truecolor)
+#   - caps.sgr_attrs_supported = all
+#   - caps.supports_scroll_region = 1
+#   - enable_scroll_optimizations = 1
+#   - initial_term_state.cursor = (0,0)
+#   - initial_term_state.style = default (fg=0 bg=0 attrs=0)
+#
+# prev: 17 rows, each row is a repeated ASCII letter starting at 'A'
+# next: rows shifted up by 1; bottom row is 'R'
+

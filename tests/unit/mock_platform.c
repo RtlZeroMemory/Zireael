@@ -51,9 +51,9 @@ static void zr_mock_plat_default_caps(plat_caps_t* out) {
   out->supports_bracketed_paste = 1u;
   out->supports_focus_events = 1u;
   out->supports_osc52 = 0u;
-  out->_pad[0] = 0u;
-  out->_pad[1] = 0u;
-  out->_pad[2] = 0u;
+  out->supports_sync_update = 0u;
+  out->supports_scroll_region = 1u;
+  out->_pad0 = 0u;
 
   /* Allow all style attrs in unit tests. */
   out->sgr_attrs_supported = 0xFFFFFFFFu;

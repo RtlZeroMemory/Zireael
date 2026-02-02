@@ -420,6 +420,15 @@ typedef struct zr_diff_ctx_t {
   zr_diff_stats_t stats;
 } zr_diff_ctx_t;
 
+typedef struct zr_scroll_plan_t {
+  bool     active;
+  bool     up;
+  uint32_t top;
+  uint32_t bottom;
+  uint32_t lines;
+  uint32_t moved_lines;
+} zr_scroll_plan_t;
+
 static void zr_diff_zero_outputs(size_t* out_len, zr_term_state_t* out_final_term_state, zr_diff_stats_t* out_stats) {
   if (out_len) {
     *out_len = 0u;
@@ -436,10 +445,12 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
                                         const zr_fb_t* next,
                                         const plat_caps_t* caps,
                                         const zr_term_state_t* initial_term_state,
+                                        uint8_t enable_scroll_optimizations,
                                         const uint8_t* out_buf,
                                         const size_t* out_len,
                                         const zr_term_state_t* out_final_term_state,
                                         const zr_diff_stats_t* out_stats) {
+  (void)enable_scroll_optimizations;
   if (!prev || !next || !caps || !initial_term_state || !out_buf || !out_len || !out_final_term_state || !out_stats) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -447,6 +458,246 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
     return ZR_ERR_INVALID_ARGUMENT;
   }
   return ZR_OK;
+}
+
+/* Compare full framebuffer rows for scroll-shift detection (full width). */
+static bool zr_row_eq(const zr_fb_t* a, uint32_t ay, const zr_fb_t* b, uint32_t by) {
+  if (!a || !b) {
+    return false;
+  }
+  if (a->cols != b->cols) {
+    return false;
+  }
+  if (ay >= a->rows || by >= b->rows) {
+    return false;
+  }
+
+  for (uint32_t x = 0u; x < a->cols; x++) {
+    const zr_cell_t* ca = zr_fb_cell_const(a, x, ay);
+    const zr_cell_t* cb = zr_fb_cell_const(b, x, by);
+    if (!ca || !cb) {
+      return false;
+    }
+    if (!zr_cell_eq(ca, cb)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* Deterministic preference order for competing scroll candidates. */
+static bool zr_scroll_plan_better(const zr_scroll_plan_t* best, const zr_scroll_plan_t* cand, uint32_t cols) {
+  if (!cand || !cand->active) {
+    return false;
+  }
+  if (!best || !best->active) {
+    return true;
+  }
+
+  const uint64_t best_cells = (uint64_t)best->moved_lines * (uint64_t)cols;
+  const uint64_t cand_cells = (uint64_t)cand->moved_lines * (uint64_t)cols;
+  if (cand_cells != best_cells) {
+    return cand_cells > best_cells;
+  }
+  if (cand->moved_lines != best->moved_lines) {
+    return cand->moved_lines > best->moved_lines;
+  }
+  if (cand->lines != best->lines) {
+    return cand->lines < best->lines;
+  }
+  if (cand->top != best->top) {
+    return cand->top < best->top;
+  }
+  if (cand->bottom != best->bottom) {
+    return cand->bottom < best->bottom;
+  }
+  if (cand->up != best->up) {
+    return cand->up;
+  }
+  return false;
+}
+
+static bool zr_scroll_saved_enough(uint32_t moved_lines, uint32_t cols) {
+  enum {
+    ZR_SCROLL_MIN_MOVED_LINES = 4u,
+    ZR_SCROLL_MIN_SAVED_CELLS = 256u,
+  };
+
+  if (moved_lines < ZR_SCROLL_MIN_MOVED_LINES) {
+    return false;
+  }
+  const uint64_t saved_cells = (uint64_t)moved_lines * (uint64_t)cols;
+  return saved_cells >= (uint64_t)ZR_SCROLL_MIN_SAVED_CELLS;
+}
+
+/* Evaluate a contiguous run of row matches as a scroll-region candidate. */
+static void zr_scroll_plan_consider_run(zr_scroll_plan_t* best,
+                                       uint32_t cols,
+                                       uint32_t rows,
+                                       bool up,
+                                       uint32_t run_start,
+                                       uint32_t run_len,
+                                       uint32_t delta) {
+  if (!best || run_len == 0u || delta == 0u) {
+    return;
+  }
+
+  zr_scroll_plan_t cand;
+  memset(&cand, 0, sizeof(cand));
+  cand.active = true;
+  cand.up = up;
+  cand.top = run_start;
+  cand.bottom = (run_start + run_len - 1u) + delta;
+  cand.lines = delta;
+  cand.moved_lines = run_len;
+
+  if (cand.bottom >= rows) {
+    return;
+  }
+  if (!zr_scroll_saved_enough(cand.moved_lines, cols)) {
+    return;
+  }
+
+  if (zr_scroll_plan_better(best, &cand, cols)) {
+    *best = cand;
+  }
+}
+
+/* Scan for the longest run of shifted-equal rows for a given delta + direction. */
+static void zr_scroll_scan_delta_dir(const zr_fb_t* prev,
+                                     const zr_fb_t* next,
+                                     uint32_t delta,
+                                     bool up,
+                                     zr_scroll_plan_t* inout_best) {
+  if (!prev || !next || !inout_best) {
+    return;
+  }
+  if (delta == 0u || delta >= next->rows) {
+    return;
+  }
+
+  const uint32_t rows = next->rows;
+  const uint32_t cols = next->cols;
+  const uint32_t y_end = rows - delta;
+
+  uint32_t run_start = 0u;
+  uint32_t run_len = 0u;
+
+  for (uint32_t y = 0u; y < y_end; y++) {
+    const bool match = up ? zr_row_eq(next, y, prev, y + delta) : zr_row_eq(next, y + delta, prev, y);
+    if (match) {
+      if (run_len == 0u) {
+        run_start = y;
+      }
+      run_len++;
+      continue;
+    }
+
+    zr_scroll_plan_consider_run(inout_best, cols, rows, up, run_start, run_len, delta);
+    run_len = 0u;
+  }
+
+  zr_scroll_plan_consider_run(inout_best, cols, rows, up, run_start, run_len, delta);
+}
+
+/*
+ * Detect a vertical scroll within a full-width region.
+ *
+ * Why: When a large block of rows is identical after a vertical shift, emitting
+ * DECSTBM + SU/SD lets the terminal do the bulk move and keeps output bounded
+ * to the newly exposed lines.
+ */
+static zr_scroll_plan_t zr_diff_detect_scroll_fullwidth(const zr_fb_t* prev, const zr_fb_t* next) {
+  zr_scroll_plan_t best;
+  memset(&best, 0, sizeof(best));
+
+  if (!prev || !next || prev->cols != next->cols || prev->rows != next->rows) {
+    return best;
+  }
+  if (next->rows < 2u || next->cols == 0u) {
+    return best;
+  }
+
+  const uint32_t rows = next->rows;
+
+  enum {
+    ZR_SCROLL_MAX_DELTA = 64u,
+  };
+
+  uint32_t max_delta = rows - 1u;
+  if (max_delta > ZR_SCROLL_MAX_DELTA) {
+    max_delta = ZR_SCROLL_MAX_DELTA;
+  }
+
+  for (uint32_t delta = 1u; delta <= max_delta; delta++) {
+    zr_scroll_scan_delta_dir(prev, next, delta, true, &best);
+    zr_scroll_scan_delta_dir(prev, next, delta, false, &best);
+  }
+
+  if (!best.active) {
+    return best;
+  }
+
+  /* Require a valid region: (bottom-top+1) > delta. */
+  if (best.bottom <= best.top) {
+    memset(&best, 0, sizeof(best));
+    return best;
+  }
+  if ((best.bottom - best.top + 1u) <= best.lines) {
+    memset(&best, 0, sizeof(best));
+    return best;
+  }
+  if (best.lines == 0u) {
+    memset(&best, 0, sizeof(best));
+    return best;
+  }
+
+  return best;
+}
+
+static bool zr_emit_decstbm(zr_sb_t* sb, zr_term_state_t* ts, uint32_t top, uint32_t bottom) {
+  if (!sb || !ts) {
+    return false;
+  }
+  if (!zr_sb_write_u8(sb, 0x1Bu) || !zr_sb_write_u8(sb, (uint8_t)'[')) {
+    return false;
+  }
+  if (!zr_sb_write_u32_dec(sb, top + 1u) || !zr_sb_write_u8(sb, (uint8_t)';') ||
+      !zr_sb_write_u32_dec(sb, bottom + 1u) || !zr_sb_write_u8(sb, (uint8_t)'r')) {
+    return false;
+  }
+  /* xterm/VT behavior: setting scroll margins homes the cursor. */
+  ts->cursor_x = 0u;
+  ts->cursor_y = 0u;
+  return true;
+}
+
+static bool zr_emit_scroll_op(zr_sb_t* sb, zr_term_state_t* ts, bool up, uint32_t lines) {
+  if (!sb || !ts) {
+    return false;
+  }
+  if (lines == 0u) {
+    return true;
+  }
+  if (!zr_sb_write_u8(sb, 0x1Bu) || !zr_sb_write_u8(sb, (uint8_t)'[')) {
+    return false;
+  }
+  if (!zr_sb_write_u32_dec(sb, lines) || !zr_sb_write_u8(sb, up ? (uint8_t)'S' : (uint8_t)'T')) {
+    return false;
+  }
+  return true;
+}
+
+static bool zr_emit_decstbm_reset(zr_sb_t* sb, zr_term_state_t* ts) {
+  if (!sb || !ts) {
+    return false;
+  }
+  if (!zr_sb_write_u8(sb, 0x1Bu) || !zr_sb_write_u8(sb, (uint8_t)'[') || !zr_sb_write_u8(sb, (uint8_t)'r')) {
+    return false;
+  }
+  ts->cursor_x = 0u;
+  ts->cursor_y = 0u;
+  return true;
 }
 
 /* Render a contiguous span of dirty cells [start, end] on row y. */
@@ -485,6 +736,16 @@ static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t 
   }
 
   return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
+}
+
+static zr_result_t zr_diff_render_full_line(zr_diff_ctx_t* ctx, uint32_t y) {
+  if (!ctx || !ctx->next) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ctx->next->cols == 0u) {
+    return ZR_OK;
+  }
+  return zr_diff_render_span(ctx, y, 0u, ctx->next->cols - 1u);
 }
 
 /* Scan row y for dirty spans and render each one. */
@@ -527,10 +788,74 @@ static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
   return ZR_OK;
 }
 
+/*
+ * Try to apply a scroll-region optimization and report a row range to skip.
+ *
+ * Why: After emitting a terminal scroll for the moved block and redrawing the
+ * newly exposed lines, the scrolled region is already synchronized with `next`,
+ * so the normal per-row diff can skip it entirely.
+ */
+static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, uint32_t* out_skip_top,
+                                         uint32_t* out_skip_bottom) {
+  if (!ctx || !out_skip || !out_skip_top || !out_skip_bottom) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  *out_skip = false;
+  *out_skip_top = 0u;
+  *out_skip_bottom = 0u;
+
+  const zr_scroll_plan_t plan = zr_diff_detect_scroll_fullwidth(ctx->prev, ctx->next);
+  if (!plan.active) {
+    return ZR_OK;
+  }
+
+  if (!zr_emit_decstbm(&ctx->sb, &ctx->ts, plan.top, plan.bottom)) {
+    return ZR_ERR_LIMIT;
+  }
+  if (!zr_emit_scroll_op(&ctx->sb, &ctx->ts, plan.up, plan.lines)) {
+    return ZR_ERR_LIMIT;
+  }
+  if (!zr_emit_decstbm_reset(&ctx->sb, &ctx->ts)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  /*
+    After the terminal scroll, only the newly exposed lines need redraw.
+    Redraw the full width to avoid relying on terminal-inserted blank style.
+  */
+  if (plan.up) {
+    const uint32_t first_new = plan.bottom - plan.lines + 1u;
+    for (uint32_t y = first_new; y <= plan.bottom; y++) {
+      const zr_result_t rc = zr_diff_render_full_line(ctx, y);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      ctx->stats.dirty_lines++;
+      ctx->stats.dirty_cells += ctx->next->cols;
+    }
+  } else {
+    const uint32_t last_new = plan.top + plan.lines - 1u;
+    for (uint32_t y = plan.top; y <= last_new; y++) {
+      const zr_result_t rc = zr_diff_render_full_line(ctx, y);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      ctx->stats.dirty_lines++;
+      ctx->stats.dirty_cells += ctx->next->cols;
+    }
+  }
+
+  *out_skip = true;
+  *out_skip_top = plan.top;
+  *out_skip_bottom = plan.bottom;
+  return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
+}
+
 zr_result_t zr_diff_render(const zr_fb_t* prev,
                            const zr_fb_t* next,
                            const plat_caps_t* caps,
                            const zr_term_state_t* initial_term_state,
+                           uint8_t enable_scroll_optimizations,
                            uint8_t* out_buf,
                            size_t out_cap,
                            size_t* out_len,
@@ -549,7 +874,8 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
 
   const zr_result_t arg_rc =
-      zr_diff_validate_args(prev, next, caps, initial_term_state, out_buf, out_len, out_final_term_state, out_stats);
+      zr_diff_validate_args(prev, next, caps, initial_term_state, enable_scroll_optimizations, out_buf, out_len,
+                            out_final_term_state, out_stats);
   if (arg_rc != ZR_OK) {
     return arg_rc;
   }
@@ -562,7 +888,21 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   zr_sb_init(&ctx.sb, out_buf, out_cap);
   ctx.ts = *initial_term_state;
 
+  bool skip = false;
+  uint32_t skip_top = 0u;
+  uint32_t skip_bottom = 0u;
+  if (enable_scroll_optimizations != 0u && caps->supports_scroll_region != 0u) {
+    const zr_result_t rc = zr_diff_try_scroll_opt(&ctx, &skip, &skip_top, &skip_bottom);
+    if (rc != ZR_OK) {
+      zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+      return rc;
+    }
+  }
+
   for (uint32_t y = 0u; y < next->rows; y++) {
+    if (skip && y >= skip_top && y <= skip_bottom) {
+      continue;
+    }
     const zr_result_t rc = zr_diff_render_line(&ctx, y);
     if (rc != ZR_OK) {
       zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);

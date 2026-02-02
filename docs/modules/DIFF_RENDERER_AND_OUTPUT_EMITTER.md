@@ -17,6 +17,8 @@ This module defines how framebuffer diffs are converted into terminal bytes and 
 - It does not mutate the input framebuffers.
 - It writes `out_len` bytes to the caller-provided `out_buf` on success.
 - If the output does not fit in `out_cap`, it returns `ZR_ERR_LIMIT` and reports `out_len = 0`.
+- When scroll optimizations are enabled and `caps.supports_scroll_region == 1`, it may emit DECSTBM + SU/SD and redraw
+  only newly exposed lines.
 
 ### Output emitter (`engine_present`, `src/core/zr_engine.h`)
 
@@ -26,4 +28,4 @@ This module defines how framebuffer diffs are converted into terminal bytes and 
 - On success, `engine_present()` MUST call `plat_write_output()` exactly once with the full diff output bytes.
 - On `ZR_ERR_LIMIT` (or any other failure), `engine_present()` MUST perform **zero** platform writes (no partial flush).
 - Framebuffer swap (`prev ← next`) occurs only on success.
-
+- When `caps.supports_sync_update == 1`, `engine_present()` may wrap the frame output in `ESC[?2026h` / `ESC[?2026l`.

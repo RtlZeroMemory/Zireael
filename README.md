@@ -38,7 +38,7 @@ This engine is being built to power **Zireael-UI** (a TypeScript framework in pr
 
 **You provide:** binary drawlist bytes (rendering commands)
 **Engine returns:** packed event batch bytes (keys, mouse, resize, text)
-**Engine handles:** terminal setup, diff-based rendering, efficient output, pinned Unicode policies
+**Engine handles:** terminal init/restore (raw mode, alt-screen, input modes), diff-based rendering + output coalescing, pinned Unicode policies
 
 ## Motivation
 
@@ -68,24 +68,40 @@ Zireael solves these once behind a strict platform boundary and exposes a determ
 - **Bounded work**: explicit caps for drawlist sizes, counts, and output bytes per frame.
 - **Backend isolation**: core/unicode/util stay OS-header-free; OS code lives in `src/platform/*`.
 
-## Design Principles
+## How it works (concretely)
 
-| Principle | Implementation |
-|-----------|----------------|
-| Deterministic | Same inputs + config = same outputs |
-| Zero allocations at boundary | Caller provides buffers |
-| Platform isolation | OS headers confined to `src/platform/` |
-| Single flush | One write() per frame |
+Per frame, a wrapper typically does:
 
-## What you get (as a framework author)
+1. `engine_poll_events(...)` into a caller-provided byte buffer (keys, mouse, resize, text).
+2. Build a **drawlist v1** byte stream (little-endian): a command section plus string/blob tables.
+3. `engine_submit_drawlist(engine, bytes, len)` (engine validates limits and format).
+4. Engine executes commands into an internal framebuffer, diffs against the previous frame, and builds terminal output into an internal bounded buffer.
+5. `engine_present(engine)` flushes once for that frame and updates metrics.
 
-- A stable ABI (`engine_create`, `engine_poll_events`, `engine_submit_drawlist`, `engine_present`)
-- A versioned, little-endian drawlist format (wrappers write bytes; engine validates defensively)
-- A diff renderer that minimizes terminal traffic (cursor/SGR/output coalescing)
-- Pinned Unicode grapheme + width policy for stable layout and wrapping
-- A strict platform boundary so core stays OS-header-free
+This keeps the wrapper focused on widgets/layout/state while the engine owns terminal correctness, Unicode policies, and output performance.
 
-Practically: a high-level framework can focus on widgets, layout, state management, and application logic while delegating terminal correctness and performance to the engine.
+## Design constraints (non-negotiable)
+
+- **Stable ABI + formats**: plain C functions and versioned on-wire formats (drawlist/event batch) for wrappers in any language.
+- **Deterministic behavior**: pinned ABI/format versions and pinned Unicode width/grapheme policy (no locale-dependent width tables).
+- **Bounded work**: limits for drawlist bytes/cmds/strings/blobs and output bytes per frame; validation rejects invalid/oversized inputs.
+- **Ownership model**: engine owns its allocations; wrappers provide event buffers and never free engine memory.
+- **Platform boundary**: OS code is confined to `src/platform/*`; core/unicode/util do not include OS headers.
+- **Output policy**: diff renderer coalesces terminal operations and flushes once per `engine_present()` (bounded by `out_max_bytes_per_frame`).
+
+## What a wrapper actually sends
+
+Drawlist v1 supports a small set of opcodes:
+
+- `CLEAR`
+- `FILL_RECT`
+- `DRAW_TEXT` (string-table slices)
+- `PUSH_CLIP` / `POP_CLIP`
+- `DRAW_TEXT_RUN` (multiple styled segments in one command)
+
+Event Batch v1 is the inverse direction: the engine writes a packed byte stream of input events (key/text/mouse/resize) into a caller-provided buffer.
+
+The surface area is intentionally small: throughput comes from pushing many commands/segments efficiently under configured caps, not from a large API.
 
 ## Example
 

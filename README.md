@@ -1,6 +1,5 @@
 <p align="center">
-  <img width="720" alt="<img width="1536" height="1024" alt="Zirael" src="https://github.com/user-attachments/assets/179a0cbe-b3f1-410c-a99a-537781a1134d" />
-" />
+  <img width="720" alt="Zireael" src="https://github.com/user-attachments/assets/179a0cbe-b3f1-410c-a99a-537781a1134d" />
 </p>
 
 <p align="center">
@@ -274,4 +273,3 @@ Apache-2.0
 <p align="center">
   <sub>Internal specs for contributors: <a href="docs/00_INDEX.md">docs/00_INDEX.md</a></sub>
 </p>
-

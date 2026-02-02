@@ -169,9 +169,8 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 
 ## DEMO — Go stress-test TUI
 
-![Zireael-Matrix-2](https://github.com/user-attachments/assets/49a1c964-be0f-4fcc-a348-b166ce2a6bde)
-![Zireael-Matrix-3](https://github.com/user-attachments/assets/5235bd58-2474-47f4-b855-29bf233b8549)
-
+![Zireael-Matrix-2](https://github.com/user-attachments/assets/a5f874bc-58c9-4e4d-9fab-57739a905607)
+![Zireael-Matrix-3](https://github.com/user-attachments/assets/d1959f52-86c2-4668-84bb-5045b70a57a1)
 
 This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
 

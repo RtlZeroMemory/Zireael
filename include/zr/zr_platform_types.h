@@ -44,7 +44,7 @@ typedef struct plat_caps_t {
   uint8_t           supports_scroll_region;
   uint8_t           supports_cursor_shape;
   uint8_t           supports_output_wait_writable;
-  uint8_t           _pad0[2];
+  uint8_t           _pad0[3];
 
   /*
     sgr_attrs_supported:

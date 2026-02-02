@@ -775,6 +775,7 @@ zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps) {
   c.supports_output_wait_writable = e->caps.supports_output_wait_writable;
   c._pad0[0] = 0u;
   c._pad0[1] = 0u;
+  c._pad0[2] = 0u;
   c.sgr_attrs_supported = e->caps.sgr_attrs_supported;
 
   *out_caps = c;

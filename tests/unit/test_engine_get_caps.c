@@ -30,6 +30,7 @@ ZR_TEST_UNIT(engine_get_caps_reports_platform_caps) {
   caps.supports_output_wait_writable = 1u;
   caps._pad0[0] = 0u;
   caps._pad0[1] = 0u;
+  caps._pad0[2] = 0u;
   caps.sgr_attrs_supported = 0x0Fu;
   mock_plat_set_caps(caps);
 
@@ -55,4 +56,3 @@ ZR_TEST_UNIT(engine_get_caps_reports_platform_caps) {
 
   engine_destroy(e);
 }
-

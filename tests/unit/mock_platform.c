@@ -60,6 +60,7 @@ static void zr_mock_plat_default_caps(plat_caps_t* out) {
   out->supports_output_wait_writable = 1u;
   out->_pad0[0] = 0u;
   out->_pad0[1] = 0u;
+  out->_pad0[2] = 0u;
 
   /* Allow all style attrs in unit tests. */
   out->sgr_attrs_supported = 0xFFFFFFFFu;

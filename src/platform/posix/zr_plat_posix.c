@@ -414,6 +414,7 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_output_wait_writable = 1u;
   plat->caps._pad0[0] = 0u;
   plat->caps._pad0[1] = 0u;
+  plat->caps._pad0[2] = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
   zr_result_t r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);

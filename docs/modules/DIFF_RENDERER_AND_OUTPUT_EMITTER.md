@@ -12,7 +12,8 @@ This module defines how framebuffer diffs are converted into terminal bytes and 
 
 ### Diff renderer (`src/core/zr_diff.h`)
 
-`zr_diff_render(prev, next, caps, initial_term_state, out_buf, out_cap, ...)` is a **pure** renderer:
+`zr_diff_render(prev, next, caps, initial_term_state, desired_cursor_state, lim, scratch_damage_rects, ..., out_buf, out_cap, ...)`
+is a **pure** renderer:
 
 - It does not mutate the input framebuffers.
 - It writes `out_len` bytes to the caller-provided `out_buf` on success.

@@ -22,10 +22,9 @@ typedef struct zr_terminal_caps_t {
   uint8_t           supports_scroll_region;
   uint8_t           supports_cursor_shape;
   uint8_t           supports_output_wait_writable;
-  uint8_t           _pad0[2];
+  uint8_t           _pad0[3];
 
   uint32_t          sgr_attrs_supported;
 } zr_terminal_caps_t;
 
 #endif /* ZR_ZR_TERMINAL_CAPS_H_INCLUDED */
-

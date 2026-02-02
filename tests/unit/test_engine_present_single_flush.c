@@ -57,6 +57,7 @@ ZR_TEST_UNIT(engine_present_sync_update_overhead_does_not_force_limit) {
   caps.supports_output_wait_writable = 0u;
   caps._pad0[0] = 0u;
   caps._pad0[1] = 0u;
+  caps._pad0[2] = 0u;
   caps.sgr_attrs_supported = 0xFFFFFFFFu;
   mock_plat_set_caps(caps);
 
@@ -91,6 +92,7 @@ ZR_TEST_UNIT(engine_present_wraps_output_with_sync_update_when_supported) {
   caps.supports_output_wait_writable = 0u;
   caps._pad0[0] = 0u;
   caps._pad0[1] = 0u;
+  caps._pad0[2] = 0u;
   caps.sgr_attrs_supported = 0xFFFFFFFFu;
   mock_plat_set_caps(caps);
 

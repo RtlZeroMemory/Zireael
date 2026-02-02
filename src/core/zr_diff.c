@@ -558,7 +558,7 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
                                         const zr_term_state_t* initial_term_state,
                                         const zr_cursor_state_t* desired_cursor_state,
                                         const zr_limits_t* lim,
-                                        const zr_damage_rect_t* scratch_damage_rects,
+                                        zr_damage_rect_t* scratch_damage_rects,
                                         uint32_t scratch_damage_rect_cap,
                                         uint8_t enable_scroll_optimizations,
                                         const uint8_t* out_buf,
@@ -965,7 +965,6 @@ static zr_result_t zr_diff_build_damage(zr_diff_ctx_t* ctx,
 
   return ZR_OK;
 }
-
 /* Scan row y for dirty spans and render each one. */
 static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
   if (!ctx || !ctx->prev || !ctx->next) {
@@ -1095,10 +1094,10 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
    */
   zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
 
-  const zr_result_t arg_rc =
-      zr_diff_validate_args(prev, next, caps, initial_term_state, desired_cursor_state, lim, scratch_damage_rects,
-                            scratch_damage_rect_cap, enable_scroll_optimizations, out_buf, out_len, out_final_term_state,
-                            out_stats);
+  const zr_result_t arg_rc = zr_diff_validate_args(prev, next, caps, initial_term_state, desired_cursor_state, lim,
+                                                  scratch_damage_rects, scratch_damage_rect_cap,
+                                                  enable_scroll_optimizations, out_buf, out_len, out_final_term_state,
+                                                  out_stats);
   if (arg_rc != ZR_OK) {
     return arg_rc;
   }
@@ -1123,6 +1122,7 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   }
 
   if (skip) {
+    /* Conservative: treat scroll-move frames as full-frame damage for metrics. */
     ctx.stats.damage_full_frame = 1u;
     ctx.stats.damage_rects = 1u;
     ctx.stats.damage_cells = zr_u32_mul_clamp(next->cols, next->rows);
@@ -1159,12 +1159,9 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
         }
       }
     } else {
-      for (uint32_t y = 0u; y < next->rows; y++) {
-        for (uint32_t i = 0u; i < ctx.damage.rect_count; i++) {
-          const zr_damage_rect_t* r = &ctx.damage.rects[i];
-          if (y < r->y0 || y > r->y1) {
-            continue;
-          }
+      for (uint32_t i = 0u; i < ctx.damage.rect_count; i++) {
+        const zr_damage_rect_t* r = &ctx.damage.rects[i];
+        for (uint32_t y = r->y0; y <= r->y1; y++) {
           rc = zr_diff_render_span(&ctx, y, r->x0, r->x1);
           if (rc != ZR_OK) {
             zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);

@@ -239,6 +239,10 @@ Go PoC summary:
   bytes_last:  24684
 ```
 
+![Zireael-Coding](https://github.com/user-attachments/assets/801ef14a-43ca-4b37-87e6-0771eca8c5b5)
+![Zireael-Matrix](https://github.com/user-attachments/assets/26629c78-d13f-48b8-9527-9120945fc67e)
+
+
 Source: `poc/go-codex-tui/`
 
 ## Target Audience
@@ -266,3 +270,5 @@ Apache-2.0
 <p align="center">
   <sub>Internal specs for contributors: <a href="docs/00_INDEX.md">docs/00_INDEX.md</a></sub>
 </p>
+
+

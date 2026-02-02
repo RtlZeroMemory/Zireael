@@ -102,9 +102,64 @@ Drawlist v1 supports a small set of opcodes:
 - `PUSH_CLIP` / `POP_CLIP`
 - `DRAW_TEXT_RUN` (multiple styled segments in one command)
 
+Drawlist v2 adds:
+
+- `SET_CURSOR` (position, shape, visibility, blink)
+
 Event Batch v1 is the inverse direction: the engine writes a packed byte stream of input events (key/text/mouse/resize) into a caller-provided buffer.
 
 The surface area is intentionally small: throughput comes from pushing many commands/segments efficiently under configured caps, not from a large API.
+
+## Performance Features
+
+The engine implements several optimizations for minimal terminal I/O:
+
+| Feature | Benefit |
+|---------|---------|
+| **Synchronized Output** | Wraps frames in `CSI ?2026h/l` for tear-free rendering on supported terminals |
+| **Scroll Regions** | Uses `DECSTBM + SU/SD` for bulk vertical scrolling instead of redrawing |
+| **Damage Rectangles** | Tracks changed regions; skips unchanged areas during diff |
+| **Cursor Protocol** | Single VT sequence per cursor state change (shape/blink/visibility) |
+
+These are enabled automatically when the terminal supports them. Capability detection happens at engine init.
+
+### Capability Detection
+
+The engine probes terminal capabilities at startup:
+
+```c
+typedef struct plat_caps_t {
+  plat_color_mode_t color_mode;          // 16 / 256 / RGB
+  uint8_t supports_mouse;
+  uint8_t supports_bracketed_paste;
+  uint8_t supports_focus_events;
+  uint8_t supports_osc52;                // Clipboard access
+  uint8_t supports_sync_update;          // CSI ?2026
+  uint8_t supports_scroll_region;        // DECSTBM
+  uint8_t supports_cursor_shape;         // DECSCUSR
+  uint32_t sgr_attrs_supported;          // Bold, italic, etc.
+} plat_caps_t;
+```
+
+Wrappers can query negotiated capabilities via `engine_get_metrics()`.
+
+### Metrics
+
+Every `engine_present()` updates detailed metrics:
+
+```c
+typedef struct zr_metrics_t {
+  uint64_t frame_index;
+  uint32_t fps;
+  uint64_t bytes_emitted_total;
+  uint32_t bytes_emitted_last_frame;
+  uint32_t dirty_lines_last_frame;
+  uint32_t damage_rects_last_frame;      // Rectangle count
+  uint32_t damage_cells_last_frame;      // Cell count
+  uint8_t  damage_full_frame;            // 1 if full redraw
+  // ... timing, arena stats, event stats
+} zr_metrics_t;
+```
 
 ## Example
 
@@ -253,9 +308,16 @@ Zireael is for **framework authors**, not application developers. Use it if you'
 
 ## Status
 
-**v1.0.0-rc1** — Public preview (Engine ABI v1, Drawlist v1, Event Batch v1).
+**v1.1.0** — Stable release (Engine ABI v1, Drawlist v1/v2, Event Batch v1).
 
-Stability note: the ABI and formats are versioned and defensive, but we are not claiming “battle-tested stability” yet. Expect iteration as Zireael-UI and other wrappers shake out real-world edge cases.
+New in v1.1.0:
+- Drawlist v2 with `SET_CURSOR` opcode
+- Synchronized output (tear-free rendering)
+- Scroll region optimization (DECSTBM)
+- Damage rectangle tracking
+- Enhanced capability detection
+
+See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## Contributing
 

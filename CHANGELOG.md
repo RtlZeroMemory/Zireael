@@ -4,7 +4,47 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
-- Documentation and repository hygiene updates.
+## 1.1.0 — 2026-02-02
+
+### Added
+
+**Drawlist v2**
+- `SET_CURSOR` opcode for explicit cursor control (position, shape, visibility, blink)
+- Cursor shapes: block (0), underline (1), bar (2)
+- Backward compatible: v1 drawlists still accepted
+
+**Synchronized Output**
+- Frames wrapped in `CSI ?2026h` / `CSI ?2026l` for tear-free rendering
+- Auto-enabled when terminal supports it (`supports_sync_update` capability)
+
+**Scroll Region Optimization**
+- Detects vertical scroll patterns in framebuffer changes
+- Uses `DECSTBM + SU/SD` terminal sequences for bulk scrolling
+- Reduces output from O(rows) to O(1) for scroll operations
+- Controlled via `enable_scroll_optimizations` config flag
+
+**Damage Rectangle Tracking**
+- Tracks changed regions as coalesced rectangles
+- Diff renderer skips unchanged areas
+- Configurable via `diff_max_damage_rects` limit
+- Metrics: `damage_rects_last_frame`, `damage_cells_last_frame`, `damage_full_frame`
+
+**Enhanced Capability Detection**
+- `supports_sync_update` — synchronized output protocol
+- `supports_scroll_region` — DECSTBM scroll regions
+- `supports_cursor_shape` — DECSCUSR cursor shapes
+- `supports_output_wait_writable` — non-blocking output readiness
+
+**Metrics Additions**
+- `damage_rects_last_frame` — rectangle count in last frame
+- `damage_cells_last_frame` — total damaged cells
+- `damage_full_frame` — flag indicating full redraw
+
+### Changed
+
+- `zr_diff_render()` signature extended for damage tracking and cursor state
+- `zr_limits_t` now includes `diff_max_damage_rects`
+- `plat_caps_t` extended with new capability fields
 
 ## 1.0.0-rc1 — 2026-02-02
 

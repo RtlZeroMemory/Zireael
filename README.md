@@ -253,7 +253,9 @@ Zireael is for **framework authors**, not application developers. Use it if you'
 
 ## Status
 
-**v1.0.0** — Engine ABI stable. Drawlist v1 and Event Batch v1 locked.
+**v1.0.0-rc1** — Public preview (Engine ABI v1, Drawlist v1, Event Batch v1).
+
+Stability note: the ABI and formats are versioned and defensive, but we are not claiming “battle-tested stability” yet. Expect iteration as Zireael-UI and other wrappers shake out real-world edge cases.
 
 ## Contributing
 

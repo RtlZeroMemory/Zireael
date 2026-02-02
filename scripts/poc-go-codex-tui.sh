@@ -65,14 +65,15 @@ ensure_go() {
 ensure_engine_build() {
   need_cmd cmake
 
-  local build_dir="${ROOT}/out/build/posix-clang-debug"
+  local preset="${ZIREAEL_PRESET:-posix-clang-release}"
+  local build_dir="${ROOT}/out/build/${preset}"
   if [[ ! -d "${build_dir}" ]]; then
-    echo "Configuring Zireael (posix-clang-debug)..."
-    cmake --preset posix-clang-debug
+    echo "Configuring Zireael (${preset})..."
+    cmake --preset "${preset}"
   fi
 
-  echo "Building Zireael (posix-clang-debug)..."
-  cmake --build --preset posix-clang-debug
+  echo "Building Zireael (${preset})..."
+  cmake --build --preset "${preset}"
 }
 
 ensure_go

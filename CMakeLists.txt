@@ -58,7 +58,6 @@ set(ZIREAEL_SOURCES
         src/core/zr_framebuffer.c
         src/core/zr_input_parser.c
         src/core/zr_metrics.c
-        src/core/zr_placeholder.c
         src/platform/zr_platform_select.c
         src/unicode/zr_grapheme.c
         src/unicode/zr_unicode_data.c
@@ -115,6 +114,11 @@ if (ZIREAEL_BUILD_SHARED)
             C_STANDARD_REQUIRED YES
             C_EXTENSIONS NO
     )
+    if (WIN32)
+        set_target_properties(zireael_shared PROPERTIES
+                WINDOWS_EXPORT_ALL_SYMBOLS YES
+        )
+    endif ()
 
     target_link_libraries(zireael_shared PRIVATE zireael_build_settings)
 

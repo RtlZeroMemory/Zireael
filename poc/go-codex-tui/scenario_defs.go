@@ -1,5 +1,3 @@
-//go:build !windows
-
 package main
 
 type scenarioID uint8

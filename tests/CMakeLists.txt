@@ -9,7 +9,6 @@ add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/core/zr_framebuffer.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_input_parser.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_metrics.c
-        ${PROJECT_SOURCE_DIR}/src/core/zr_placeholder.c
         ${PROJECT_SOURCE_DIR}/src/unicode/zr_grapheme.c
         ${PROJECT_SOURCE_DIR}/src/unicode/zr_unicode_data.c
         ${PROJECT_SOURCE_DIR}/src/unicode/zr_utf8.c

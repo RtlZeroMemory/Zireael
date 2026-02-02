@@ -18,7 +18,7 @@
 
 ## What is Zireael?
 
-Zireael is a low-level terminal rendering engine for embedding in TUI frameworks. It handles terminal I/O, input parsing, diff-based rendering, and Unicode grapheme handling.
+Zireael is a low-level terminal rendering engine for embedding in TUI frameworks. It provides a small, stable C ABI that lets any language drive rendering by submitting a versioned, binary **drawlist** and receiving a packed **event batch**.
 
 This engine is the foundation for **Zireael-UI**, a TypeScript TUI framework (coming soon).
 
@@ -36,20 +36,20 @@ This engine is the foundation for **Zireael-UI**, a TypeScript TUI framework (co
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**You provide:** Binary drawlist (rendering commands)
-**Engine returns:** Packed event batch (keys, mouse, resize)
-**Engine handles:** Terminal setup, efficient output, Unicode width
+**You provide:** binary drawlist bytes (rendering commands)
+**Engine returns:** packed event batch bytes (keys, mouse, resize, text)
+**Engine handles:** terminal setup, diff-based rendering, efficient output, pinned Unicode policies
 
 ## Why Zireael?
 
-Building a TUI framework requires solving:
+Building a TUI framework requires solving the same hard problems repeatedly:
 
 - Terminal I/O — raw mode, signal handling, platform differences
 - Efficient rendering — diff algorithms, cursor optimization, minimal escape sequences
 - Unicode — grapheme clusters, character widths, text wrapping
 - Input parsing — ANSI sequences, mouse protocols, bracketed paste
 
-Zireael solves these once with a stable ABI callable from any language via FFI.
+Zireael solves these once behind a strict platform boundary and exposes a **deterministic**, bounded surface for wrappers.
 
 ## Design Principles
 
@@ -59,6 +59,14 @@ Zireael solves these once with a stable ABI callable from any language via FFI.
 | Zero allocations at boundary | Caller provides buffers |
 | Platform isolation | OS headers confined to `src/platform/` |
 | Single flush | One write() per frame |
+
+## What you get (as a framework author)
+
+- A stable ABI (`engine_create`, `engine_poll_events`, `engine_submit_drawlist`, `engine_present`)
+- A versioned, little-endian drawlist format (wrappers write bytes; engine validates defensively)
+- A diff renderer that minimizes terminal traffic (cursor/SGR/output coalescing)
+- Pinned Unicode grapheme + width policy for stable layout and wrapping
+- A strict platform boundary so core stays OS-header-free
 
 ## Example
 
@@ -121,7 +129,7 @@ cmake --build --preset windows-clangcl-debug
 ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 ```
 
-## Go PoC Demo — Stress-test TUI
+## DEMO — Go stress-test TUI
 
 This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
 
@@ -130,10 +138,27 @@ This repo includes an optional proof-of-concept **Go** wrapper demo that drives 
 - high-stress scenarios (Matrix Rain + Neon Particle Storm with large per-frame command counts)
 - performance overlay (FPS, Zireael dirty/bytes stats, Go RAM stats)
 
-Run (one command; downloads a local Go toolchain automatically if `go` is missing):
+Run (one command; bootstraps a local Go toolchain automatically if `go` is missing):
 
 ```bash
 bash scripts/poc-go-codex-tui.sh
+```
+
+Windows (PowerShell; builds `zireael.dll` and runs the demo natively):
+
+```powershell
+.\scripts\poc-go-codex-tui.ps1
+```
+
+Windows notes:
+
+- Requires Visual Studio 2022 (or Build Tools) with C++ + Windows SDK.
+- If your PowerShell execution policy blocks scripts, run: `powershell -ExecutionPolicy Bypass -File .\scripts\poc-go-codex-tui.ps1`
+
+Build preset override (optional; defaults to release presets for smoother rendering):
+
+```bash
+ZIREAEL_PRESET=posix-clang-release bash scripts/poc-go-codex-tui.sh
 ```
 
 Scenario start examples:
@@ -155,10 +180,28 @@ Notes:
 - `-fps` is a *cap*. Omit it (default) to run uncapped.
 - Many terminal emulators effectively refresh around ~60–144 Hz; uncapped mode may still report FPS near that while you increase backend stress via `-storm-n` and `-phantom`.
 
-Benchmark example (10 seconds, Neon Particle Storm):
+Benchmark example (Neon Particle Storm):
 
 ```bash
 bash scripts/poc-go-codex-tui.sh -scenario storm -bench-seconds 10 -storm-n 150000 -storm-visible 25000 -phantom 200000
+```
+
+What the demo stresses:
+
+- drawlist validation + dispatch at high command counts
+- diff renderer behavior under heavy animation
+- platform flush behavior (single flush per present)
+- wrapper overhead (Go drawlist building + string/blob management)
+
+Example benchmark output (POSIX release preset):
+
+```
+Go PoC summary:
+  duration: 3s
+  frames:   448
+  avg_fps:  149.2
+  bytes_total: 10092464
+  bytes_last:  24684
 ```
 
 Source: `poc/go-codex-tui/`

@@ -1,5 +1,3 @@
-//go:build !windows
-
 package main
 
 type xorshift32 struct {

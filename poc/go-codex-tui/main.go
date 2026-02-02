@@ -1,5 +1,3 @@
-//go:build !windows
-
 package main
 
 import (
@@ -9,7 +7,6 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -330,13 +327,15 @@ func main() {
 	flag.Parse()
 
 	cfg := zrDefaultConfig()
-	cfg.plat.requested_color_mode = 3
-	cfg.limits.out_max_bytes_per_frame = 16 * 1024 * 1024
-	cfg.limits.dl_max_total_bytes = 64 * 1024 * 1024
-	cfg.limits.dl_max_cmds = 800000
-	cfg.limits.dl_max_strings = 400000
-	cfg.limits.dl_max_blobs = 4096
-	cfg.limits.dl_max_text_run_segments = 4096
+	cfg.plat.requestedColorMode = platColorRGB
+	cfg.limits.arenaMaxTotalBytes = 256 * 1024 * 1024
+	cfg.limits.arenaInitialBytes = 4 * 1024 * 1024
+	cfg.limits.outMaxBytesPerFrame = 16 * 1024 * 1024
+	cfg.limits.dlMaxTotalBytes = 64 * 1024 * 1024
+	cfg.limits.dlMaxCmds = 800000
+	cfg.limits.dlMaxStrings = 400000
+	cfg.limits.dlMaxBlobs = 4096
+	cfg.limits.dlMaxTextRunSegments = 4096
 
 	e, err := zrCreate(&cfg)
 	if err != nil {
@@ -381,7 +380,7 @@ func main() {
 	}
 
 	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sigc, appSignals()...)
 	defer signal.Stop(sigc)
 
 	quit := false
@@ -535,9 +534,9 @@ func main() {
 		}
 
 		if m, err := e.Metrics(); err == nil {
-			lastEngineBytes = uint32(m.bytes_emitted_last_frame)
-			lastDirtyCols = uint32(m.dirty_cols_last_frame)
-			lastDirtyRows = uint32(m.dirty_lines_last_frame)
+			lastEngineBytes = uint32(m.bytesEmittedLast)
+			lastDirtyCols = uint32(m.dirtyColsLastFrame)
+			lastDirtyRows = uint32(m.dirtyLinesLastFrame)
 		}
 
 		if *flagFPS > 0 {
@@ -563,15 +562,15 @@ func main() {
 	dur := time.Since(start)
 	avgFPS := 0.0
 	if dur > 0 {
-		avgFPS = float64(finalM.frame_index) / dur.Seconds()
+		avgFPS = float64(finalM.frameIndex) / dur.Seconds()
 	}
 
 	fmt.Printf("Go PoC summary:\n")
 	fmt.Printf("  duration: %s\n", dur.Round(10*time.Millisecond))
-	fmt.Printf("  frames:   %d\n", uint64(finalM.frame_index))
+	fmt.Printf("  frames:   %d\n", uint64(finalM.frameIndex))
 	fmt.Printf("  avg_fps:  %.1f\n", avgFPS)
-	fmt.Printf("  bytes_total: %d\n", uint64(finalM.bytes_emitted_total))
-	fmt.Printf("  bytes_last:  %d\n", uint64(finalM.bytes_emitted_last_frame))
+	fmt.Printf("  bytes_total: %d\n", uint64(finalM.bytesEmittedTotal))
+	fmt.Printf("  bytes_last:  %d\n", uint64(finalM.bytesEmittedLast))
 	if runErr != nil {
 		fmt.Printf("  error: %v\n", runErr)
 	}

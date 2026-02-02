@@ -68,7 +68,7 @@ Zireael solves these once behind a strict platform boundary and exposes a determ
 - **Bounded work**: explicit caps for drawlist sizes, counts, and output bytes per frame.
 - **Backend isolation**: core/unicode/util stay OS-header-free; OS code lives in `src/platform/*`.
 
-## How it works (concretely)
+## How it works 
 
 Per frame, a wrapper typically does:
 
@@ -80,7 +80,7 @@ Per frame, a wrapper typically does:
 
 This keeps the wrapper focused on widgets/layout/state while the engine owns terminal correctness, Unicode policies, and output performance.
 
-## Design constraints (non-negotiable)
+## Design constraints 
 
 - **Stable ABI + formats**: plain C functions and versioned on-wire formats (drawlist/event batch) for wrappers in any language.
 - **Deterministic behavior**: pinned ABI/format versions and pinned Unicode width/grapheme policy (no locale-dependent width tables).

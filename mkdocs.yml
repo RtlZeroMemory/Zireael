@@ -1,8 +1,8 @@
 site_name: Zireael
 site_description: A deterministic terminal UI core engine in C — the foundation for building cross-platform TUI frameworks.
-site_url: https://rtlzeromemory.github.io/Zireael.Core/
-repo_url: https://github.com/RtlZeroMemory/Zireael.Core
-repo_name: RtlZeroMemory/Zireael.Core
+site_url: https://rtlzeromemory.github.io/Zireael/
+repo_url: https://github.com/RtlZeroMemory/Zireael
+repo_name: RtlZeroMemory/Zireael
 edit_uri: edit/main/docs-user/
 
 docs_dir: docs-user
@@ -83,7 +83,7 @@ extra:
     default: stable
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/RtlZeroMemory/Zireael.Core
+      link: https://github.com/RtlZeroMemory/Zireael
   generator: false
 
 nav:

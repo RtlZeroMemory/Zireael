@@ -7,10 +7,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/RtlZeroMemory/Zireael.Core/actions/workflows/ci.yml"><img src="https://github.com/RtlZeroMemory/Zireael.Core/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/RtlZeroMemory/Zireael.Core/releases"><img src="https://img.shields.io/github/v/release/RtlZeroMemory/Zireael.Core" alt="Release"></a>
+  <a href="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml"><img src="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/RtlZeroMemory/Zireael/releases"><img src="https://img.shields.io/github/v/release/RtlZeroMemory/Zireael" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
-  <a href="https://rtlzeromemory.github.io/Zireael.Core/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs"></a>
+  <a href="https://rtlzeromemory.github.io/Zireael/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs"></a>
 </p>
 
 ---
@@ -143,12 +143,12 @@ int main(void) {
 
 ## Documentation
 
-**[Full Documentation](https://rtlzeromemory.github.io/Zireael.Core/)** — ABI reference, concepts, integration guide
+**[Full Documentation](https://rtlzeromemory.github.io/Zireael/)** — ABI reference, concepts, integration guide
 
-- [ABI Overview](https://rtlzeromemory.github.io/Zireael.Core/abi/overview/) — Functions and binary format rules
-- [Drawlist v1](https://rtlzeromemory.github.io/Zireael.Core/abi/drawlist-v1/) — Rendering command format
-- [Event Batch v1](https://rtlzeromemory.github.io/Zireael.Core/abi/event-batch-v1/) — Input event format
-- [Configuration](https://rtlzeromemory.github.io/Zireael.Core/abi/config/) — Config struct layout
+- [ABI Overview](https://rtlzeromemory.github.io/Zireael/abi/overview/) — Functions and binary format rules
+- [Drawlist v1](https://rtlzeromemory.github.io/Zireael/abi/drawlist-v1/) — Rendering command format
+- [Event Batch v1](https://rtlzeromemory.github.io/Zireael/abi/event-batch-v1/) — Input event format
+- [Configuration](https://rtlzeromemory.github.io/Zireael/abi/config/) — Config struct layout
 
 ## Building
 

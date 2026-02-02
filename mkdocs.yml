@@ -1,0 +1,107 @@
+site_name: Zireael
+site_description: A deterministic terminal UI core engine in C — the foundation for building cross-platform TUI frameworks.
+site_url: https://rtlzeromemory.github.io/Zireael.Core/
+repo_url: https://github.com/RtlZeroMemory/Zireael.Core
+repo_name: RtlZeroMemory/Zireael.Core
+edit_uri: edit/main/docs-user/
+
+docs_dir: docs-user
+site_dir: out/site
+
+theme:
+  name: material
+  custom_dir: docs-user/overrides
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - announce.dismiss
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - def_list
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  version:
+    provider: mike
+    default: stable
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/RtlZeroMemory/Zireael.Core
+  generator: false
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Build & Test: getting-started/build-and-test.md
+      - Integration: getting-started/cmake-integration.md
+      - Examples: getting-started/examples.md
+  - ABI Reference:
+      - Overview: abi/overview.md
+      - Configuration: abi/config.md
+      - Metrics: abi/metrics.md
+      - Drawlist v1: abi/drawlist-v1.md
+      - Event Batch v1: abi/event-batch-v1.md
+  - Concepts:
+      - Engine Model: concepts/engine-model.md
+      - Ownership: concepts/ownership.md
+      - Determinism: concepts/determinism.md
+  - Platform:
+      - POSIX: platform/posix.md
+      - Win32: platform/win32.md

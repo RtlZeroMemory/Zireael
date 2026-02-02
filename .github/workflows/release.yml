@@ -1,0 +1,101 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: create release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+  build:
+    name: ${{ matrix.name }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            preset: posix-clang-release
+            pkg_os: linux
+          - name: macos
+            os: macos-latest
+            preset: posix-clang-release
+            pkg_os: macos
+          - name: windows
+            os: windows-latest
+            preset: windows-clangcl-release
+            pkg_os: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+
+      - name: Install toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Install toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja --no-progress -y
+
+      - name: MSVC dev cmd (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (shared ON)
+        run: cmake --preset ${{ matrix.preset }} -DZIREAEL_BUILD_SHARED=ON -DZIREAEL_BUILD_EXAMPLES=OFF -DZIREAEL_BUILD_TESTS=OFF
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          arch="$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
+          name="zireael-core-${{ matrix.pkg_os }}-${arch}"
+          build_dir="out/build/${{ matrix.preset }}"
+          stage="dist/${name}"
+          mkdir -p "${stage}"
+
+          cp -r include "${stage}/"
+          cp LICENSE "${stage}/"
+          cp README.md "${stage}/"
+
+          if [[ "${{ matrix.pkg_os }}" == "windows" ]]; then
+            cp "${build_dir}/zireael.dll" "${stage}/"
+            cp "${build_dir}/zireael.lib" "${stage}/"
+            if [[ -f "${build_dir}/zireael.pdb" ]]; then
+              cp "${build_dir}/zireael.pdb" "${stage}/"
+            fi
+          elif [[ "${{ matrix.pkg_os }}" == "macos" ]]; then
+            cp "${build_dir}/libzireael.dylib" "${stage}/"
+            cp "${build_dir}/libzireael.a" "${stage}/"
+          else
+            cp "${build_dir}/libzireael.so" "${stage}/"
+            cp "${build_dir}/libzireael.a" "${stage}/"
+          fi
+
+          python -m zipfile -c "dist/${name}.zip" "${stage}"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          fail_on_unmatched_files: true

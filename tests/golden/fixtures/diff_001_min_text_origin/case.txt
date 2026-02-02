@@ -1,0 +1,12 @@
+# fixture_id: diff_001_min_text_origin
+# purpose: minimal text at origin; no CUP/SGR when initial state matches.
+#
+# pinned:
+#   - caps.color_mode = RGB (truecolor)
+#   - caps.sgr_attrs_supported = all
+#   - initial_term_state.cursor = (0,0)
+#   - initial_term_state.style = default (fg=0 bg=0 attrs=0)
+#
+# prev: "  "
+# next: "Hi"
+

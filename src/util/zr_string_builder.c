@@ -1,0 +1,90 @@
+/*
+  src/util/zr_string_builder.c — Bounded byte writer implementation.
+
+  Why: Ensures deterministic truncation: writes either all bytes or none.
+*/
+
+#include "util/zr_string_builder.h"
+
+#include "util/zr_bytes.h"
+
+#include <string.h>
+
+void zr_sb_init(zr_sb_t* sb, uint8_t* buf, size_t cap) {
+  if (!sb) {
+    return;
+  }
+  sb->buf = buf;
+  sb->cap = cap;
+  sb->len = 0u;
+  sb->truncated = false;
+}
+
+void zr_sb_reset(zr_sb_t* sb) {
+  if (!sb) {
+    return;
+  }
+  sb->len = 0u;
+  sb->truncated = false;
+}
+
+size_t zr_sb_len(const zr_sb_t* sb) {
+  return sb ? sb->len : 0u;
+}
+
+bool zr_sb_truncated(const zr_sb_t* sb) {
+  return sb ? sb->truncated : true;
+}
+
+static bool zr_sb__can_write(const zr_sb_t* sb, size_t n) {
+  if (!sb || (!sb->buf && sb->cap != 0u)) {
+    return false;
+  }
+  if (sb->len > sb->cap) {
+    return false;
+  }
+  if (n > (sb->cap - sb->len)) {
+    return false;
+  }
+  return true;
+}
+
+/* Write bytes to builder; sets truncated flag and returns false if no space. */
+bool zr_sb_write_bytes(zr_sb_t* sb, const void* bytes, size_t len) {
+  if (!sb || (!bytes && len != 0u)) {
+    return false;
+  }
+  if (!zr_sb__can_write(sb, len)) {
+    if (sb) {
+      sb->truncated = true;
+    }
+    return false;
+  }
+  if (len != 0u) {
+    memcpy(sb->buf + sb->len, bytes, len);
+  }
+  sb->len += len;
+  return true;
+}
+
+bool zr_sb_write_u8(zr_sb_t* sb, uint8_t v) {
+  return zr_sb_write_bytes(sb, &v, 1u);
+}
+
+bool zr_sb_write_u16le(zr_sb_t* sb, uint16_t v) {
+  uint8_t tmp[2];
+  zr_store_u16le(tmp, v);
+  return zr_sb_write_bytes(sb, tmp, sizeof(tmp));
+}
+
+bool zr_sb_write_u32le(zr_sb_t* sb, uint32_t v) {
+  uint8_t tmp[4];
+  zr_store_u32le(tmp, v);
+  return zr_sb_write_bytes(sb, tmp, sizeof(tmp));
+}
+
+bool zr_sb_write_u64le(zr_sb_t* sb, uint64_t v) {
+  uint8_t tmp[8];
+  zr_store_u64le(tmp, v);
+  return zr_sb_write_bytes(sb, tmp, sizeof(tmp));
+}

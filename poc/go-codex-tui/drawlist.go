@@ -15,7 +15,7 @@ import (
 const (
 	zrDlMagic = uint32(0x4C44525A) // 'ZRDL' little-endian u32
 
-	zrDrawlistVersionV1 = uint32(1)
+	zrDlVersionV1 = uint32(1)
 
 	zrDlOpClear       = uint16(1)
 	zrDlOpFillRect    = uint16(2)
@@ -315,7 +315,7 @@ func (b *dlBuilder) Build() []byte {
 
 	h := b.out[:headerSize]
 	binary.LittleEndian.PutUint32(h[0:], zrDlMagic)
-	binary.LittleEndian.PutUint32(h[4:], zrDrawlistVersionV1)
+	binary.LittleEndian.PutUint32(h[4:], zrDlVersionV1)
 	binary.LittleEndian.PutUint32(h[8:], uint32(headerSize))
 	binary.LittleEndian.PutUint32(h[12:], totalSize)
 	binary.LittleEndian.PutUint32(h[16:], cmdOff)

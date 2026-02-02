@@ -1,5 +1,3 @@
-//go:build !windows
-
 package main
 
 type xorshift32 struct {
@@ -21,4 +19,3 @@ func (r *xorshift32) Next() uint32 {
 	r.s = x
 	return x
 }
-

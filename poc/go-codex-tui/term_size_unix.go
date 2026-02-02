@@ -25,4 +25,3 @@ func ttySize(fd uintptr) (cols, rows int, ok bool) {
 	}
 	return int(ws.col), int(ws.row), true
 }
-

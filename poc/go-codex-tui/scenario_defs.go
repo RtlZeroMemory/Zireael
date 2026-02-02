@@ -1,5 +1,3 @@
-//go:build !windows
-
 package main
 
 type scenarioID uint8
@@ -33,4 +31,3 @@ var scenarios = []scenarioDef{
 		desc: "High-command-count particle renderer to stress parsing/execution and Go wrapper throughput.",
 	},
 }
-

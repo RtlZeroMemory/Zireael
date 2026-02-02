@@ -147,6 +147,30 @@ static void zr_posix_drain_fd_best_effort(int fd) {
   }
 }
 
+static zr_result_t zr_posix_wait_writable(int fd) {
+  struct pollfd pfd;
+  pfd.fd = fd;
+  pfd.events = POLLOUT;
+  pfd.revents = 0;
+
+  for (;;) {
+    int rc = poll(&pfd, 1u, -1);
+    if (rc > 0) {
+      if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+        return ZR_ERR_PLATFORM;
+      }
+      return ZR_OK;
+    }
+    if (rc == 0) {
+      continue;
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    return ZR_ERR_PLATFORM;
+  }
+}
+
 /* Write all bytes to fd, retrying on EINTR; returns error on partial write failure. */
 static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {
   if (len < 0) {
@@ -164,6 +188,18 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len)
     ssize_t n = write(fd, bytes + (size_t)written, (size_t)(len - written));
     if (n > 0) {
       written += (int32_t)n;
+      continue;
+    }
+    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      /*
+        Terminals are typically blocking, but stdout may be configured as
+        non-blocking by a parent process or wrapper. Treat EAGAIN as a
+        transient backpressure signal and wait until the fd is writable.
+      */
+      zr_result_t rc = zr_posix_wait_writable(fd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
       continue;
     }
     if (n < 0 && errno == EINTR) {

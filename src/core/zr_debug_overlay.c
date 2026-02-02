@@ -20,6 +20,7 @@ static void zr_cell_set_ascii(zr_cell_t* cell, uint8_t ch, zr_style_t style) {
   cell->glyph[0] = ch;
   cell->glyph_len = 1u;
   cell->width = 1u;
+  cell->_pad0 = 0u;
   cell->style = style;
 }
 

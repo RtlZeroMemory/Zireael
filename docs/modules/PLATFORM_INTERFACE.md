@@ -13,3 +13,10 @@ The platform interface is the hard boundary between core determinism and OS-spec
 See:
 
 - `src/platform/zr_platform.h`
+
+## Output capabilities
+
+`plat_get_caps()` reports terminal/backend capabilities that affect output emission:
+
+- `plat_caps_t.supports_scroll_region` — safe to use DECSTBM + SU/SD for scroll optimizations.
+- `plat_caps_t.supports_sync_update` — safe to wrap presents in DEC private mode `?2026` (synchronized updates).

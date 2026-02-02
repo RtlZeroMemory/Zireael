@@ -40,7 +40,9 @@ typedef struct plat_caps_t {
   uint8_t           supports_bracketed_paste;
   uint8_t           supports_focus_events;
   uint8_t           supports_osc52;
-  uint8_t           _pad[3];
+  uint8_t           supports_sync_update;
+  uint8_t           supports_scroll_region;
+  uint8_t           _pad0;
 
   /*
     sgr_attrs_supported:

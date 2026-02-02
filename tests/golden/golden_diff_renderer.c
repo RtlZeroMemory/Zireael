@@ -74,6 +74,15 @@ static void zr_fb_set_utf8(zr_fb_t* fb,
   c->style = style;
 }
 
+static void zr_fb_fill_row_ascii(zr_fb_t* fb, uint32_t y, uint8_t ch, zr_style_t style) {
+  if (!fb) {
+    return;
+  }
+  for (uint32_t x = 0u; x < fb->cols; x++) {
+    zr_fb_set_ascii(fb, x, y, ch, style);
+  }
+}
+
 /*
  * Test: diff_001_min_text_origin
  *
@@ -103,10 +112,54 @@ ZR_TEST_GOLDEN(diff_001_min_text_origin) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_001_min_text_origin", out, out_len) == 0);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_004_scroll_region_scroll_up_fullscreen
+ *
+ * Scenario: Fullscreen scroll-up by 1 line where most rows are identical after the shift.
+ *           When scroll optimizations are enabled and supported, emit DECSTBM + SU and
+ *           redraw only the newly exposed bottom line.
+ */
+ZR_TEST_GOLDEN(diff_004_scroll_region_scroll_up_fullscreen) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 16u, 17u);
+  (void)zr_fb_init(&next, 16u, 17u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  for (uint32_t y = 0u; y < 17u; y++) {
+    const uint8_t ch = (uint8_t)('A' + (uint8_t)y);
+    zr_fb_fill_row_ascii(&prev, y, ch, s);
+  }
+  for (uint32_t y = 0u; y < 16u; y++) {
+    const uint8_t ch = (uint8_t)('B' + (uint8_t)y);
+    zr_fb_fill_row_ascii(&next, y, ch, s);
+  }
+  zr_fb_fill_row_ascii(&next, 16u, (uint8_t)'R', s);
+
+  plat_caps_t caps = zr_caps_rgb_all_attrs();
+  caps.supports_scroll_region = 1u;
+  const zr_term_state_t initial = zr_term_default();
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc =
+      zr_diff_render(&prev, &next, &caps, &initial, 1u, out, sizeof(out), &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_004_scroll_region_scroll_up_fullscreen", out, out_len) == 0);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -147,7 +200,7 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   /* --- Assert --- */
@@ -192,7 +245,7 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   /* --- Assert --- */

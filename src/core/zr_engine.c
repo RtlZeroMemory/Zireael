@@ -69,6 +69,9 @@ enum {
   ZR_ENGINE_READ_LOOP_MAX = 64u,
 };
 
+static const uint8_t ZR_SYNC_BEGIN[] = "\x1b[?2026h";
+static const uint8_t ZR_SYNC_END[] = "\x1b[?2026l";
+
 static uint32_t zr_engine_now_ms_u32(void) {
   /* v1: time_ms is u32; truncation is deterministic and acceptable for telemetry. */
   return (uint32_t)plat_now_ms();
@@ -460,11 +463,32 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e,
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_result_t rc = zr_diff_render(&e->fb_prev, &e->fb_next, &e->caps, &e->term_state, e->out_buf, e->out_cap,
-                                  out_len, final_ts, stats);
+  const bool use_sync = (e->caps.supports_sync_update != 0u);
+  const size_t prefix_len = use_sync ? (sizeof(ZR_SYNC_BEGIN) - 1u) : 0u;
+  const size_t suffix_len = use_sync ? (sizeof(ZR_SYNC_END) - 1u) : 0u;
+  if ((prefix_len + suffix_len) > e->out_cap) {
+    return ZR_ERR_LIMIT;
+  }
+
+  uint8_t* diff_out = e->out_buf + prefix_len;
+  const size_t diff_cap = e->out_cap - prefix_len - suffix_len;
+
+  size_t diff_len = 0u;
+  zr_result_t rc = zr_diff_render(&e->fb_prev, &e->fb_next, &e->caps, &e->term_state,
+                                  e->cfg_runtime.enable_scroll_optimizations, diff_out, diff_cap, &diff_len, final_ts,
+                                  stats);
   if (rc != ZR_OK) {
     return rc;
   }
+
+  if (use_sync) {
+    memcpy(e->out_buf, ZR_SYNC_BEGIN, prefix_len);
+    memcpy(e->out_buf + prefix_len + diff_len, ZR_SYNC_END, suffix_len);
+  }
+
+  *out_len = prefix_len + diff_len + suffix_len;
+  stats->bytes_emitted = *out_len;
+
   if (*out_len > (size_t)INT32_MAX) {
     return ZR_ERR_LIMIT;
   }

@@ -138,6 +138,7 @@ static void zr_cell_set_space(zr_cell_t* cell, zr_style_t style) {
   cell->glyph[0] = (uint8_t)' ';
   cell->glyph_len = 1u;
   cell->width = 1u;
+  cell->_pad0 = 0u;
   cell->style = style;
 }
 
@@ -154,6 +155,7 @@ static void zr_cell_set_grapheme_width1(zr_cell_t* cell, const uint8_t* bytes, s
   }
   cell->glyph_len = (uint8_t)copy_len;
   cell->width = 1u;
+  cell->_pad0 = 0u;
   cell->style = style;
 }
 
@@ -164,6 +166,7 @@ static void zr_cell_set_continuation(zr_cell_t* cell, zr_style_t style) {
   memset(cell->glyph, 0, sizeof(cell->glyph));
   cell->glyph_len = 0u;
   cell->width = 0u;
+  cell->_pad0 = 0u;
   cell->style = style;
 }
 

@@ -4,6 +4,13 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.1.1-rc1 — 2026-02-02
+
+### Fixed
+
+- Go PoC: sync `zr_engine_config_t` mirror with `zr_limits_t.diff_max_damage_rects` and `wait_for_output_drain`.
+- Go PoC runner: force a rebuild (`go run -a`) to avoid stale cgo builds after header/ABI changes.
+
 ## 1.1.0 — 2026-02-02
 
 ### Added

@@ -41,6 +41,7 @@ type zrLimits struct {
 	dlMaxBlobs           uint32
 	dlMaxClipDepth       uint32
 	dlMaxTextRunSegments uint32
+	diffMaxDamageRects   uint32
 }
 
 type zrPlatConfig struct {
@@ -69,7 +70,7 @@ type zrEngineConfig struct {
 	enableScrollOptimizations uint8
 	enableDebugOverlay        uint8
 	enableReplayRecording     uint8
-	_pad0                     uint8
+	waitForOutputDrain        uint8
 }
 
 type zrMetrics struct {
@@ -101,6 +102,7 @@ func zrEngineConfigDefault() zrEngineConfig {
 			dlMaxBlobs:           4096,
 			dlMaxClipDepth:       64,
 			dlMaxTextRunSegments: 4096,
+			diffMaxDamageRects:   4096,
 		},
 		plat: zrPlatConfig{
 			requestedColorMode:   platColorUnknown,
@@ -115,6 +117,6 @@ func zrEngineConfigDefault() zrEngineConfig {
 		enableScrollOptimizations: 1,
 		enableDebugOverlay:        0,
 		enableReplayRecording:     0,
-		_pad0:                     0,
+		waitForOutputDrain:        0,
 	}
 }

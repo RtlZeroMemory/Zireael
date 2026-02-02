@@ -55,6 +55,7 @@ func zrCreate(cfg *zrEngineConfig) (*zrEngine, error) {
 			dl_max_blobs:             C.uint32_t(cfg.limits.dlMaxBlobs),
 			dl_max_clip_depth:        C.uint32_t(cfg.limits.dlMaxClipDepth),
 			dl_max_text_run_segments: C.uint32_t(cfg.limits.dlMaxTextRunSegments),
+			diff_max_damage_rects:    C.uint32_t(cfg.limits.diffMaxDamageRects),
 		},
 		plat: C.plat_config_t{
 			requested_color_mode:   C.plat_color_mode_t(cfg.plat.requestedColorMode),
@@ -70,7 +71,7 @@ func zrCreate(cfg *zrEngineConfig) (*zrEngine, error) {
 		enable_scroll_optimizations: C.uint8_t(cfg.enableScrollOptimizations),
 		enable_debug_overlay:        C.uint8_t(cfg.enableDebugOverlay),
 		enable_replay_recording:     C.uint8_t(cfg.enableReplayRecording),
-		_pad0:                       C.uint8_t(cfg._pad0),
+		wait_for_output_drain:       C.uint8_t(cfg.waitForOutputDrain),
 	}
 
 	var e *C.zr_engine_t

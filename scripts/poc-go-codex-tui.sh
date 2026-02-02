@@ -80,4 +80,4 @@ ensure_go
 ensure_engine_build
 
 cd "${ROOT}/poc/go-codex-tui"
-exec go run . "$@"
+exec go run -a . "$@"

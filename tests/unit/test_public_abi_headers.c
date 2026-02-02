@@ -24,6 +24,7 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   /* Ensure the pinned version macros are usable from the public surface. */
   ZR_ASSERT_TRUE(ZR_ENGINE_ABI_MAJOR == 1u);
   ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V1 == 1u);
+  ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V2 == 2u);
   ZR_ASSERT_TRUE(ZR_EVENT_BATCH_VERSION_V1 == 1u);
 
   /* Ensure the public engine symbols link and are callable. */
@@ -41,7 +42,7 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   r.enable_scroll_optimizations = cfg.enable_scroll_optimizations;
   r.enable_debug_overlay = cfg.enable_debug_overlay;
   r.enable_replay_recording = cfg.enable_replay_recording;
-  r._pad0 = 0u;
+  r.wait_for_output_drain = cfg.wait_for_output_drain;
 
   ZR_ASSERT_TRUE(zr_engine_runtime_config_validate(&r) == ZR_OK);
 

@@ -49,6 +49,7 @@ endif ()
 
 set(ZIREAEL_SOURCES
         src/core/zr_config.c
+        src/core/zr_damage.c
         src/core/zr_diff.c
         src/core/zr_debug_overlay.c
         src/core/zr_drawlist.c

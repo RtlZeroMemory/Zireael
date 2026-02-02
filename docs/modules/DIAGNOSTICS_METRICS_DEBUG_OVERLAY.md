@@ -30,6 +30,17 @@ When a non-zero prefix copy occurs, the copied prefix includes the `struct_size`
 current struct size (`sizeof(zr_metrics_t)`) back to the caller. This allows wrappers to detect newer versions and
 allocate a larger struct if desired.
 
+## Damage summary metrics
+
+The diff/present path records a damage summary for the last successfully presented frame:
+
+- `damage_rects_last_frame` — number of coalesced damage rectangles rendered/emitted.
+- `damage_cells_last_frame` — number of character cells covered by those rectangles.
+- `damage_full_frame` — `1` when the engine treated the frame as “full damage” (e.g. due to a fullscreen operation or
+  a cap/overflow fallback), else `0`.
+
+These fields are **append-only** and are prefix-copied like the rest of `zr_metrics_t`.
+
 ## Debug overlay renderer
 
 Defined in `src/core/zr_debug_overlay.h` / `src/core/zr_debug_overlay.c`.

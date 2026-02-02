@@ -9,7 +9,10 @@
 #define ZR_CORE_ZR_DIFF_H_INCLUDED
 
 #include "core/zr_framebuffer.h"
+#include "core/zr_cursor.h"
+#include "core/zr_damage.h"
 #include "platform/zr_platform.h"
+#include "util/zr_caps.h"
 #include "util/zr_result.h"
 
 #include <stddef.h>
@@ -19,12 +22,20 @@ typedef struct zr_term_state_t {
   /* 0-based cursor position in character cells. */
   uint32_t   cursor_x;
   uint32_t   cursor_y;
+  uint8_t    cursor_visible; /* 0/1 */
+  uint8_t    cursor_shape;   /* zr_cursor_shape_t values */
+  uint8_t    cursor_blink;   /* 0/1 */
+  uint8_t    _pad0;
   zr_style_t style;
 } zr_term_state_t;
 
 typedef struct zr_diff_stats_t {
   uint32_t dirty_lines;
   uint32_t dirty_cells;
+  uint32_t damage_rects;
+  uint32_t damage_cells;
+  uint8_t  damage_full_frame;
+  uint8_t  _pad0[3];
   size_t   bytes_emitted;
 } zr_diff_stats_t;
 
@@ -46,6 +57,10 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
                            const zr_fb_t* next,
                            const plat_caps_t* caps,
                            const zr_term_state_t* initial_term_state,
+                           const zr_cursor_state_t* desired_cursor_state,
+                           const zr_limits_t* lim,
+                           zr_damage_rect_t* scratch_damage_rects,
+                           uint32_t scratch_damage_rect_cap,
                            uint8_t enable_scroll_optimizations,
                            uint8_t* out_buf,
                            size_t out_cap,

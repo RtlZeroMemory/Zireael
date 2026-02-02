@@ -38,6 +38,9 @@ typedef struct zr_limits_t {
   uint32_t dl_max_blobs;
   uint32_t dl_max_clip_depth;
   uint32_t dl_max_text_run_segments;
+
+  /* Diff renderer caps. */
+  uint32_t diff_max_damage_rects;
 } zr_limits_t;
 
 zr_limits_t zr_limits_default(void);

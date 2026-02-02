@@ -4,6 +4,7 @@
 
 #include "core/zr_diff.h"
 
+#include "util/zr_checked.h"
 #include "util/zr_string_builder.h"
 
 #include <stdbool.h>
@@ -284,6 +285,115 @@ static bool zr_emit_cup(zr_sb_t* sb, zr_term_state_t* ts, uint32_t x, uint32_t y
   return true;
 }
 
+static bool zr_emit_cursor_visibility(zr_sb_t* sb, zr_term_state_t* ts, uint8_t visible) {
+  if (!sb || !ts) {
+    return false;
+  }
+  if (visible > 1u) {
+    return false;
+  }
+  if (ts->cursor_visible == visible) {
+    return true;
+  }
+
+  const uint8_t seq_show[] = "\x1b[?25h";
+  const uint8_t seq_hide[] = "\x1b[?25l";
+  const uint8_t* seq = (visible != 0u) ? seq_show : seq_hide;
+  const size_t n = sizeof(seq_show) - 1u;
+  if (!zr_sb_write_bytes(sb, seq, n)) {
+    return false;
+  }
+  ts->cursor_visible = visible;
+  return true;
+}
+
+static uint32_t zr_cursor_shape_ps(uint8_t shape, uint8_t blink) {
+  if (shape == ZR_CURSOR_SHAPE_UNDERLINE) {
+    return (blink != 0u) ? 3u : 4u;
+  }
+  if (shape == ZR_CURSOR_SHAPE_BAR) {
+    return (blink != 0u) ? 5u : 6u;
+  }
+  return (blink != 0u) ? 1u : 2u;
+}
+
+static bool zr_emit_cursor_shape(zr_sb_t* sb,
+                                 zr_term_state_t* ts,
+                                 uint8_t shape,
+                                 uint8_t blink,
+                                 const plat_caps_t* caps) {
+  if (!sb || !ts || !caps) {
+    return false;
+  }
+  if (shape > ZR_CURSOR_SHAPE_BAR || blink > 1u) {
+    return false;
+  }
+  if (caps->supports_cursor_shape == 0u) {
+    return true;
+  }
+  if (ts->cursor_shape == shape && ts->cursor_blink == blink) {
+    return true;
+  }
+
+  const uint32_t ps = zr_cursor_shape_ps(shape, blink);
+  if (!zr_sb_write_u8(sb, 0x1Bu) || !zr_sb_write_u8(sb, (uint8_t)'[') || !zr_sb_write_u32_dec(sb, ps) ||
+      !zr_sb_write_u8(sb, (uint8_t)' ') || !zr_sb_write_u8(sb, (uint8_t)'q')) {
+    return false;
+  }
+
+  ts->cursor_shape = shape;
+  ts->cursor_blink = blink;
+  return true;
+}
+
+static uint32_t zr_clamp_u32_from_i32(int32_t v, uint32_t lo, uint32_t hi) {
+  if (hi < lo) {
+    return lo;
+  }
+  if (v <= (int32_t)lo) {
+    return lo;
+  }
+  if (v >= (int32_t)hi) {
+    return hi;
+  }
+  return (uint32_t)v;
+}
+
+static bool zr_emit_cursor_desired(zr_sb_t* sb,
+                                   zr_term_state_t* ts,
+                                   const zr_cursor_state_t* desired,
+                                   const zr_fb_t* next,
+                                   const plat_caps_t* caps) {
+  if (!sb || !ts || !next || !caps) {
+    return false;
+  }
+  if (!desired) {
+    return true;
+  }
+
+  if (!zr_emit_cursor_shape(sb, ts, desired->shape, desired->blink, caps)) {
+    return false;
+  }
+  if (!zr_emit_cursor_visibility(sb, ts, desired->visible)) {
+    return false;
+  }
+
+  if (next->cols == 0u || next->rows == 0u) {
+    return true;
+  }
+
+  uint32_t x = ts->cursor_x;
+  uint32_t y = ts->cursor_y;
+  if (desired->x != -1) {
+    x = zr_clamp_u32_from_i32(desired->x, 0u, next->cols - 1u);
+  }
+  if (desired->y != -1) {
+    y = zr_clamp_u32_from_i32(desired->y, 0u, next->rows - 1u);
+  }
+
+  return zr_emit_cup(sb, ts, x, y);
+}
+
 /* Emit full SGR sequence (reset + attrs + colors) if style differs from current. */
 static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t desired, const plat_caps_t* caps) {
   if (!sb || !ts) {
@@ -418,6 +528,7 @@ typedef struct zr_diff_ctx_t {
   zr_sb_t sb;
   zr_term_state_t ts;
   zr_diff_stats_t stats;
+  zr_damage_t damage;
 } zr_diff_ctx_t;
 
 typedef struct zr_scroll_plan_t {
@@ -445,16 +556,25 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
                                         const zr_fb_t* next,
                                         const plat_caps_t* caps,
                                         const zr_term_state_t* initial_term_state,
+                                        const zr_cursor_state_t* desired_cursor_state,
+                                        const zr_limits_t* lim,
+                                        const zr_damage_rect_t* scratch_damage_rects,
+                                        uint32_t scratch_damage_rect_cap,
                                         uint8_t enable_scroll_optimizations,
                                         const uint8_t* out_buf,
                                         const size_t* out_len,
                                         const zr_term_state_t* out_final_term_state,
                                         const zr_diff_stats_t* out_stats) {
   (void)enable_scroll_optimizations;
-  if (!prev || !next || !caps || !initial_term_state || !out_buf || !out_len || !out_final_term_state || !out_stats) {
+  (void)desired_cursor_state;
+  if (!prev || !next || !caps || !initial_term_state || !lim || !out_buf || !out_len || !out_final_term_state ||
+      !out_stats) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   if (prev->cols != next->cols || prev->rows != next->rows) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!scratch_damage_rects || scratch_damage_rect_cap < lim->diff_max_damage_rects) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   return ZR_OK;
@@ -748,6 +868,104 @@ static zr_result_t zr_diff_render_full_line(zr_diff_ctx_t* ctx, uint32_t y) {
   return zr_diff_render_span(ctx, y, 0u, ctx->next->cols - 1u);
 }
 
+static void zr_diff_expand_span_for_wide(const zr_fb_t* next, uint32_t y, uint32_t* inout_start, uint32_t* inout_end) {
+  if (!next || !inout_start || !inout_end) {
+    return;
+  }
+  if (next->cols == 0u || y >= next->rows) {
+    return;
+  }
+
+  uint32_t start = *inout_start;
+  uint32_t end = *inout_end;
+  if (start >= next->cols || end >= next->cols) {
+    return;
+  }
+
+  if (start > 0u) {
+    const zr_cell_t* c = zr_fb_cell_const(next, start, y);
+    if (zr_cell_is_continuation(c)) {
+      start--;
+    }
+  }
+
+  if (end + 1u < next->cols) {
+    const uint8_t w = zr_cell_width_in_next(next, end, y);
+    if (w == 2u) {
+      end++;
+    }
+  }
+
+  *inout_start = start;
+  *inout_end = end;
+}
+
+static uint32_t zr_u32_mul_clamp(uint32_t a, uint32_t b) {
+  size_t prod = 0u;
+  if (!zr_checked_mul_size((size_t)a, (size_t)b, &prod)) {
+    return 0xFFFFFFFFu;
+  }
+  return (prod > (size_t)0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)prod;
+}
+
+static zr_result_t zr_diff_build_damage(zr_diff_ctx_t* ctx,
+                                       const zr_limits_t* lim,
+                                       zr_damage_rect_t* scratch,
+                                       uint32_t scratch_cap) {
+  if (!ctx || !ctx->prev || !ctx->next || !lim || !scratch) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (scratch_cap < lim->diff_max_damage_rects) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_damage_begin_frame(&ctx->damage, scratch, lim->diff_max_damage_rects, ctx->next->cols, ctx->next->rows);
+
+  for (uint32_t y = 0u; y < ctx->next->rows; y++) {
+    bool line_dirty = false;
+
+    uint32_t x = 0u;
+    while (x < ctx->next->cols) {
+      if (!zr_line_dirty_at(ctx->prev, ctx->next, x, y)) {
+        x++;
+        continue;
+      }
+
+      uint32_t start = x;
+      while (x < ctx->next->cols && zr_line_dirty_at(ctx->prev, ctx->next, x, y)) {
+        x++;
+      }
+      uint32_t end = (x == 0u) ? 0u : (x - 1u);
+
+      zr_diff_expand_span_for_wide(ctx->next, y, &start, &end);
+      zr_damage_add_span(&ctx->damage, y, start, end);
+
+      line_dirty = true;
+      ctx->stats.dirty_cells += (end - start + 1u);
+
+      if (ctx->damage.full_frame != 0u) {
+        break;
+      }
+    }
+
+    if (line_dirty) {
+      ctx->stats.dirty_lines++;
+    }
+    if (ctx->damage.full_frame != 0u) {
+      break;
+    }
+  }
+
+  ctx->stats.damage_rects = ctx->damage.rect_count;
+  ctx->stats.damage_cells = zr_damage_cells(&ctx->damage);
+  ctx->stats.damage_full_frame = ctx->damage.full_frame;
+  ctx->stats._pad0[0] = 0u;
+  ctx->stats._pad0[1] = 0u;
+  ctx->stats._pad0[2] = 0u;
+
+  return ZR_OK;
+}
+
 /* Scan row y for dirty spans and render each one. */
 static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
   if (!ctx || !ctx->prev || !ctx->next) {
@@ -855,6 +1073,10 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
                            const zr_fb_t* next,
                            const plat_caps_t* caps,
                            const zr_term_state_t* initial_term_state,
+                           const zr_cursor_state_t* desired_cursor_state,
+                           const zr_limits_t* lim,
+                           zr_damage_rect_t* scratch_damage_rects,
+                           uint32_t scratch_damage_rect_cap,
                            uint8_t enable_scroll_optimizations,
                            uint8_t* out_buf,
                            size_t out_cap,
@@ -874,8 +1096,9 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
 
   const zr_result_t arg_rc =
-      zr_diff_validate_args(prev, next, caps, initial_term_state, enable_scroll_optimizations, out_buf, out_len,
-                            out_final_term_state, out_stats);
+      zr_diff_validate_args(prev, next, caps, initial_term_state, desired_cursor_state, lim, scratch_damage_rects,
+                            scratch_damage_rect_cap, enable_scroll_optimizations, out_buf, out_len, out_final_term_state,
+                            out_stats);
   if (arg_rc != ZR_OK) {
     return arg_rc;
   }
@@ -899,15 +1122,62 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
     }
   }
 
-  for (uint32_t y = 0u; y < next->rows; y++) {
-    if (skip && y >= skip_top && y <= skip_bottom) {
-      continue;
+  if (skip) {
+    ctx.stats.damage_full_frame = 1u;
+    ctx.stats.damage_rects = 1u;
+    ctx.stats.damage_cells = zr_u32_mul_clamp(next->cols, next->rows);
+    ctx.stats._pad0[0] = 0u;
+    ctx.stats._pad0[1] = 0u;
+    ctx.stats._pad0[2] = 0u;
+
+    for (uint32_t y = 0u; y < next->rows; y++) {
+      if (y >= skip_top && y <= skip_bottom) {
+        continue;
+      }
+      const zr_result_t rc = zr_diff_render_line(&ctx, y);
+      if (rc != ZR_OK) {
+        zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+        return rc;
+      }
     }
-    const zr_result_t rc = zr_diff_render_line(&ctx, y);
+  } else {
+    zr_result_t rc = zr_diff_build_damage(&ctx, lim, scratch_damage_rects, scratch_damage_rect_cap);
     if (rc != ZR_OK) {
       zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
       return rc;
     }
+
+    if (ctx.damage.full_frame != 0u) {
+      ctx.stats.dirty_lines = 0u;
+      ctx.stats.dirty_cells = 0u;
+
+      for (uint32_t y = 0u; y < next->rows; y++) {
+        rc = zr_diff_render_line(&ctx, y);
+        if (rc != ZR_OK) {
+          zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+          return rc;
+        }
+      }
+    } else {
+      for (uint32_t y = 0u; y < next->rows; y++) {
+        for (uint32_t i = 0u; i < ctx.damage.rect_count; i++) {
+          const zr_damage_rect_t* r = &ctx.damage.rects[i];
+          if (y < r->y0 || y > r->y1) {
+            continue;
+          }
+          rc = zr_diff_render_span(&ctx, y, r->x0, r->x1);
+          if (rc != ZR_OK) {
+            zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+            return rc;
+          }
+        }
+      }
+    }
+  }
+
+  if (!zr_emit_cursor_desired(&ctx.sb, &ctx.ts, desired_cursor_state, next, caps)) {
+    zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+    return ZR_ERR_LIMIT;
   }
 
   if (zr_sb_truncated(&ctx.sb)) {

@@ -36,6 +36,16 @@ int32_t     plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap);
 zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len);
 
 /*
+  Output backpressure:
+    - plat_wait_output_writable returns:
+        ZR_OK             : output is writable within timeout
+        ZR_ERR_LIMIT      : timeout
+        ZR_ERR_UNSUPPORTED: backend cannot support this operation
+      other negative      : platform failure
+*/
+zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms);
+
+/*
   wait/wake:
     - plat_wait returns:
         1 : woke or input-ready

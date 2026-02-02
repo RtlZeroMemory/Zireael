@@ -36,6 +36,9 @@ typedef struct plat_t {
   bool wake_pending;
   uint32_t wake_calls;
 
+  bool output_writable;
+  uint32_t wait_output_calls;
+
   uint64_t now_ms;
 } plat_t;
 
@@ -53,7 +56,10 @@ static void zr_mock_plat_default_caps(plat_caps_t* out) {
   out->supports_osc52 = 0u;
   out->supports_sync_update = 0u;
   out->supports_scroll_region = 1u;
-  out->_pad0 = 0u;
+  out->supports_cursor_shape = 1u;
+  out->supports_output_wait_writable = 1u;
+  out->_pad0[0] = 0u;
+  out->_pad0[1] = 0u;
 
   /* Allow all style attrs in unit tests. */
   out->sgr_attrs_supported = 0xFFFFFFFFu;
@@ -63,6 +69,8 @@ void mock_plat_reset(void) {
   memset(&g_plat, 0, sizeof(g_plat));
   g_plat.size.cols = 80u;
   g_plat.size.rows = 24u;
+  g_plat.output_writable = true;
+  g_plat.wait_output_calls = 0u;
   zr_mock_plat_default_caps(&g_plat.caps);
 }
 
@@ -74,6 +82,8 @@ void mock_plat_set_size(uint32_t cols, uint32_t rows) {
 void mock_plat_set_caps(plat_caps_t caps) { g_plat.caps = caps; }
 
 void mock_plat_set_now_ms(uint64_t now_ms) { g_plat.now_ms = now_ms; }
+
+void mock_plat_set_output_writable(uint8_t writable) { g_plat.output_writable = (writable != 0u); }
 
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len) {
   if (!bytes && len != 0u) {
@@ -96,6 +106,8 @@ void mock_plat_clear_writes(void) {
 }
 
 uint32_t mock_plat_write_call_count(void) { return g_plat.write_calls; }
+
+uint32_t mock_plat_wait_output_call_count(void) { return g_plat.wait_output_calls; }
 
 uint64_t mock_plat_bytes_written_total(void) { return g_plat.write_total_len; }
 
@@ -234,6 +246,18 @@ zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {
   }
 
   return ZR_OK;
+}
+
+zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms) {
+  (void)timeout_ms;
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  plat->wait_output_calls++;
+  if (plat->caps.supports_output_wait_writable == 0u) {
+    return ZR_ERR_UNSUPPORTED;
+  }
+  return plat->output_writable ? ZR_OK : ZR_ERR_LIMIT;
 }
 
 int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {

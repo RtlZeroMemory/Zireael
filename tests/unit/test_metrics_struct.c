@@ -24,6 +24,10 @@
   _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint64_t : 1, default : 0),                  \
                  "zr_metrics_t field must be uint64_t")
 
+#define ZR_TEST_ASSERT_U8_FIELD_(field)                                                         \
+  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint8_t : 1, default : 0),                  \
+                 "zr_metrics_t field must be uint8_t")
+
 ZR_TEST_ASSERT_U32_FIELD_(struct_size);
 ZR_TEST_ASSERT_U32_FIELD_(negotiated_engine_abi_major);
 ZR_TEST_ASSERT_U32_FIELD_(negotiated_engine_abi_minor);
@@ -44,9 +48,13 @@ ZR_TEST_ASSERT_U32_FIELD_(events_out_last_poll);
 ZR_TEST_ASSERT_U32_FIELD_(events_dropped_total);
 ZR_TEST_ASSERT_U64_FIELD_(arena_frame_high_water_bytes);
 ZR_TEST_ASSERT_U64_FIELD_(arena_persistent_high_water_bytes);
+ZR_TEST_ASSERT_U32_FIELD_(damage_rects_last_frame);
+ZR_TEST_ASSERT_U32_FIELD_(damage_cells_last_frame);
+ZR_TEST_ASSERT_U8_FIELD_(damage_full_frame);
 
 #undef ZR_TEST_ASSERT_U32_FIELD_
 #undef ZR_TEST_ASSERT_U64_FIELD_
+#undef ZR_TEST_ASSERT_U8_FIELD_
 
 ZR_TEST_UNIT(metrics_prefix_copy_full_size_copies_all_fields) {
   zr_metrics_t snap = zr_metrics__default_snapshot();
@@ -69,6 +77,9 @@ ZR_TEST_UNIT(metrics_prefix_copy_full_size_copies_all_fields) {
   snap.events_dropped_total = 6u;
   snap.arena_frame_high_water_bytes = 77ull;
   snap.arena_persistent_high_water_bytes = 88ull;
+  snap.damage_rects_last_frame = 9u;
+  snap.damage_cells_last_frame = 10u;
+  snap.damage_full_frame = 1u;
 
   zr_metrics_t out;
   memset(&out, 0xCC, sizeof(out));
@@ -97,6 +108,9 @@ ZR_TEST_UNIT(metrics_prefix_copy_full_size_copies_all_fields) {
   ZR_ASSERT_TRUE(out.bytes_emitted_total == 0x1122334455667788ull);
   ZR_ASSERT_TRUE(out.arena_frame_high_water_bytes == 77ull);
   ZR_ASSERT_TRUE(out.arena_persistent_high_water_bytes == 88ull);
+  ZR_ASSERT_EQ_U32(out.damage_rects_last_frame, 9u);
+  ZR_ASSERT_EQ_U32(out.damage_cells_last_frame, 10u);
+  ZR_ASSERT_EQ_U32((uint32_t)out.damage_full_frame, 1u);
 }
 
 ZR_TEST_UNIT(metrics_prefix_copy_smaller_struct_size_does_not_overrun) {

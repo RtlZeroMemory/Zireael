@@ -48,7 +48,7 @@ typedef struct zr_engine_config_t {
   uint8_t enable_scroll_optimizations;
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
-  uint8_t _pad0; /* must be 0 in v1 */
+  uint8_t wait_for_output_drain; /* 0/1 */
 } zr_engine_config_t;
 
 /*
@@ -68,7 +68,7 @@ typedef struct zr_engine_runtime_config_t {
   uint8_t enable_scroll_optimizations;
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
-  uint8_t _pad0; /* must be 0 in v1 */
+  uint8_t wait_for_output_drain; /* 0/1 */
 } zr_engine_runtime_config_t;
 
 zr_engine_config_t zr_engine_config_default(void);

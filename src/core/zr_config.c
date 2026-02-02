@@ -45,8 +45,7 @@ static zr_result_t zr_cfg_validate_plat(const plat_config_t* cfg) {
 static zr_result_t zr_cfg_validate_runtime_common(const zr_limits_t* lim, const plat_config_t* plat, uint32_t tab_width,
                                                  uint32_t width_policy, uint32_t target_fps,
                                                  uint8_t enable_scroll_optimizations, uint8_t enable_debug_overlay,
-                                                 uint8_t enable_replay_recording) {
-  (void)target_fps;
+                                                 uint8_t enable_replay_recording, uint8_t wait_for_output_drain) {
 
   /* --- Validate pointers and caps --- */
   if (!lim || !plat) {
@@ -73,7 +72,11 @@ static zr_result_t zr_cfg_validate_runtime_common(const zr_limits_t* lim, const 
   }
 
   /* --- Validate boolean toggles --- */
-  if ((enable_scroll_optimizations > 1u) || (enable_debug_overlay > 1u) || (enable_replay_recording > 1u)) {
+  if ((enable_scroll_optimizations > 1u) || (enable_debug_overlay > 1u) || (enable_replay_recording > 1u) ||
+      (wait_for_output_drain > 1u)) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (wait_for_output_drain != 0u && target_fps == 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -108,7 +111,7 @@ zr_engine_config_t zr_engine_config_default(void) {
   cfg.enable_scroll_optimizations = 1u;
   cfg.enable_debug_overlay = 0u;
   cfg.enable_replay_recording = 0u;
-  cfg._pad0 = 0u;
+  cfg.wait_for_output_drain = 0u;
 
   return cfg;
 }
@@ -119,25 +122,21 @@ zr_result_t zr_engine_config_validate(const zr_engine_config_t* cfg) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  /* --- Validate reserved/padding --- */
-  if (cfg->_pad0 != 0u) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-
   /* --- Validate version negotiation pins --- */
   if (cfg->requested_engine_abi_major != ZR_ENGINE_ABI_MAJOR || cfg->requested_engine_abi_minor != ZR_ENGINE_ABI_MINOR ||
       cfg->requested_engine_abi_patch != ZR_ENGINE_ABI_PATCH) {
     return ZR_ERR_UNSUPPORTED;
   }
 
-  if (cfg->requested_drawlist_version != ZR_DRAWLIST_VERSION_V1 ||
+  if ((cfg->requested_drawlist_version != ZR_DRAWLIST_VERSION_V1 &&
+       cfg->requested_drawlist_version != ZR_DRAWLIST_VERSION_V2) ||
       cfg->requested_event_batch_version != ZR_EVENT_BATCH_VERSION_V1) {
     return ZR_ERR_UNSUPPORTED;
   }
 
   return zr_cfg_validate_runtime_common(&cfg->limits, &cfg->plat, cfg->tab_width, cfg->width_policy, cfg->target_fps,
                                         cfg->enable_scroll_optimizations, cfg->enable_debug_overlay,
-                                        cfg->enable_replay_recording);
+                                        cfg->enable_replay_recording, cfg->wait_for_output_drain);
 }
 
 /* Validate the runtime-only config surface for engine_set_config(). */
@@ -146,12 +145,7 @@ zr_result_t zr_engine_runtime_config_validate(const zr_engine_runtime_config_t* 
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  /* --- Validate reserved/padding --- */
-  if (cfg->_pad0 != 0u) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-
   return zr_cfg_validate_runtime_common(&cfg->limits, &cfg->plat, cfg->tab_width, cfg->width_policy, cfg->target_fps,
                                         cfg->enable_scroll_optimizations, cfg->enable_debug_overlay,
-                                        cfg->enable_replay_recording);
+                                        cfg->enable_replay_recording, cfg->wait_for_output_drain);
 }

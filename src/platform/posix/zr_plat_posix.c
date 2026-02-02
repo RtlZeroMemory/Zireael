@@ -228,6 +228,59 @@ static zr_result_t zr_posix_wait_writable(int fd) {
   }
 }
 
+static uint64_t zr_posix_now_ms_monotonic_best_effort(void) {
+  struct timespec ts;
+  memset(&ts, 0, sizeof(ts));
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    return 0u;
+  }
+  const uint64_t s = (uint64_t)ts.tv_sec;
+  const uint64_t ns = (uint64_t)ts.tv_nsec;
+  return (s * 1000u) + (ns / 1000000u);
+}
+
+static zr_result_t zr_posix_wait_writable_timeout(int fd, int32_t timeout_ms) {
+  if (timeout_ms < 0) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  struct pollfd pfd;
+  pfd.fd = fd;
+  pfd.events = POLLOUT;
+  pfd.revents = 0;
+
+  const uint64_t start_ms = zr_posix_now_ms_monotonic_best_effort();
+  int32_t remaining = timeout_ms;
+
+  for (;;) {
+    int rc = poll(&pfd, 1u, remaining);
+    if (rc > 0) {
+      if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+        return ZR_ERR_PLATFORM;
+      }
+      return ((pfd.revents & POLLOUT) != 0) ? ZR_OK : ZR_ERR_PLATFORM;
+    }
+    if (rc == 0) {
+      return ZR_ERR_LIMIT;
+    }
+    if (errno == EINTR) {
+      if (timeout_ms == 0) {
+        return ZR_ERR_LIMIT;
+      }
+      const uint64_t now_ms = zr_posix_now_ms_monotonic_best_effort();
+      if (start_ms != 0u && now_ms >= start_ms) {
+        const uint64_t elapsed = now_ms - start_ms;
+        if (elapsed >= (uint64_t)timeout_ms) {
+          return ZR_ERR_LIMIT;
+        }
+        remaining = (int32_t)((uint64_t)timeout_ms - elapsed);
+      }
+      continue;
+    }
+    return ZR_ERR_PLATFORM;
+  }
+}
+
 /* Write all bytes to fd, retrying on EINTR; returns error on partial write failure. */
 static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {
   if (len < 0) {
@@ -266,6 +319,13 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len)
   }
 
   return ZR_OK;
+}
+
+zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  return zr_posix_wait_writable_timeout(plat->stdout_fd, timeout_ms);
 }
 
 static zr_result_t zr_posix_write_cstr(int fd, const char* s) {
@@ -350,7 +410,10 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_osc52 = 1u;
   plat->caps.supports_sync_update = zr_posix_detect_sync_update();
   plat->caps.supports_scroll_region = zr_posix_detect_scroll_region();
-  plat->caps._pad0 = 0u;
+  plat->caps.supports_cursor_shape = zr_posix_term_is_dumb() ? 0u : 1u;
+  plat->caps.supports_output_wait_writable = 1u;
+  plat->caps._pad0[0] = 0u;
+  plat->caps._pad0[1] = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
   zr_result_t r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);

@@ -9,6 +9,7 @@
 #define ZR_ZR_ENGINE_H_INCLUDED
 
 #include "zr/zr_config.h"
+#include "zr/zr_terminal_caps.h"
 #include "zr/zr_metrics.h"
 #include "zr/zr_result.h"
 
@@ -26,6 +27,7 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
 zr_result_t engine_present(zr_engine_t* e);
 
 zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics);
+zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps);
 zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg);
 
 #endif /* ZR_ZR_ENGINE_H_INCLUDED */

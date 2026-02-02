@@ -311,7 +311,10 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_osc52 = 1u;
   plat->caps.supports_sync_update = 1u;
   plat->caps.supports_scroll_region = 1u;
-  plat->caps._pad0 = 0u;
+  plat->caps.supports_cursor_shape = 1u;
+  plat->caps.supports_output_wait_writable = 0u;
+  plat->caps._pad0[0] = 0u;
+  plat->caps._pad0[1] = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
   (void)zr_win32_query_size_best_effort(plat->h_out, &plat->last_size);
@@ -575,6 +578,12 @@ zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   return zr_win32_write_all(plat->h_out, bytes, len);
+}
+
+zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms) {
+  (void)plat;
+  (void)timeout_ms;
+  return ZR_ERR_UNSUPPORTED;
 }
 
 /* Wait for input or wake event; returns 1 if ready, 0 on timeout, or error code. */

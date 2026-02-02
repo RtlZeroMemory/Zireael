@@ -1,0 +1,8 @@
+# fixture_id: diff_007_sparse_single_cell_midline
+# purpose: sparse single-cell update does not redraw full line.
+#
+# pinned:
+#   - cols=10 rows=1
+#   - initial_term_state.cursor = (0,0)
+#   - prev: all spaces
+#   - next: 'X' at x=5

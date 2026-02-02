@@ -106,16 +106,59 @@ ZR_TEST_GOLDEN(diff_001_min_text_origin) {
 
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
   const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
 
   uint8_t out[64];
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_001_min_text_origin", out, out_len) == 0);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_007_sparse_single_cell_midline
+ *
+ * Scenario: Single-cell update in the middle of a longer line.
+ *
+ * Assert: Output uses CUP to the single cell and does not redraw the full line.
+ */
+ZR_TEST_GOLDEN(diff_007_sparse_single_cell_midline) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 10u, 1u);
+  (void)zr_fb_init(&next, 10u, 1u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  zr_fb_set_ascii(&next, 5u, 0u, (uint8_t)'X', s);
+
+  const plat_caps_t caps = zr_caps_rgb_all_attrs();
+  const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[64];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc =
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_007_sparse_single_cell_midline", out, out_len) == 0);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -150,13 +193,17 @@ ZR_TEST_GOLDEN(diff_004_scroll_region_scroll_up_fullscreen) {
   plat_caps_t caps = zr_caps_rgb_all_attrs();
   caps.supports_scroll_region = 1u;
   const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
 
   uint8_t out[256];
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 1u, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 1u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_004_scroll_region_scroll_up_fullscreen", out, out_len) == 0);
@@ -193,6 +240,9 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
 
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
   const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
 
   /* --- Act --- */
   uint8_t out[128];
@@ -200,7 +250,8 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   /* --- Assert --- */
@@ -238,6 +289,9 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
 
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
   const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
 
   /* --- Act --- */
   uint8_t out[128];
@@ -245,13 +299,117 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, 0u, out, sizeof(out), &out_len, &final_state, &stats);
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   /* --- Assert --- */
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_003_wide_glyph_lead_only", out, out_len) == 0);
 
   /* --- Cleanup --- */
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_005_cursor_show_shape_move
+ *
+ * Scenario: No framebuffer changes, but the desired cursor state requests:
+ *           - DECSCUSR cursor shape (blinking bar)
+ *           - cursor show
+ *           - final cursor move to (2,1)
+ *
+ * Assert: Output is only the cursor-control sequences in locked order.
+ */
+ZR_TEST_GOLDEN(diff_005_cursor_show_shape_move) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 4u, 3u);
+  (void)zr_fb_init(&next, 4u, 3u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  plat_caps_t caps = zr_caps_rgb_all_attrs();
+  caps.supports_cursor_shape = 1u;
+
+  zr_term_state_t initial = zr_term_default();
+  initial.cursor_visible = 0u;
+  initial.cursor_shape = 0u;
+  initial.cursor_blink = 0u;
+
+  zr_cursor_state_t desired;
+  desired.x = 2;
+  desired.y = 1;
+  desired.shape = ZR_CURSOR_SHAPE_BAR;
+  desired.visible = 1u;
+  desired.blink = 1u;
+  desired.reserved0 = 0u;
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[64];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc =
+      zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_005_cursor_show_shape_move", out, out_len) == 0);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_006_cursor_hide_only
+ *
+ * Scenario: No framebuffer changes; cursor is currently visible, desired cursor is hidden.
+ *
+ * Assert: Output is only ESC[?25l.
+ */
+ZR_TEST_GOLDEN(diff_006_cursor_hide_only) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 1u, 1u);
+  (void)zr_fb_init(&next, 1u, 1u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  plat_caps_t caps = zr_caps_rgb_all_attrs();
+  caps.supports_cursor_shape = 1u;
+
+  zr_term_state_t initial = zr_term_default();
+  initial.cursor_visible = 1u;
+  initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
+  initial.cursor_blink = 1u;
+
+  zr_cursor_state_t desired;
+  desired.x = -1;
+  desired.y = -1;
+  desired.shape = ZR_CURSOR_SHAPE_BLOCK;
+  desired.visible = 0u;
+  desired.blink = 1u;
+  desired.reserved0 = 0u;
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[64];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc =
+      zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_006_cursor_hide_only", out, out_len) == 0);
+
   zr_fb_release(&prev);
   zr_fb_release(&next);
 }

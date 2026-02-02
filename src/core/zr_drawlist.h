@@ -10,6 +10,8 @@
 
 #include "zr/zr_drawlist.h" /* ABI structs */
 
+#include "core/zr_cursor.h"
+
 #include "util/zr_caps.h"
 #include "util/zr_result.h"
 
@@ -50,6 +52,9 @@ typedef struct zr_dl_view_t {
 
 zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limits_t* lim,
                            zr_dl_view_t* out_view);
-zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim);
+zr_result_t zr_dl_execute(const zr_dl_view_t* v,
+                          zr_fb_t* dst,
+                          const zr_limits_t* lim,
+                          zr_cursor_state_t* inout_cursor_state);
 
 #endif /* ZR_CORE_ZR_DRAWLIST_H_INCLUDED */

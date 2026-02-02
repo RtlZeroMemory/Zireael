@@ -81,4 +81,11 @@ Zireael is for **framework authors** building TUI libraries. It is not an applic
 
 ## Version
 
-Engine ABI v1.0.0. Drawlist v1. Event Batch v1.
+Current release: v1.0.0-rc1 (public preview). Engine ABI v1, Drawlist v1, Event Batch v1.
+
+## Stability
+
+The ABI and binary formats are versioned and validated, but this is still a preview release:
+
+- Expect rough edges and missing real-world terminal/host combinations.
+- Breaking changes are possible before a final 1.0.0, but they will be reflected in the ABI/format versions.

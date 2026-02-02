@@ -25,6 +25,7 @@ type particleStormState struct {
 	palette []uint32
 
 	fillCellTmpl [40]byte
+	drawGlyphTmpl [48]byte
 }
 
 func (s *particleStormState) Reset(now time.Time) {
@@ -142,6 +143,27 @@ func (s *particleStormState) Draw(b *dlBuilder, r rect, th theme, now time.Time)
 		putU32LE(p[36:], 0)
 	}
 
+	glyphIdx := b.AddString("█")
+	glyphLen := uint32(len("█"))
+
+	/* Build a fixed draw-text command template (single glyph) and patch x/y/fg/bg. */
+	{
+		p := s.drawGlyphTmpl[:]
+		putU16LE(p[0:], zrDlOpDrawText)
+		putU16LE(p[2:], 0)
+		putU32LE(p[4:], 48)
+		putU32LE(p[8:], 0)
+		putU32LE(p[12:], 0)
+		putU32LE(p[16:], glyphIdx)
+		putU32LE(p[20:], 0)
+		putU32LE(p[24:], glyphLen)
+		putU32LE(p[28:], th.text)
+		putU32LE(p[32:], 0)
+		putU32LE(p[36:], 0)
+		putU32LE(p[40:], 0)
+		putU32LE(p[44:], 0)
+	}
+
 	for i := 0; i < len(s.parts); i++ {
 		p := &s.parts[i]
 
@@ -162,11 +184,16 @@ func (s *particleStormState) Draw(b *dlBuilder, r rect, th theme, now time.Time)
 		p.y = uint16(y)
 
 		c := s.palette[int(p.c)%len(s.palette)]
-		cmd := b.appendCmdBytes(40)
-		copy(cmd, s.fillCellTmpl[:])
+		cmd := b.appendCmdBytes(48)
+		copy(cmd, s.drawGlyphTmpl[:])
 		putU32LE(cmd[8:], uint32(r.x+x))
 		putU32LE(cmd[12:], uint32(r.y+y))
 		putU32LE(cmd[28:], c)
+		if y < int(h)/2 {
+			putU32LE(cmd[32:], bgTop)
+		} else {
+			putU32LE(cmd[32:], bgBot)
+		}
 		b.cmdCount++
 	}
 

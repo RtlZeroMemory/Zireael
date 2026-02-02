@@ -10,10 +10,21 @@ import (
 
 type agenticState struct {
 	start time.Time
+
+	doc      []string
+	diff     []string
+	toolLog  []string
+	curLine  int
+	curPhase int
 }
 
 func (s *agenticState) Reset(now time.Time) {
 	s.start = now
+	s.doc = agenticEditorDocument()
+	s.diff = agenticDiffDocument()
+	s.toolLog = agenticToolLog()
+	s.curLine = 0
+	s.curPhase = 0
 }
 
 type agenticPhase struct {
@@ -112,8 +123,70 @@ func agenticFileTree() []string {
 	}
 }
 
-func agenticEditorLines() []string {
+func agenticDiffDocument() []string {
 	return []string{
+		"diff --git a/src/platform/posix/zr_plat_posix.c b/src/platform/posix/zr_plat_posix.c",
+		"index 1234567..89abcde 100644",
+		"--- a/src/platform/posix/zr_plat_posix.c",
+		"+++ b/src/platform/posix/zr_plat_posix.c",
+		"@@ -200,6 +236,18 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {",
+		"+    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {",
+		"+      /* stdout may be non-blocking under wrappers; wait for POLLOUT and retry */",
+		"+      zr_result_t rc = zr_posix_wait_writable(fd);",
+		"+      if (rc != ZR_OK) {",
+		"+        return rc;",
+		"+      }",
+		"+      continue;",
+		"+    }",
+		"     if (n < 0 && errno == EINTR) {",
+		"       continue;",
+		"     }",
+		"     return ZR_ERR_PLATFORM;",
+		"   }",
+	}
+}
+
+func agenticToolLog() []string {
+	return []string{
+		"$ rg -n \"plat_write_output\" src/platform/posix/zr_plat_posix.c",
+		"455: zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {",
+		"",
+		"$ apply_patch",
+		"*** Begin Patch",
+		"*** Update File: src/platform/posix/zr_plat_posix.c",
+		"+ if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {",
+		"+   zr_result_t rc = zr_posix_wait_writable(fd);",
+		"+   if (rc != ZR_OK) {",
+		"+     return rc;",
+		"+   }",
+		"+   continue;",
+		"+ }",
+		"*** End Patch",
+		"",
+		"$ cmake --build --preset posix-clang-debug",
+		"[1/10] Building C object ...",
+		"[2/10] Linking C static library libzireael.a",
+		"",
+		"$ ctest --test-dir out/build/posix-clang-debug --output-on-failure",
+		"100% tests passed, 0 tests failed out of 9",
+	}
+}
+
+func agenticEditorDocument() []string {
+	/*
+		A larger editor buffer so the viewport can scroll. The content is a
+		plausible patch area plus surrounding context.
+	*/
+	doc := make([]string, 0, 220)
+	doc = append(doc,
+		"/*",
+		"  src/platform/posix/zr_plat_posix.c — POSIX platform backend.",
+		"",
+		"  Notes:",
+		"    - stdout may be non-blocking under wrappers",
+		"    - treat EAGAIN as transient backpressure",
+		"*/",
+		"",
 		"static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {",
 		"  if (len < 0) {",
 		"    return ZR_ERR_INVALID_ARGUMENT;",
@@ -143,30 +216,20 @@ func agenticEditorLines() []string {
 		"  }",
 		"  return ZR_OK;",
 		"}",
+	)
+	for i := 0; i < 160; i++ {
+		doc = append(doc, fmt.Sprintf("/* … context line %03d … */", i))
 	}
-}
-
-func agenticDiffLines() []string {
-	return []string{
-		"diff --git a/src/platform/posix/zr_plat_posix.c b/src/platform/posix/zr_plat_posix.c",
-		"index 1234567..89abcde 100644",
-		"--- a/src/platform/posix/zr_plat_posix.c",
-		"+++ b/src/platform/posix/zr_plat_posix.c",
-		"@@ -200,6 +236,18 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {",
-		"+    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {",
-		"+      /* stdout may be non-blocking under wrappers; wait for POLLOUT and retry */",
-		"+      zr_result_t rc = zr_posix_wait_writable(fd);",
-		"+      if (rc != ZR_OK) {",
-		"+        return rc;",
-		"+      }",
-		"+      continue;",
-		"+    }",
-		"     if (n < 0 && errno == EINTR) {",
-		"       continue;",
-		"     }",
-		"     return ZR_ERR_PLATFORM;",
-		"   }",
-	}
+	doc = append(doc,
+		"",
+		"zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {",
+		"  if (!plat) {",
+		"    return ZR_ERR_INVALID_ARGUMENT;",
+		"  }",
+		"  return zr_posix_write_all(plat->stdout_fd, bytes, len);",
+		"}",
+	)
+	return doc
 }
 
 func lexLikeC(line string, th theme) []uiRunSeg {
@@ -268,6 +331,13 @@ func (s *agenticState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 	}
 
 	phase := s.phase(now)
+	elapsed := now.Sub(s.start)
+	scroll := int(elapsed / (130 * time.Millisecond))
+	if scroll < 0 {
+		scroll = 0
+	}
+	s.curLine = (scroll * 2) % len(s.doc)
+	s.curPhase = int(elapsed/(2200*time.Millisecond)) % len(agenticPhases())
 
 	leftW := 22
 	rightW := 34
@@ -309,14 +379,25 @@ func (s *agenticState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 	uiFill(b, rect{x: editor.x, y: editor.y, w: editor.w, h: 1}, th.text, th.panel2)
 	uiTextClamp(b, editor.x+2, editor.y, editor.w-4, "src/platform/posix/zr_plat_posix.c", th.text, th.panel2)
 
-	lines := agenticEditorLines()
 	edY := editor.y + 2
 	edMax := editor.y + editor.h - 1
-	for i := 0; i < len(lines) && edY+i < edMax; i++ {
-		ln := fmt.Sprintf("%3d", 220+i)
-		uiTextClamp(b, editor.x+1, edY+i, 4, ln, th.muted, th.bg)
-		segs := lexLikeC(lines[i], th)
-		uiTextRun(b, editor.x+6, edY+i, segs, th.bg)
+	viewH := edMax - edY
+	if viewH < 1 {
+		viewH = 1
+	}
+	for row := 0; row < viewH; row++ {
+		idx := (s.curLine + row) % len(s.doc)
+		line := s.doc[idx]
+		y := edY + row
+
+		if row == viewH/2 {
+			uiFill(b, rect{x: editor.x, y: y, w: editor.w, h: 1}, th.text, rgb(10, 16, 22))
+		}
+
+		ln := fmt.Sprintf("%4d", 1+idx)
+		uiTextClamp(b, editor.x+1, y, 5, ln, th.muted, th.bg)
+		segs := lexLikeC(line, th)
+		uiTextRun(b, editor.x+7, y, segs, th.bg)
 	}
 
 	uiTextClamp(b, side.x+2, side.y+1, side.w-4, "Agent", th.accent, th.panel)
@@ -330,14 +411,31 @@ func (s *agenticState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 		uiTextClamp(b, side.x+2, yy+i, side.w-4, phase.body[i], th.text, th.panel)
 	}
 
-	uiTextClamp(b, bottom.x+2, bottom.y+1, bottom.w-4, "Diff Preview", th.text, th.panel2)
+	uiTextClamp(b, bottom.x+2, bottom.y+1, bottom.w-4, "Diff + Tool Output", th.text, th.panel2)
 	uiRule(b, rect{x: bottom.x + 2, y: bottom.y + 2, w: bottom.w - 4, h: 1}, th.panel, th.panel2)
 
-	diff := agenticDiffLines()
 	dy := bottom.y + 4
-	for i := 0; i < len(diff) && dy+i < bottom.y+bottom.h-1; i++ {
-		segs := lexDiff(diff[i], th)
+	linesLeft := (bottom.h - 5) / 2
+	if linesLeft < 2 {
+		linesLeft = 2
+	}
+	linesRight := bottom.h - 5 - linesLeft
+
+	for i := 0; i < linesLeft && dy+i < bottom.y+bottom.h-1; i++ {
+		idx := (s.curPhase + i) % len(s.diff)
+		segs := lexDiff(s.diff[idx], th)
 		uiTextRun(b, bottom.x+2, dy+i, segs, th.panel2)
 	}
-}
 
+	toolY := dy + linesLeft + 1
+	uiTextClamp(b, bottom.x+2, toolY-1, bottom.w-4, "Tool log", th.muted, th.panel2)
+	for i := 0; i < linesRight && toolY+i < bottom.y+bottom.h-1; i++ {
+		idx := (s.curPhase*2 + i) % len(s.toolLog)
+		line := s.toolLog[idx]
+		if strings.HasPrefix(line, "$ ") {
+			uiTextClamp(b, bottom.x+2, toolY+i, bottom.w-4, line, th.accent2, th.panel2)
+		} else {
+			uiTextClamp(b, bottom.x+2, toolY+i, bottom.w-4, line, th.text, th.panel2)
+		}
+	}
+}

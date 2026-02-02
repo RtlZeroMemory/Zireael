@@ -47,16 +47,55 @@ type theme struct {
 
 func defaultTheme() theme {
 	return theme{
-		bg:      rgb(11, 16, 32),
-		panel:   rgb(17, 26, 51),
-		panel2:  rgb(25, 38, 74),
-		text:    rgb(230, 235, 255),
-		muted:   rgb(150, 162, 196),
-		accent:  rgb(94, 234, 212),
-		accent2: rgb(129, 140, 248),
+		bg:      rgb(7, 10, 12),
+		panel:   rgb(12, 16, 20),
+		panel2:  rgb(18, 24, 30),
+		text:    rgb(232, 238, 245),
+		muted:   rgb(150, 165, 185),
+		accent:  rgb(80, 250, 123),
+		accent2: rgb(125, 211, 252),
 		good:    rgb(74, 222, 128),
 		bad:     rgb(248, 113, 113),
 	}
+}
+
+func uiBrandLogo(b *dlBuilder, r rect, th theme) {
+	/*
+		A compact, centerable ASCII logo. Keep it strictly ASCII so it renders
+		predictably across terminals and width policies.
+	*/
+	lines := []string{
+		"███████╗██╗██████╗ ███████╗ █████╗ ███████╗██╗",
+		"╚══███╔╝██║██╔══██╗██╔════╝██╔══██╗██╔════╝██║",
+		"  ███╔╝ ██║██████╔╝█████╗  ███████║█████╗  ██║",
+		" ███╔╝  ██║██╔══██╗██╔══╝  ██╔══██║██╔══╝  ██║",
+		"███████╗██║██║  ██║███████╗██║  ██║███████╗███████╗",
+	}
+	tag := "Deterministic terminal UI core engine"
+
+	maxW := 0
+	for i := range lines {
+		if len(lines[i]) > maxW {
+			maxW = len(lines[i])
+		}
+	}
+	if maxW < len(tag) {
+		maxW = len(tag)
+	}
+
+	x := r.x + (r.w-maxW)/2
+	y := r.y + (r.h-len(lines)-2)/2
+	if y < r.y {
+		y = r.y
+	}
+
+	for i := 0; i < len(lines); i++ {
+		if y+i >= r.y+r.h {
+			break
+		}
+		uiTextClamp(b, x, y+i, maxW, lines[i], th.accent, th.bg)
+	}
+	uiTextClamp(b, r.x+(r.w-len(tag))/2, y+len(lines)+1, len(tag), tag, th.muted, th.bg)
 }
 
 func uiFill(b *dlBuilder, r rect, fg, bg uint32) {

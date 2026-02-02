@@ -212,6 +212,10 @@ func (a *app) drawMenu(b *dlBuilder, r rect) {
 		uiTextClamp(b, r.x+2, y, r.w-4, prefix+scenarios[i].name, fg, bg)
 		y++
 	}
+
+	if r.h >= 3 {
+		uiTextClamp(b, r.x+2, r.y+r.h-2, r.w-4, "↑/↓ select  Enter run  H help  Q quit", a.th.muted, a.th.panel)
+	}
 }
 
 func (a *app) drawTopBar(b *dlBuilder, r rect, fps int) {
@@ -265,6 +269,11 @@ func (a *app) drawScenarioPreview(b *dlBuilder, r rect) {
 
 	uiTextClamp(b, card.x+2, card.y+4, card.w-4, s.desc, a.th.text, a.th.panel)
 	uiTextClamp(b, card.x+2, card.y+card.h-2, card.w-4, "Enter: start   Q: quit   H: help", a.th.muted, a.th.panel)
+
+	logoR := rect{x: r.x, y: r.y, w: r.w, h: r.h - 8}.clamp()
+	if logoR.w >= 60 && logoR.h >= 12 {
+		uiBrandLogo(b, logoR, a.th)
+	}
 }
 
 func (a *app) drawHelpOverlay(b *dlBuilder, r rect) {
@@ -320,6 +329,7 @@ func main() {
 	flag.Parse()
 
 	cfg := zrDefaultConfig()
+	cfg.plat.requested_color_mode = 3
 	cfg.limits.out_max_bytes_per_frame = 16 * 1024 * 1024
 	cfg.limits.dl_max_total_bytes = 64 * 1024 * 1024
 	cfg.limits.dl_max_cmds = 800000

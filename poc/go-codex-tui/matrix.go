@@ -48,6 +48,8 @@ func (s *matrixRainState) Reset() {
 	chars := []rune(" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 	half := []rune("ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ")
 	chars = append(chars, half...)
+	symbols := []rune("+-*/=<>[]{}()#@%&$")
+	chars = append(chars, symbols...)
 
 	for _, r := range chars {
 		s.charset = append(s.charset, []byte(string(r)))
@@ -68,7 +70,7 @@ func (s *matrixRainState) ensureSize(w, h int) {
 	for x := 0; x < w; x++ {
 		v := s.rng.Next()
 		speed := 1 + int(v%3)
-		trail := 6 + int((v>>8)%22)
+		trail := 10 + int((v>>8)%28)
 		head := -int((v >> 16) % uint32(h+trail+8))
 		s.col[x] = matrixCol{
 			head:   head,
@@ -83,7 +85,7 @@ func (s *matrixRainState) ensureSize(w, h int) {
 
 func (s *matrixRainState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 	bg := rgb(0, 0, 0)
-	fgDim := rgb(10, 80, 40)
+	fgDim := rgb(0, 128, 32)
 	uiFill(b, r, fgDim, bg)
 	if r.w <= 0 || r.h <= 0 {
 		return
@@ -108,9 +110,10 @@ func (s *matrixRainState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 		}
 	}
 
-	fgMid := rgb(34, 197, 94)
-	fgHot := rgb(190, 255, 220)
-	fgSpark := rgb(56, 189, 248)
+	fgMid := rgb(0, 255, 70)
+	fgHot := rgb(225, 255, 240)
+	fgSpark := rgb(120, 255, 180)
+	bgGlow := rgb(0, 10, 0)
 
 	for y := 0; y < s.rows; y++ {
 		s.rowBuf = s.rowBuf[:0]
@@ -175,11 +178,15 @@ func (s *matrixRainState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 			} else if sb.cat == 3 {
 				fg = fgHot
 			}
-			if sb.cat != 0 && ((int(s.frame)+i+y)%211 == 0) {
+			bg2 := bg
+			if sb.cat >= 2 {
+				bg2 = bgGlow
+			}
+			if sb.cat != 0 && ((int(s.frame)+i+y)%137 == 0) {
 				fg = fgSpark
 			}
 			s.runSegs = append(s.runSegs, dlTextRunSeg{
-				style:       dlStyle{fg: fg, bg: bg, attrs: 0},
+				style:       dlStyle{fg: fg, bg: bg2, attrs: 0},
 				stringIndex: rowIdx,
 				byteOff:     uint32(sb.start),
 				byteLen:     uint32(sb.end - sb.start),

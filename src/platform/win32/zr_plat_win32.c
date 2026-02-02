@@ -39,14 +39,18 @@ struct plat_t {
   DWORD in_mode_orig;
   DWORD out_mode_orig;
 
+  UINT in_cp_orig;
+  UINT out_cp_orig;
+
   plat_size_t last_size;
 
   plat_config_t cfg;
   plat_caps_t   caps;
 
   bool    modes_valid;
+  bool    cp_valid;
   bool    raw_active;
-  uint8_t _pad[6];
+  uint8_t _pad[5];
 };
 
 static zr_result_t zr_win32_write_all(HANDLE h_out, const uint8_t* bytes, int32_t len) {
@@ -96,6 +100,10 @@ static zr_result_t zr_win32_restore_modes_best_effort(plat_t* plat) {
   }
   (void)SetConsoleMode(plat->h_in, plat->in_mode_orig);
   (void)SetConsoleMode(plat->h_out, plat->out_mode_orig);
+  if (plat->cp_valid) {
+    (void)SetConsoleCP(plat->in_cp_orig);
+    (void)SetConsoleOutputCP(plat->out_cp_orig);
+  }
   return ZR_OK;
 }
 
@@ -114,6 +122,19 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
   plat->in_mode_orig = in_mode;
   plat->out_mode_orig = out_mode;
   plat->modes_valid = true;
+
+  /* --- Prefer UTF-8 console code pages for correct glyph rendering --- */
+  plat->in_cp_orig = GetConsoleCP();
+  plat->out_cp_orig = GetConsoleOutputCP();
+  plat->cp_valid = (plat->in_cp_orig != 0u && plat->out_cp_orig != 0u);
+  if (!SetConsoleCP(CP_UTF8) || !SetConsoleOutputCP(CP_UTF8)) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return ZR_ERR_UNSUPPORTED;
+  }
+  if (GetConsoleCP() != (UINT)CP_UTF8 || GetConsoleOutputCP() != (UINT)CP_UTF8) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return ZR_ERR_UNSUPPORTED;
+  }
 
   /* --- Enable VT output (required) --- */
   DWORD out_mode_new = out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
@@ -149,20 +170,37 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
   /*
     Some environments (notably certain ConPTY configurations) reject aggressive
     mode bit clearing. Try a strict raw-ish mode first; fall back to a minimal,
-    VT-input-capable mode on failure.
+    VT-input-capable mode on failure. The fallback ladder must still disable
+    line buffering; otherwise, input may not be delivered until Enter.
   */
-  DWORD in_mode_strict = in_mode_base;
-  DWORD strict_clear = (DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT);
-  in_mode_strict &= ~strict_clear;
+  DWORD candidates[4];
+  candidates[0] = in_mode_base & ~((DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT));
+  candidates[1] = in_mode_base & ~((DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_WINDOW_INPUT));
+  candidates[2] = in_mode_base & ~((DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT));
+  candidates[3] = in_mode_base;
 
-  if (!SetConsoleMode(plat->h_in, in_mode_strict)) {
-    if (!SetConsoleMode(plat->h_in, in_mode_base)) {
-      (void)zr_win32_restore_modes_best_effort(plat);
-      return ZR_ERR_UNSUPPORTED;
+  bool set_ok = false;
+  for (size_t i = 0u; i < (sizeof(candidates) / sizeof(candidates[0])); i++) {
+    if (SetConsoleMode(plat->h_in, candidates[i])) {
+      set_ok = true;
+      break;
     }
+  }
+  if (!set_ok) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return ZR_ERR_UNSUPPORTED;
   }
   DWORD in_mode_after = 0u;
   if (!GetConsoleMode(plat->h_in, &in_mode_after) || (in_mode_after & ENABLE_VIRTUAL_TERMINAL_INPUT) == 0u) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return ZR_ERR_UNSUPPORTED;
+  }
+  if ((in_mode_after & ENABLE_LINE_INPUT) != 0u) {
+    /*
+      Without disabling line input, ReadFile() may block until Enter and arrow
+      keys won't arrive as VT sequences. Treat as unsupported so callers can
+      surface a clear error.
+    */
     (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_UNSUPPORTED;
   }
@@ -375,12 +413,150 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
     return (int32_t)ZR_ERR_INVALID_ARGUMENT;
   }
 
-  DWORD wait_rc = WaitForSingleObject(plat->h_in, 0u);
-  if (wait_rc == WAIT_TIMEOUT) {
-    return 0;
-  }
-  if (wait_rc != WAIT_OBJECT_0) {
-    return (int32_t)ZR_ERR_PLATFORM;
+  /*
+    Non-blocking read is subtle on Windows:
+      - ConPTY and some hosts present STDIN as a pipe; waitable handles may still
+        appear signaled when no bytes are currently readable.
+      - Console input handles may not behave like pipes for readiness queries.
+
+    Rule: never call ReadFile unless we have strong evidence that it will not
+    block. Prefer explicit "bytes available" probes when possible.
+  */
+  const DWORD ft = GetFileType(plat->h_in);
+  if (ft == FILE_TYPE_PIPE) {
+    DWORD avail = 0u;
+    BOOL ok = PeekNamedPipe(plat->h_in, NULL, 0u, NULL, &avail, NULL);
+    if (!ok) {
+      return (int32_t)ZR_ERR_PLATFORM;
+    }
+    if (avail == 0u) {
+      return 0;
+    }
+  } else if (ft == FILE_TYPE_CHAR) {
+    /*
+      Avoid ReadFile() on console input handles: it can still block when the
+      handle is signaled due to non-key input records (mouse/focus/resize).
+
+      Instead, consume INPUT_RECORDs and translate only key-down events into
+      the minimal byte stream our core parser understands.
+    */
+    DWORD n_events = 0u;
+    if (!GetNumberOfConsoleInputEvents(plat->h_in, &n_events)) {
+      return (int32_t)ZR_ERR_PLATFORM;
+    }
+    if (n_events == 0u) {
+      return 0;
+    }
+
+    INPUT_RECORD recs[32];
+    DWORD read = 0u;
+    DWORD want = n_events;
+    if (want > (DWORD)(sizeof(recs) / sizeof(recs[0]))) {
+      want = (DWORD)(sizeof(recs) / sizeof(recs[0]));
+    }
+    if (!ReadConsoleInputW(plat->h_in, recs, want, &read)) {
+      return (int32_t)ZR_ERR_PLATFORM;
+    }
+
+    size_t out_len = 0u;
+    const size_t out_cap_z = (size_t)out_cap;
+    for (DWORD i = 0u; i < read; i++) {
+      const INPUT_RECORD* r = &recs[i];
+      if (r->EventType != KEY_EVENT) {
+        continue;
+      }
+
+      const KEY_EVENT_RECORD* k = &r->Event.KeyEvent;
+      if (!k->bKeyDown) {
+        continue;
+      }
+
+      const WORD vk = k->wVirtualKeyCode;
+      const WCHAR ch = k->uChar.UnicodeChar;
+
+      if (vk == VK_UP) {
+        if (out_len + 3u <= out_cap_z) {
+          out_buf[out_len++] = 0x1Bu;
+          out_buf[out_len++] = (uint8_t)'[';
+          out_buf[out_len++] = (uint8_t)'A';
+        }
+        continue;
+      }
+      if (vk == VK_DOWN) {
+        if (out_len + 3u <= out_cap_z) {
+          out_buf[out_len++] = 0x1Bu;
+          out_buf[out_len++] = (uint8_t)'[';
+          out_buf[out_len++] = (uint8_t)'B';
+        }
+        continue;
+      }
+      if (vk == VK_RIGHT) {
+        if (out_len + 3u <= out_cap_z) {
+          out_buf[out_len++] = 0x1Bu;
+          out_buf[out_len++] = (uint8_t)'[';
+          out_buf[out_len++] = (uint8_t)'C';
+        }
+        continue;
+      }
+      if (vk == VK_LEFT) {
+        if (out_len + 3u <= out_cap_z) {
+          out_buf[out_len++] = 0x1Bu;
+          out_buf[out_len++] = (uint8_t)'[';
+          out_buf[out_len++] = (uint8_t)'D';
+        }
+        continue;
+      }
+      if (vk == VK_RETURN) {
+        if (out_len + 1u <= out_cap_z) {
+          out_buf[out_len++] = (uint8_t)'\r';
+        }
+        continue;
+      }
+      if (vk == VK_ESCAPE) {
+        if (out_len + 1u <= out_cap_z) {
+          out_buf[out_len++] = 0x1Bu;
+        }
+        continue;
+      }
+      if (vk == VK_TAB) {
+        if (out_len + 1u <= out_cap_z) {
+          out_buf[out_len++] = (uint8_t)'\t';
+        }
+        continue;
+      }
+      if (vk == VK_BACK) {
+        if (out_len + 1u <= out_cap_z) {
+          out_buf[out_len++] = 0x7Fu;
+        }
+        continue;
+      }
+
+      if (ch == 0) {
+        continue;
+      }
+
+      /*
+        The core input parser is currently byte-oriented (no UTF-8 decode).
+        Emit ASCII only; ignore non-ASCII so we don't generate spurious multi-byte
+        "text events" for a single key press.
+      */
+      if (ch <= 0x7Fu && out_len + 1u <= out_cap_z) {
+        out_buf[out_len++] = (uint8_t)ch;
+      }
+    }
+
+    if (out_len > (size_t)INT32_MAX) {
+      return (int32_t)ZR_ERR_PLATFORM;
+    }
+    return (int32_t)out_len;
+  } else {
+    DWORD wait_rc = WaitForSingleObject(plat->h_in, 0u);
+    if (wait_rc == WAIT_TIMEOUT) {
+      return 0;
+    }
+    if (wait_rc != WAIT_OBJECT_0) {
+      return (int32_t)ZR_ERR_PLATFORM;
+    }
   }
 
   DWORD n = 0u;

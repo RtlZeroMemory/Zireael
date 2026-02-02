@@ -25,6 +25,35 @@ func (s *agenticState) Reset(now time.Time) {
 	s.curPhase = 0
 }
 
+func (s *agenticState) elapsedSinceStart(now time.Time) time.Duration {
+	/*
+	  Go TUI timestamps are wall-clock based. On some Windows environments
+	  (notably when shells/terminal hosts adjust clocks), `now` can appear to
+	  move backwards relative to a previously captured `start`.
+
+	  This demo must never panic on time anomalies: clamp elapsed to [0, +inf).
+	*/
+	if s.start.IsZero() {
+		s.start = now
+	}
+	d := now.Sub(s.start)
+	if d < 0 {
+		return 0
+	}
+	return d
+}
+
+func zrPosMod(a, m int) int {
+	if m <= 0 {
+		return 0
+	}
+	r := a % m
+	if r < 0 {
+		r += m
+	}
+	return r
+}
+
 type agenticPhase struct {
 	title string
 	kind  string
@@ -96,12 +125,12 @@ func agenticPhases() []agenticPhase {
 
 func (s *agenticState) phase(now time.Time) agenticPhase {
 	p := agenticPhases()
-	if s.start.IsZero() {
-		s.start = now
+	if len(p) == 0 {
+		return agenticPhase{title: "Idle", kind: "analysis", body: nil}
 	}
-	elapsed := now.Sub(s.start)
+	elapsed := s.elapsedSinceStart(now)
 	stepMs := int(elapsed / (2200 * time.Millisecond))
-	return p[stepMs%len(p)]
+	return p[zrPosMod(stepMs, len(p))]
 }
 
 func agenticFileTree() []string {
@@ -328,14 +357,28 @@ func (s *agenticState) Draw(b *dlBuilder, r rect, th theme, now time.Time) {
 		return
 	}
 
+	if len(s.doc) == 0 {
+		s.doc = agenticEditorDocument()
+	}
+	if len(s.diff) == 0 {
+		s.diff = agenticDiffDocument()
+	}
+	if len(s.toolLog) == 0 {
+		s.toolLog = agenticToolLog()
+	}
+
+	if len(s.doc) == 0 {
+		return
+	}
+
 	phase := s.phase(now)
-	elapsed := now.Sub(s.start)
+	elapsed := s.elapsedSinceStart(now)
 	scroll := int(elapsed / (130 * time.Millisecond))
 	if scroll < 0 {
 		scroll = 0
 	}
-	s.curLine = (scroll * 2) % len(s.doc)
-	s.curPhase = int(elapsed/(2200*time.Millisecond)) % len(agenticPhases())
+	s.curLine = zrPosMod(scroll*2, len(s.doc))
+	s.curPhase = zrPosMod(int(elapsed/(2200*time.Millisecond)), len(agenticPhases()))
 
 	leftW := 22
 	rightW := 34

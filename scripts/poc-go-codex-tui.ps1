@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$script:ZrTempDll = $null
 
 function Need-Cmd([string]$name) {
   if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
@@ -18,7 +19,7 @@ function Ensure-Go {
   $goBin = Join-Path $goDir "go\bin\go.exe"
 
   if (Test-Path $goBin) {
-    $env:PATH = (Join-Path $goDir "go\bin") + ";" + $env:PATH
+    $env:Path = (Join-Path $goDir "go\bin") + ";" + $env:Path
     return
   }
 
@@ -39,7 +40,7 @@ function Ensure-Go {
   Expand-Archive -Path $tmp -DestinationPath $goDir -Force
   Remove-Item $tmp -Force
 
-  $env:PATH = (Join-Path $goDir "go\bin") + ";" + $env:PATH
+  $env:Path = (Join-Path $goDir "go\bin") + ";" + $env:Path
 }
 
 function Ensure-EngineBuild {
@@ -49,20 +50,11 @@ function Ensure-EngineBuild {
 
   $preset = if ($env:ZIREAEL_PRESET) { $env:ZIREAEL_PRESET } else { "windows-clangcl-release" }
   $buildDir = Join-Path $root (Join-Path "out\build" $preset)
-  $cache = Join-Path $buildDir "CMakeCache.txt"
 
-  $needsConfigure = $true
-  if (Test-Path $cache) {
-    $line = Select-String -Path $cache -Pattern "^ZIREAEL_BUILD_SHARED:BOOL=" -ErrorAction SilentlyContinue
-    if ($line -and $line.Line -match "ZIREAEL_BUILD_SHARED:BOOL=ON") {
-      $needsConfigure = $false
-    }
-  }
-
-  if ($needsConfigure) {
-    Write-Host "Configuring Zireael ($preset, shared ON)..."
-    cmake --preset $preset -DZIREAEL_BUILD_SHARED=ON
-  }
+  # Always re-run configure: older build trees may contain an invalid `build.ninja`
+  # (e.g. due to renamed artifacts), and Ninja cannot start to trigger auto-regeneration.
+  Write-Host "Configuring Zireael ($preset, shared ON)..."
+  cmake --preset $preset -DZIREAEL_BUILD_SHARED=ON
 
   Write-Host "Building Zireael ($preset)..."
   cmake --build --preset $preset
@@ -71,11 +63,19 @@ function Ensure-EngineBuild {
   if (-not (Test-Path $dll)) {
     throw "Expected DLL not found: $dll"
   }
-  $env:ZR_DLL_PATH = $dll
+
+  # Avoid locking the build artifact: running processes keep DLLs open on Windows.
+  # Copy the DLL to a per-run path and point the demo at the copy.
+  $runDir = Join-Path $root "out\\run\\poc-go-codex-tui"
+  New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+  $runDll = Join-Path $runDir ("zireael." + [guid]::NewGuid().ToString("N") + ".dll")
+  Copy-Item -Path $dll -Destination $runDll -Force
+  $env:ZR_DLL_PATH = $runDll
+  $script:ZrTempDll = $runDll
 }
 
-Ensure-Go
 Ensure-EngineBuild
+Ensure-Go
 
 Push-Location (Join-Path $root "poc\go-codex-tui")
 try {
@@ -84,4 +84,8 @@ try {
 }
 finally {
   Pop-Location
+  if ($script:ZrTempDll -and (Test-Path $script:ZrTempDll)) {
+    Remove-Item -Force $script:ZrTempDll -ErrorAction SilentlyContinue | Out-Null
+    $script:ZrTempDll = $null
+  }
 }

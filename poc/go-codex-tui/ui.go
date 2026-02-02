@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type rect struct {
@@ -63,25 +64,33 @@ func uiBrandLogo(b *dlBuilder, r rect, th theme) {
 		predictably across terminals and width policies.
 	*/
 	lines := []string{
-		"███████╗██╗██████╗ ███████╗ █████╗ ███████╗██╗",
-		"╚══███╔╝██║██╔══██╗██╔════╝██╔══██╗██╔════╝██║",
-		"  ███╔╝ ██║██████╔╝█████╗  ███████║█████╗  ██║",
-		" ███╔╝  ██║██╔══██╗██╔══╝  ██╔══██║██╔══╝  ██║",
-		"███████╗██║██║  ██║███████╗██║  ██║███████╗███████╗",
+		" ______  _                      _ ",
+		"|___  / (_) ___  ___  __ _  ___| |",
+		"   / /  | |/ _ \\/ _ \\/ _` |/ _ \\ |",
+		"  / /___| |  __/  __/ (_| |  __/ |",
+		" /_____|_|\\___|\\___|\\__,_|\\___|_|",
 	}
 	tag := "Deterministic terminal UI core engine"
 
 	maxW := 0
 	for i := range lines {
-		if len(lines[i]) > maxW {
-			maxW = len(lines[i])
+		if w := utf8.RuneCountInString(lines[i]); w > maxW {
+			maxW = w
 		}
 	}
-	if maxW < len(tag) {
-		maxW = len(tag)
+	if w := utf8.RuneCountInString(tag); w > maxW {
+		maxW = w
 	}
 
-	x := r.x + (r.w-maxW)/2
+	drawW := maxW
+	if drawW > r.w {
+		drawW = r.w
+	}
+
+	x := r.x + (r.w-drawW)/2
+	if x < r.x {
+		x = r.x
+	}
 	y := r.y + (r.h-len(lines)-2)/2
 	if y < r.y {
 		y = r.y
@@ -91,9 +100,13 @@ func uiBrandLogo(b *dlBuilder, r rect, th theme) {
 		if y+i >= r.y+r.h {
 			break
 		}
-		uiTextClamp(b, x, y+i, maxW, lines[i], th.accent, th.bg)
+		uiTextClamp(b, x, y+i, drawW, lines[i], th.accent, th.bg)
 	}
-	uiTextClamp(b, r.x+(r.w-len(tag))/2, y+len(lines)+1, len(tag), tag, th.muted, th.bg)
+	tagW := utf8.RuneCountInString(tag)
+	if tagW > r.w {
+		tagW = r.w
+	}
+	uiTextClamp(b, r.x+(r.w-tagW)/2, y+len(lines)+1, tagW, tag, th.muted, th.bg)
 }
 
 func uiFill(b *dlBuilder, r rect, fg, bg uint32) {

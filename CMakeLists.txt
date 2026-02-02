@@ -116,6 +116,10 @@ if (ZIREAEL_BUILD_SHARED)
     )
     if (WIN32)
         set_target_properties(zireael_shared PROPERTIES
+                # On Windows, SHARED libraries also produce an import library (`.lib`).
+                # Keep the DLL name stable (`zireael.dll`) but avoid colliding with the
+                # static library output (`zireael.lib`).
+                ARCHIVE_OUTPUT_NAME zireael_shared
                 WINDOWS_EXPORT_ALL_SYMBOLS YES
         )
     endif ()

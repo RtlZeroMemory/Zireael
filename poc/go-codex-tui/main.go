@@ -268,7 +268,7 @@ func (a *app) drawScenarioPreview(b *dlBuilder, r rect) {
 	uiTextClamp(b, card.x+2, card.y+card.h-2, card.w-4, "Enter: start   Q: quit   H: help", a.th.muted, a.th.panel)
 
 	logoR := rect{x: r.x, y: r.y, w: r.w, h: r.h - 8}.clamp()
-	if logoR.w >= 60 && logoR.h >= 12 {
+	if logoR.w >= 44 && logoR.h >= 10 {
 		uiBrandLogo(b, logoR, a.th)
 	}
 }
@@ -328,6 +328,14 @@ func main() {
 
 	cfg := zrDefaultConfig()
 	cfg.plat.requestedColorMode = platColorRGB
+	/*
+		The demo's input path is intentionally minimal (see zr_input_parser.c) and does
+		not implement mouse, focus, or bracketed paste decoding yet. Disable these to
+		avoid spurious ESC events from terminals that emit those sequences.
+	*/
+	cfg.plat.enableMouse = 0
+	cfg.plat.enableBracketedPaste = 0
+	cfg.plat.enableFocusEvents = 0
 	cfg.limits.arenaMaxTotalBytes = 256 * 1024 * 1024
 	cfg.limits.arenaInitialBytes = 4 * 1024 * 1024
 	cfg.limits.outMaxBytesPerFrame = 16 * 1024 * 1024

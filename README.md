@@ -45,70 +45,75 @@ This engine is being built to power **Zireael-UI** (a TypeScript framework in pr
 
 ## Motivation
 
-Modern terminal apps are no longer just “CLI output”. They are interactive UIs, often running long sessions, and increasingly used for workflows like agentic coding where the UI updates continuously while the program performs real work in the background.
+Modern terminal apps are interactive UIs with continuous updates. This requires:
 
-In that environment you want two things at the same time:
+- **High performance rendering** — large surfaces, frequent updates, minimal terminal I/O
+- **A portable core** — callable from any language, reusable across products
 
-- **High performance rendering** (large surfaces, frequent updates, minimal terminal I/O).
-- **A portable core** that can be called from any language and reused across products.
-
-C is a practical choice for the core: it gives a stable ABI boundary and predictable performance characteristics. Zireael exists so higher-level frameworks don’t have to reimplement terminal I/O, Unicode policies, diff rendering, input parsing, and the “edge case” behavior that makes terminal UIs reliable across platforms and terminals.
+C provides a stable ABI boundary and predictable performance. Zireael handles terminal I/O, Unicode, diff rendering, and input parsing so frameworks don't have to.
 
 ## Why Zireael?
 
-Building a TUI framework requires solving the same hard problems repeatedly:
+Building a TUI framework requires solving the same problems:
 
 - Terminal I/O — raw mode, signal handling, platform differences
 - Efficient rendering — diff algorithms, cursor optimization, minimal escape sequences
 - Unicode — grapheme clusters, character widths, text wrapping
 - Input parsing — ANSI sequences, mouse protocols, bracketed paste
 
-Zireael solves these once behind a strict platform boundary and exposes a deterministic, bounded surface for wrappers:
+Zireael solves these once behind a strict platform boundary:
 
-- **Binary in, binary out**: wrappers send drawlist bytes; the engine returns event batches.
-- **Defensive validation**: drawlists/events are treated as untrusted bytes at the boundary.
-- **Pinned policies**: Unicode grapheme + width policy are stable and deterministic (no locale-dependent surprises).
-- **Bounded work**: explicit caps for drawlist sizes, counts, and output bytes per frame.
-- **Backend isolation**: core/unicode/util stay OS-header-free; OS code lives in `src/platform/*`.
+- **Binary in, binary out**: wrappers send drawlist bytes; the engine returns event batches
+- **Defensive validation**: drawlists/events are treated as untrusted bytes at the boundary
+- **Pinned policies**: Unicode grapheme + width policy are stable (no locale surprises)
+- **Bounded work**: explicit caps for drawlist sizes, counts, and output bytes per frame
+- **Backend isolation**: core/unicode/util stay OS-header-free; OS code lives in `src/platform/*`
 
-## How it works 
+## Non-Goals
 
-Per frame, a wrapper typically does:
+Zireael is the rendering engine, not a framework:
 
-1. `engine_poll_events(...)` into a caller-provided byte buffer (keys, mouse, resize, text).
-2. Build a **drawlist v1** byte stream (little-endian): a command section plus string/blob tables.
-3. `engine_submit_drawlist(engine, bytes, len)` (engine validates limits and format).
-4. Engine executes commands into an internal framebuffer, diffs against the previous frame, and builds terminal output into an internal bounded buffer.
-5. `engine_present(engine)` flushes once for that frame and updates metrics.
+- **No widgets or layouts** — that's the framework's job
+- **No application state** — the engine is stateless between frames
+- **No high-level text APIs** — wrappers handle text measurement, shaping
+- **No networking, async I/O** — out of scope
 
-This keeps the wrapper focused on widgets/layout/state while the engine owns terminal correctness, Unicode policies, and output performance.
+## How it works
 
-## Design constraints 
+Per-frame wrapper loop:
 
-- **Stable ABI + formats**: plain C functions and versioned on-wire formats (drawlist/event batch) for wrappers in any language.
-- **Deterministic behavior**: pinned ABI/format versions and pinned Unicode width/grapheme policy (no locale-dependent width tables).
-- **Bounded work**: limits for drawlist bytes/cmds/strings/blobs and output bytes per frame; validation rejects invalid/oversized inputs.
-- **Ownership model**: engine owns its allocations; wrappers provide event buffers and never free engine memory.
-- **Platform boundary**: OS code is confined to `src/platform/*`; core/unicode/util do not include OS headers.
-- **Output policy**: diff renderer coalesces terminal operations and flushes once per `engine_present()` (bounded by `out_max_bytes_per_frame`).
+1. `engine_poll_events(...)` — receive input events into caller buffer
+2. Build **drawlist** bytes — commands + string/blob tables
+3. `engine_submit_drawlist(...)` — engine validates and executes into framebuffer
+4. `engine_present(...)` — diff, emit terminal output, single flush
 
-## What a wrapper actually sends
+Wrapper handles widgets/layout/state. Engine handles terminal correctness and output.
 
-Drawlist v1 supports a small set of opcodes:
+## Design constraints
 
-- `CLEAR`
-- `FILL_RECT`
-- `DRAW_TEXT` (string-table slices)
-- `PUSH_CLIP` / `POP_CLIP`
-- `DRAW_TEXT_RUN` (multiple styled segments in one command)
+- **Stable ABI**: plain C functions, versioned binary formats (drawlist/event batch)
+- **Deterministic**: pinned versions, pinned Unicode policy, no locale dependencies
+- **Bounded**: explicit limits for drawlist size, command count, output bytes per frame
+- **Ownership**: engine owns allocations; wrappers provide buffers, never free engine memory
+- **Platform boundary**: OS code confined to `src/platform/*`; core stays OS-header-free
+- **Single flush**: one write per `engine_present()`, bounded output size
 
-Drawlist v2 adds:
+## Binary formats
 
-- `SET_CURSOR` (position, shape, visibility, blink)
+**Drawlist opcodes:**
 
-Event Batch v1 is the inverse direction: the engine writes a packed byte stream of input events (key/text/mouse/resize) into a caller-provided buffer.
+| Opcode | Version | Description |
+|--------|---------|-------------|
+| `CLEAR` | v1 | Clear framebuffer |
+| `FILL_RECT` | v1 | Fill rectangle with style |
+| `DRAW_TEXT` | v1 | Draw text from string table |
+| `PUSH_CLIP` / `POP_CLIP` | v1 | Clipping stack |
+| `DRAW_TEXT_RUN` | v1 | Multiple styled segments |
+| `SET_CURSOR` | v2 | Cursor position, shape, visibility |
 
-The surface area is intentionally small: throughput comes from pushing many commands/segments efficiently under configured caps, not from a large API.
+**Event Batch v1** — engine writes packed input events (key, text, mouse, resize, paste) into caller buffer.
+
+Small surface area by design. Throughput comes from efficient command batching, not API breadth.
 
 ## Performance Features
 
@@ -227,12 +232,12 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 ![Zireael-Matrix-2](https://github.com/user-attachments/assets/a5f874bc-58c9-4e4d-9fab-57739a905607)
 ![Zireael-Matrix-3](https://github.com/user-attachments/assets/d1959f52-86c2-4668-84bb-5045b70a57a1)
 
-This repo includes an optional proof-of-concept **Go** wrapper demo that drives the engine through the public ABI:
+Optional **Go** proof-of-concept driving the engine through the public ABI:
 
-- scenario picker (menu)
-- “LLM Agentic Coding Emulator” scenario (thinking, tool calls, diffs)
-- high-stress scenarios (Matrix Rain + Neon Particle Storm with large per-frame command counts)
-- performance overlay (FPS, Zireael dirty/bytes stats, Go RAM stats)
+- Scenario picker menu
+- "LLM Agentic Coding Emulator" — thinking, tool calls, diffs
+- High-stress scenarios — Matrix Rain, Neon Particle Storm
+- Performance overlay — FPS, dirty lines, bytes emitted
 
 Run (one command; bootstraps a local Go toolchain automatically if `go` is missing):
 
@@ -282,12 +287,12 @@ Benchmark example (Neon Particle Storm):
 bash scripts/poc-go-codex-tui.sh -scenario storm -bench-seconds 10 -storm-n 150000 -storm-visible 25000 -phantom 200000
 ```
 
-What the demo stresses:
+Demo exercises:
 
-- drawlist validation + dispatch at high command counts
-- diff renderer behavior under heavy animation
-- platform flush behavior (single flush per present)
-- wrapper overhead (Go drawlist building + string/blob management)
+- Drawlist validation and dispatch at high command counts
+- Diff renderer under heavy animation
+- Single-flush-per-present behavior
+- Wrapper overhead (Go FFI + drawlist construction)
 
 Example benchmark output (POSIX release preset):
 

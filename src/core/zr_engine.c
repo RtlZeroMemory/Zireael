@@ -720,6 +720,21 @@ static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms, uint32_t
     return (int)w;
   }
   if (w == 0) {
+    /*
+      Resizes must be detectable even when SIGWINCH delivery is disrupted
+      (e.g. runtimes that install their own SIGWINCH handlers).
+
+      With timeout_ms==0, plat_wait() may return 0 even if the terminal has
+      resized, because there is no wake signal to make poll() ready.
+
+      Fix: always perform a best-effort size check on timeout. This keeps
+      non-blocking poll semantics while ensuring resize events are still
+      generated and framebuffers resized.
+    */
+    zr_result_t rc = zr_engine_try_handle_resize(e, time_ms);
+    if (rc != ZR_OK) {
+      return (int)rc;
+    }
     return 0;
   }
 

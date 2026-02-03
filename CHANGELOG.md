@@ -4,6 +4,12 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.1.1-rc3 — 2026-02-03
+
+### Fixed
+
+- engine: detect terminal resize even when `engine_poll_events(0, ...)` times out (best-effort size check on timeout to avoid missed resizes when SIGWINCH delivery is disrupted).
+
 ## 1.1.1-rc2 — 2026-02-03
 
 ### Fixed

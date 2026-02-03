@@ -519,6 +519,27 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
   /* Re-seed after backend init in case creation time was far from polling time. */
   e->last_tick_ms = zr_engine_now_ms_u32();
 
+  /*
+    Emit an initial resize event.
+
+    Why: Wrappers frequently size their viewport from ZR_EV_RESIZE. Some terminal
+    environments can report stale dimensions to wrappers at startup, and the
+    engine itself will not emit a resize event until the size changes. Enqueue
+    the initial size so callers can render the full framebuffer immediately.
+  */
+  {
+    zr_event_t ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = ZR_EV_RESIZE;
+    ev.time_ms = e->last_tick_ms;
+    ev.flags = 0u;
+    ev.u.resize.cols = e->size.cols;
+    ev.u.resize.rows = e->size.rows;
+    ev.u.resize.reserved0 = 0u;
+    ev.u.resize.reserved1 = 0u;
+    (void)zr_event_queue_push(&e->evq, &ev);
+  }
+
   *out_engine = e;
   return ZR_OK;
 

@@ -36,6 +36,14 @@ ZR_TEST_UNIT(engine_poll_events_truncates_as_success_with_flag) {
   ZR_ASSERT_TRUE(engine_create(&e, &cfg) == ZR_OK);
   ZR_ASSERT_TRUE(e != NULL);
 
+  /* Drain initial resize event enqueued by engine_create(). */
+  {
+    uint8_t out0[128];
+    memset(out0, 0, sizeof(out0));
+    const int n0 = engine_poll_events(e, 0, out0, (int)sizeof(out0));
+    ZR_ASSERT_TRUE(n0 > 0);
+  }
+
   /* Two key events: ESC [ A (UP), ESC [ B (DOWN). */
   const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'A', 0x1Bu, (uint8_t)'[', (uint8_t)'B'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
@@ -94,4 +102,3 @@ ZR_TEST_UNIT(engine_poll_events_header_too_small_returns_limit_and_writes_nothin
 
   engine_destroy(e);
 }
-

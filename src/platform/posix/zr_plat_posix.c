@@ -106,9 +106,12 @@ static uint8_t zr_posix_detect_sync_update(void) {
   if (term_program && strcmp(term_program, "iTerm.app") == 0) {
     return 1u;
   }
+  if (term_program && (strcmp(term_program, "Rio") == 0 || strcmp(term_program, "rio") == 0)) {
+    return 1u;
+  }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  if (term && (strstr(term, "kitty") || strstr(term, "wezterm"))) {
+  if (term && (strstr(term, "kitty") || strstr(term, "wezterm") || strstr(term, "rio"))) {
     return 1u;
   }
 

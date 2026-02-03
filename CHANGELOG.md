@@ -4,6 +4,13 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.1.1-rc4 — 2026-02-03
+
+### Fixed
+
+- engine: enqueue an initial `ZR_EV_RESIZE` during `engine_create()` so wrappers can size their viewport correctly on the first frame (avoids stale wrapper-side terminal size at startup).
+- posix: enable synchronized output (`DEC ?2026`) in Rio terminal for tear-free full-screen updates.
+
 ## 1.1.1-rc3 — 2026-02-03
 
 ### Fixed

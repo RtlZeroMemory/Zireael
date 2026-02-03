@@ -38,7 +38,21 @@ ZR_TEST_UNIT(engine_poll_events_emits_tick_with_nonzero_dt) {
   uint8_t out[128];
   memset(out, 0, sizeof(out));
 
+  /* engine_create() enqueues an initial resize event. Drain it first. */
+  {
+    const int n0 = engine_poll_events(e, 0, out, (int)sizeof(out));
+    ZR_ASSERT_TRUE(n0 > 0);
+
+    ZR_ASSERT_EQ_U32(zr_u32le_at(out + 0u), ZR_EV_MAGIC);
+    ZR_ASSERT_EQ_U32(zr_u32le_at(out + 4u), ZR_EVENT_BATCH_VERSION_V1);
+    ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u); /* event_count */
+
+    const size_t off_rec0 = sizeof(zr_evbatch_header_t);
+    ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_RESIZE);
+  }
+
   /* Immediately after create: no tick yet (dt would be 0). */
+  memset(out, 0, sizeof(out));
   ZR_ASSERT_TRUE(engine_poll_events(e, 0, out, (int)sizeof(out)) == 0);
 
   /* Advance time past the configured tick interval and poll again. */
@@ -80,6 +94,14 @@ ZR_TEST_UNIT(engine_poll_events_drains_input_before_due_tick) {
   zr_engine_t* e = NULL;
   ZR_ASSERT_TRUE(engine_create(&e, &cfg) == ZR_OK);
   ZR_ASSERT_TRUE(e != NULL);
+
+  /* Drain initial resize event enqueued by engine_create(). */
+  {
+    uint8_t out0[128];
+    memset(out0, 0, sizeof(out0));
+    const int n0 = engine_poll_events(e, 0, out0, (int)sizeof(out0));
+    ZR_ASSERT_TRUE(n0 > 0);
+  }
 
   mock_plat_set_now_ms(1050u);
 

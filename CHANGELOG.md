@@ -4,6 +4,8 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.2.0-rc1 — 2026-02-03
+
 ### Added
 
 - engine: debug trace system (`engine_debug_*`) for capturing and querying diagnostic records (frames, drawlists, and optional drawlist byte capture) via a bounded ring buffer.

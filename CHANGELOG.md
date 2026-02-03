@@ -4,6 +4,12 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.2.0-rc3 — 2026-02-03
+
+### Fixed
+
+- core: treat SGR mouse motion-without-buttons (e.g. `b=35` with any-event tracking) as `ZR_MOUSE_MOVE` rather than a spurious `ZR_MOUSE_UP`.
+
 ## 1.2.0-rc2 — 2026-02-03
 
 ### Fixed

@@ -337,12 +337,23 @@ static bool zr__parse_sgr_mouse(const uint8_t* bytes, size_t len, size_t i, uint
     } else {
       wheel_x = -1;
     }
-  } else if (term == (uint8_t)'m' || base == 3u) {
+  } else if (is_motion) {
+    /*
+      In any-event mouse tracking (DECSET 1003), motion with no buttons pressed
+      is encoded as base=3 with the motion bit set (e.g. b=35). Treat that as a
+      MOVE, not as a button release.
+    */
+    if (base != 3u) {
+      buttons = zr__buttons_mask_from_base(base);
+    }
+    kind = buttons != 0u ? (uint32_t)ZR_MOUSE_DRAG : (uint32_t)ZR_MOUSE_MOVE;
+  } else if (term == (uint8_t)'m') {
     kind = (uint32_t)ZR_MOUSE_UP;
     buttons = zr__buttons_mask_from_base(base);
-  } else if (is_motion) {
-    buttons = zr__buttons_mask_from_base(base);
-    kind = buttons != 0u ? (uint32_t)ZR_MOUSE_DRAG : (uint32_t)ZR_MOUSE_MOVE;
+  } else if (base == 3u) {
+    /* No-buttons report (hover/move). Avoid spurious UP events. */
+    kind = (uint32_t)ZR_MOUSE_MOVE;
+    buttons = 0u;
   } else {
     kind = (uint32_t)ZR_MOUSE_DOWN;
     buttons = zr__buttons_mask_from_base(base);

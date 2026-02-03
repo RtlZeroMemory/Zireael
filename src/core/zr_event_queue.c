@@ -246,6 +246,33 @@ zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev) {
   return ZR_OK;
 }
 
+zr_result_t zr_event_queue_try_push_no_drop(zr_event_queue_t* q, const zr_event_t* ev) {
+  if (!q || !ev || !q->events || q->cap == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_evq_lock(q);
+
+  if (zr_evq_try_coalesce_locked(q, ev)) {
+    zr_evq_unlock(q);
+    return ZR_OK;
+  }
+
+  if (q->count == q->cap) {
+    q->dropped_total++;
+    q->dropped_due_to_full++;
+    zr_evq_unlock(q);
+    return ZR_ERR_LIMIT;
+  }
+
+  const uint32_t tail = zr_evq_index(q, q->count);
+  q->events[tail] = *ev;
+  q->count++;
+
+  zr_evq_unlock(q);
+  return ZR_OK;
+}
+
 /* Post a user-defined event with optional payload; returns ZR_ERR_LIMIT if no space. */
 zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag,
                                      const uint8_t* payload, uint32_t payload_len) {

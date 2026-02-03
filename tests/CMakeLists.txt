@@ -43,6 +43,7 @@ add_executable(zireael_unit_tests
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c
         unit/test_engine_poll_events_truncation.c
+        unit/test_engine_tick_events.c
         unit/test_engine_get_caps.c
         unit/test_engine_metrics_damage.c
         unit/test_engine_present_backpressure.c

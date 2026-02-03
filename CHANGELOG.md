@@ -4,6 +4,12 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.1.1-rc2 — 2026-02-03
+
+### Fixed
+
+- engine: emit `ZR_EV_TICK` periodically from `engine_poll_events()` (bounded by `target_fps`) so wrappers can rely on non-zero `dt_ms` ticks even without input.
+
 ## 1.1.1-rc1 — 2026-02-02
 
 ### Fixed

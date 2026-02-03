@@ -66,6 +66,13 @@ zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_
 zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev);
 
 /*
+  Engine-thread enqueue (no-drop):
+    - Deterministic coalescing still applies.
+    - If the queue is full, returns ZR_ERR_LIMIT and does NOT drop any existing events.
+*/
+zr_result_t zr_event_queue_try_push_no_drop(zr_event_queue_t* q, const zr_event_t* ev);
+
+/*
   Thread-safe user event injection:
     - copies payload bytes into the queue's user_bytes ring
     - returns ZR_ERR_LIMIT if queue or user_bytes capacity is exceeded

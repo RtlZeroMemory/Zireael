@@ -17,9 +17,9 @@
 #error "Zireael version pins are locked; do not override ZR_*_VERSION_* macros."
 #endif
 
-/* Engine ABI version (v1.0.0). */
+/* Engine ABI version (v1.1.0). */
 #define ZR_ENGINE_ABI_MAJOR (1u)
-#define ZR_ENGINE_ABI_MINOR (0u)
+#define ZR_ENGINE_ABI_MINOR (1u)
 #define ZR_ENGINE_ABI_PATCH (0u)
 
 /* Drawlist binary format versions. */

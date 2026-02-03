@@ -4,6 +4,22 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.2.0-rc3 — 2026-02-03
+
+### Fixed
+
+- core: treat SGR mouse motion-without-buttons (e.g. `b=35` with any-event tracking) as `ZR_MOUSE_MOVE` rather than a spurious `ZR_MOUSE_UP`.
+
+## 1.2.0-rc2 — 2026-02-03
+
+### Fixed
+
+- core: parse common CSI/SS3 key sequences (including parameterized arrows like `ESC [ 1 ; 5 A`) so ArrowUp/Down/Left/Right work reliably across terminals.
+- core: parse SGR mouse (`DECSET ?1006`) sequences into `ZR_EV_MOUSE` events (down/up/drag/wheel) for interactive UIs.
+- win32: honor `KEY_EVENT_RECORD.wRepeatCount` when translating console input records into the byte stream consumed by the core parser.
+
+## 1.2.0-rc1 — 2026-02-03
+
 ### Added
 
 - engine: debug trace system (`engine_debug_*`) for capturing and querying diagnostic records (frames, drawlists, and optional drawlist byte capture) via a bounded ring buffer.

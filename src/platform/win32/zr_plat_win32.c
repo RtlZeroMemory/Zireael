@@ -53,6 +53,26 @@ struct plat_t {
   uint8_t _pad[5];
 };
 
+static void zr_win32_emit_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_len, const uint8_t* seq, size_t seq_len,
+                                 WORD repeat) {
+  if (!out_buf || !io_len || !seq) {
+    return;
+  }
+  if (seq_len == 0u) {
+    return;
+  }
+  if (repeat == 0u) {
+    repeat = 1u;
+  }
+  for (WORD r = 0u; r < repeat; r++) {
+    if (*io_len + seq_len > out_cap) {
+      return;
+    }
+    memcpy(out_buf + *io_len, seq, seq_len);
+    *io_len += seq_len;
+  }
+}
+
 static zr_result_t zr_win32_write_all(HANDLE h_out, const uint8_t* bytes, int32_t len) {
   if (len < 0) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -477,61 +497,46 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
 
       const WORD vk = k->wVirtualKeyCode;
       const WCHAR ch = k->uChar.UnicodeChar;
+      const WORD repeat = k->wRepeatCount;
 
       if (vk == VK_UP) {
-        if (out_len + 3u <= out_cap_z) {
-          out_buf[out_len++] = 0x1Bu;
-          out_buf[out_len++] = (uint8_t)'[';
-          out_buf[out_len++] = (uint8_t)'A';
-        }
+        const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'A'};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_DOWN) {
-        if (out_len + 3u <= out_cap_z) {
-          out_buf[out_len++] = 0x1Bu;
-          out_buf[out_len++] = (uint8_t)'[';
-          out_buf[out_len++] = (uint8_t)'B';
-        }
+        const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'B'};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_RIGHT) {
-        if (out_len + 3u <= out_cap_z) {
-          out_buf[out_len++] = 0x1Bu;
-          out_buf[out_len++] = (uint8_t)'[';
-          out_buf[out_len++] = (uint8_t)'C';
-        }
+        const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'C'};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_LEFT) {
-        if (out_len + 3u <= out_cap_z) {
-          out_buf[out_len++] = 0x1Bu;
-          out_buf[out_len++] = (uint8_t)'[';
-          out_buf[out_len++] = (uint8_t)'D';
-        }
+        const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'D'};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_RETURN) {
-        if (out_len + 1u <= out_cap_z) {
-          out_buf[out_len++] = (uint8_t)'\r';
-        }
+        const uint8_t seq[] = {(uint8_t)'\r'};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_ESCAPE) {
-        if (out_len + 1u <= out_cap_z) {
-          out_buf[out_len++] = 0x1Bu;
-        }
+        const uint8_t seq[] = {0x1Bu};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_TAB) {
-        if (out_len + 1u <= out_cap_z) {
-          out_buf[out_len++] = (uint8_t)'\t';
-        }
+        const uint8_t seq[] = {(uint8_t)'\t'};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
       if (vk == VK_BACK) {
-        if (out_len + 1u <= out_cap_z) {
-          out_buf[out_len++] = 0x7Fu;
-        }
+        const uint8_t seq[] = {0x7Fu};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         continue;
       }
 
@@ -545,7 +550,8 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
         "text events" for a single key press.
       */
       if (ch <= 0x7Fu && out_len + 1u <= out_cap_z) {
-        out_buf[out_len++] = (uint8_t)ch;
+        const uint8_t seq[] = {(uint8_t)ch};
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
       }
     }
 

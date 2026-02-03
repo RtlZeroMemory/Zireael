@@ -3,6 +3,7 @@ add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/core/zr_damage.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_diff.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_debug_overlay.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_debug_trace.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_drawlist.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_engine.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_event_pack.c
@@ -39,6 +40,7 @@ add_executable(zireael_unit_tests
         unit/test_bytes.c
         unit/test_checked.c
         unit/test_damage_rects.c
+        unit/test_debug_trace.c
         unit/test_diff_color_quant.c
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c

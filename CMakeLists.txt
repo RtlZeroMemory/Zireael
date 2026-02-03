@@ -52,6 +52,7 @@ set(ZIREAEL_SOURCES
         src/core/zr_damage.c
         src/core/zr_diff.c
         src/core/zr_debug_overlay.c
+        src/core/zr_debug_trace.c
         src/core/zr_drawlist.c
         src/core/zr_engine.c
         src/core/zr_event_pack.c

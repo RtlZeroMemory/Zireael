@@ -14,6 +14,7 @@ Reading order (recommended):
 8. `docs/REPO_LAYOUT.md`
 9. `docs/BUILD_TOOLCHAINS_AND_CMAKE.md`
 10. `docs/modules/` (module specs)
+    - `docs/modules/DEBUG_TRACE.md` (bounded diagnostic trace buffer)
 
 Testing:
 

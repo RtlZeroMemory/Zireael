@@ -4,6 +4,7 @@ This module defines the engine’s **diagnostics surfaces** that are safe for wr
 
 - `zr_metrics_t` — ABI-safe metrics snapshot struct
 - debug overlay renderer — a small, bounded ASCII overlay rendered into the framebuffer
+- debug trace system — bounded diagnostic record ring buffer (see `docs/modules/DEBUG_TRACE.md`)
 
 ## Metrics ABI (`zr_metrics_t`)
 

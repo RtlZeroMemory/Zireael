@@ -10,6 +10,7 @@
 
 #include "core/zr_cursor.h"
 #include "core/zr_damage.h"
+#include "core/zr_debug_trace.h"
 #include "core/zr_diff.h"
 #include "core/zr_drawlist.h"
 #include "core/zr_event_pack.h"
@@ -71,6 +72,12 @@ struct zr_engine_t {
 
   /* --- Metrics snapshot (prefix-copied out) --- */
   zr_metrics_t metrics;
+
+  /* --- Debug trace (optional, engine-owned) --- */
+  zr_debug_trace_t* debug_trace;
+  uint8_t* debug_ring_buf;
+  uint32_t* debug_record_offsets;
+  uint32_t* debug_record_sizes;
 };
 
 enum {
@@ -80,6 +87,9 @@ enum {
   ZR_ENGINE_READ_LOOP_MAX = 64u,
   ZR_ENGINE_DEFAULT_TICK_INTERVAL_MS = 16u,
 };
+
+/* Forward declaration for cleanup helper. */
+static void zr_engine_debug_free(zr_engine_t* e);
 
 static const uint8_t ZR_SYNC_BEGIN[] = "\x1b[?2026h";
 static const uint8_t ZR_SYNC_END[] = "\x1b[?2026l";
@@ -583,7 +593,72 @@ void engine_destroy(zr_engine_t* e) {
   e->user_bytes = NULL;
   e->user_bytes_cap = 0u;
 
+  zr_engine_debug_free(e);
+
   free(e);
+}
+
+/* Get current time in microseconds for debug tracing. */
+static uint64_t zr_engine_now_us(void) {
+  return (uint64_t)plat_now_ms() * 1000u;
+}
+
+/*
+  Compute the debug-trace frame id for the next present.
+
+  Why: metrics.frame_index increments at the end of engine_present(). For trace
+  correlation, treat the next present as (frame_index + 1).
+*/
+static uint64_t zr_engine_trace_frame_id(const zr_engine_t* e) {
+  if (!e) {
+    return 0u;
+  }
+  if (e->metrics.frame_index == UINT64_MAX) {
+    return UINT64_MAX;
+  }
+  return e->metrics.frame_index + 1u;
+}
+
+/*
+  Record a drawlist debug trace if tracing is enabled.
+*/
+static void zr_engine_trace_drawlist(zr_engine_t* e,
+                                     uint32_t code,
+                                     const uint8_t* bytes,
+                                     uint32_t bytes_len,
+                                     uint32_t cmd_count,
+                                     uint32_t version,
+                                     zr_result_t validation_result,
+                                     zr_result_t execution_result) {
+  if (!e || !e->debug_trace) {
+    return;
+  }
+  if (!zr_debug_trace_enabled(e->debug_trace, ZR_DEBUG_CAT_DRAWLIST, ZR_DEBUG_SEV_INFO)) {
+    return;
+  }
+
+  const uint64_t frame_id = zr_engine_trace_frame_id(e);
+  zr_debug_trace_set_frame(e->debug_trace, frame_id);
+
+  if (e->debug_trace->config.capture_drawlist_bytes != 0u && bytes && bytes_len != 0u) {
+    uint32_t n = bytes_len;
+    if (n > (uint32_t)ZR_DEBUG_MAX_PAYLOAD_SIZE) {
+      n = (uint32_t)ZR_DEBUG_MAX_PAYLOAD_SIZE;
+    }
+    (void)zr_debug_trace_record(e->debug_trace, ZR_DEBUG_CAT_DRAWLIST, ZR_DEBUG_SEV_TRACE,
+                                ZR_DEBUG_CODE_DRAWLIST_CMD, zr_engine_now_us(), bytes, n);
+  }
+
+  zr_debug_drawlist_record_t rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.frame_id = frame_id;
+  rec.total_bytes = bytes_len;
+  rec.cmd_count = cmd_count;
+  rec.version = version;
+  rec.validation_result = (uint32_t)validation_result;
+  rec.execution_result = (uint32_t)execution_result;
+
+  (void)zr_debug_trace_drawlist(e->debug_trace, code, zr_engine_now_us(), &rec);
 }
 
 /*
@@ -603,6 +678,8 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   zr_dl_view_t v;
   zr_result_t rc = zr_dl_validate(bytes, (size_t)bytes_len, &e->cfg_runtime.limits, &v);
   if (rc != ZR_OK) {
+    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_VALIDATE, bytes,
+                             (uint32_t)bytes_len, 0u, 0u, rc, ZR_OK);
     return rc;
   }
 
@@ -611,11 +688,17 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   zr_cursor_state_t cursor_stage = e->cursor_desired;
   rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, &cursor_stage);
   if (rc != ZR_OK) {
+    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes,
+                             (uint32_t)bytes_len, v.hdr.cmd_count, v.hdr.version, ZR_OK, rc);
     return rc;
   }
 
   zr_engine_fb_swap(&e->fb_next, &e->fb_stage);
   e->cursor_desired = cursor_stage;
+
+  zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes,
+                           (uint32_t)bytes_len, v.hdr.cmd_count, v.hdr.version, ZR_OK, ZR_OK);
+
   return ZR_OK;
 }
 
@@ -664,6 +747,36 @@ static zr_result_t zr_engine_present_write(zr_engine_t* e, size_t out_len) {
   return plat_write_output(e->plat, e->out_buf, (int32_t)out_len);
 }
 
+/*
+  Record a frame debug trace after present commits.
+*/
+static void zr_engine_trace_frame(zr_engine_t* e,
+                                  uint64_t frame_id,
+                                  size_t out_len,
+                                  const zr_diff_stats_t* stats) {
+  if (!e || !e->debug_trace || !stats) {
+    return;
+  }
+  if (!zr_debug_trace_enabled(e->debug_trace, ZR_DEBUG_CAT_FRAME, ZR_DEBUG_SEV_INFO)) {
+    return;
+  }
+
+  zr_debug_trace_set_frame(e->debug_trace, frame_id);
+
+  zr_debug_frame_record_t rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.frame_id = frame_id;
+  rec.cols = e->fb_next.cols;
+  rec.rows = e->fb_next.rows;
+  rec.diff_bytes_emitted = (uint32_t)out_len;
+  rec.dirty_lines = stats->dirty_lines;
+  rec.dirty_cells = stats->dirty_cells;
+  rec.damage_rects = stats->damage_rects;
+
+  (void)zr_debug_trace_frame(e->debug_trace, ZR_DEBUG_CODE_FRAME_PRESENT,
+                             zr_engine_now_us(), &rec);
+}
+
 static void zr_engine_present_commit(zr_engine_t* e,
                                      size_t out_len,
                                      const zr_term_state_t* final_ts,
@@ -671,6 +784,8 @@ static void zr_engine_present_commit(zr_engine_t* e,
   if (!e || !final_ts || !stats) {
     return;
   }
+
+  const uint64_t frame_id_presented = zr_engine_trace_frame_id(e);
 
   zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
   e->term_state = *final_ts;
@@ -686,6 +801,12 @@ static void zr_engine_present_commit(zr_engine_t* e,
   e->metrics._pad2[0] = 0u;
   e->metrics._pad2[1] = 0u;
   e->metrics._pad2[2] = 0u;
+
+  /* Update debug trace frame ID and record frame data. */
+  if (e->debug_trace) {
+    zr_engine_trace_frame(e, frame_id_presented, out_len, stats);
+    zr_debug_trace_set_frame(e->debug_trace, zr_engine_trace_frame_id(e));
+  }
 }
 
 /*
@@ -1088,4 +1209,164 @@ cleanup:
   zr_arena_release(&arena_frame_new);
   zr_arena_release(&arena_persistent_new);
   return rc;
+}
+
+/* --- Debug Trace API --- */
+
+enum {
+  ZR_DEBUG_RING_BUF_SIZE = 256u * 1024u, /* 256 KB for record payloads */
+};
+
+/*
+  Free all debug trace resources.
+
+  Why: Centralizes cleanup for both disable and destroy paths.
+*/
+static void zr_engine_debug_free(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+
+  free(e->debug_trace);
+  e->debug_trace = NULL;
+
+  free(e->debug_ring_buf);
+  e->debug_ring_buf = NULL;
+
+  free(e->debug_record_offsets);
+  e->debug_record_offsets = NULL;
+
+  free(e->debug_record_sizes);
+  e->debug_record_sizes = NULL;
+}
+
+zr_result_t engine_debug_enable(zr_engine_t* e, const zr_debug_config_t* config) {
+  if (!e) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  /* Free any existing debug trace. */
+  zr_engine_debug_free(e);
+
+  zr_debug_config_t cfg = config ? *config : zr_debug_config_default();
+  cfg.enabled = 1u;
+
+  const uint32_t ring_cap = (cfg.ring_capacity > 0u) ? cfg.ring_capacity : ZR_DEBUG_DEFAULT_RING_CAP;
+
+  /* Allocate trace context. */
+  e->debug_trace = (zr_debug_trace_t*)calloc(1u, sizeof(zr_debug_trace_t));
+  if (!e->debug_trace) {
+    return ZR_ERR_OOM;
+  }
+
+  /* Allocate ring buffer for payloads. */
+  e->debug_ring_buf = (uint8_t*)malloc(ZR_DEBUG_RING_BUF_SIZE);
+  if (!e->debug_ring_buf) {
+    zr_engine_debug_free(e);
+    return ZR_ERR_OOM;
+  }
+
+  /* Allocate index arrays. */
+  e->debug_record_offsets = (uint32_t*)calloc(ring_cap, sizeof(uint32_t));
+  if (!e->debug_record_offsets) {
+    zr_engine_debug_free(e);
+    return ZR_ERR_OOM;
+  }
+
+  e->debug_record_sizes = (uint32_t*)calloc(ring_cap, sizeof(uint32_t));
+  if (!e->debug_record_sizes) {
+    zr_engine_debug_free(e);
+    return ZR_ERR_OOM;
+  }
+
+  /* Initialize trace context. */
+  zr_result_t rc = zr_debug_trace_init(e->debug_trace, &cfg,
+                                       e->debug_ring_buf, ZR_DEBUG_RING_BUF_SIZE,
+                                       e->debug_record_offsets, e->debug_record_sizes,
+                                       ring_cap);
+  if (rc != ZR_OK) {
+    zr_engine_debug_free(e);
+    return rc;
+  }
+
+  /* Set start time for relative timestamps. */
+  zr_debug_trace_set_start_time(e->debug_trace, (uint64_t)plat_now_ms() * 1000u);
+  zr_debug_trace_set_frame(e->debug_trace, zr_engine_trace_frame_id(e));
+
+  return ZR_OK;
+}
+
+void engine_debug_disable(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+  zr_engine_debug_free(e);
+}
+
+zr_result_t engine_debug_query(zr_engine_t* e,
+                               const zr_debug_query_t* query,
+                               zr_debug_record_header_t* out_headers,
+                               uint32_t out_headers_cap,
+                               zr_debug_query_result_t* out_result) {
+  if (!e || !query || !out_result) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  if (!e->debug_trace) {
+    memset(out_result, 0, sizeof(*out_result));
+    return ZR_OK;
+  }
+
+  return zr_debug_trace_query(e->debug_trace, query, out_headers, out_headers_cap, out_result);
+}
+
+zr_result_t engine_debug_get_payload(zr_engine_t* e,
+                                     uint64_t record_id,
+                                     void* out_payload,
+                                     uint32_t out_cap,
+                                     uint32_t* out_size) {
+  if (!e || !out_size) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  *out_size = 0u;
+
+  if (!e->debug_trace) {
+    return ZR_ERR_LIMIT;
+  }
+
+  return zr_debug_trace_get_payload(e->debug_trace, record_id, out_payload, out_cap, out_size);
+}
+
+zr_result_t engine_debug_get_stats(zr_engine_t* e, zr_debug_stats_t* out_stats) {
+  if (!e || !out_stats) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  memset(out_stats, 0, sizeof(*out_stats));
+
+  if (!e->debug_trace) {
+    return ZR_OK;
+  }
+
+  return zr_debug_trace_get_stats(e->debug_trace, out_stats);
+}
+
+int32_t engine_debug_export(zr_engine_t* e, uint8_t* out_buf, size_t out_cap) {
+  if (!e) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  if (!e->debug_trace) {
+    return 0;
+  }
+
+  return zr_debug_trace_export(e->debug_trace, out_buf, out_cap);
+}
+
+void engine_debug_reset(zr_engine_t* e) {
+  if (!e || !e->debug_trace) {
+    return;
+  }
+  zr_debug_trace_reset(e->debug_trace);
 }

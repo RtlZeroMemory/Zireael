@@ -122,6 +122,30 @@ static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, 
     case 8u:
       key = ZR_KEY_END;
       break;
+    case 15u:
+      key = ZR_KEY_F5;
+      break;
+    case 17u:
+      key = ZR_KEY_F6;
+      break;
+    case 18u:
+      key = ZR_KEY_F7;
+      break;
+    case 19u:
+      key = ZR_KEY_F8;
+      break;
+    case 20u:
+      key = ZR_KEY_F9;
+      break;
+    case 21u:
+      key = ZR_KEY_F10;
+      break;
+    case 23u:
+      key = ZR_KEY_F11;
+      break;
+    case 24u:
+      key = ZR_KEY_F12;
+      break;
     case 2u:
       key = ZR_KEY_INSERT;
       break;
@@ -234,6 +258,18 @@ static bool zr__parse_ss3_key(const uint8_t* bytes, size_t len, size_t i, zr_key
       break;
     case (uint8_t)'F':
       key = ZR_KEY_END;
+      break;
+    case (uint8_t)'P':
+      key = ZR_KEY_F1;
+      break;
+    case (uint8_t)'Q':
+      key = ZR_KEY_F2;
+      break;
+    case (uint8_t)'R':
+      key = ZR_KEY_F3;
+      break;
+    case (uint8_t)'S':
+      key = ZR_KEY_F4;
       break;
     default:
       return false;

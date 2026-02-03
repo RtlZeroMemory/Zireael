@@ -345,7 +345,7 @@ static zr_result_t zr_posix_write_cstr(int fd, const char* s) {
 static void zr_posix_emit_enter_sequences(plat_t* plat) {
   /*
     Locked ordering for enter:
-      ?1049h, ?25l, ?7h, ?2004h, ?1000h?1006h (when enabled by config/caps)
+      ?1049h, ?25l, ?7h, ?2004h, ?1000h?1002h?1003h?1006h (when enabled by config/caps)
   */
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1049h");
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?25l");
@@ -355,7 +355,14 @@ static void zr_posix_emit_enter_sequences(plat_t* plat) {
     (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?2004h");
   }
   if (plat->cfg.enable_mouse && plat->caps.supports_mouse) {
-    (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1000h\x1b[?1006h");
+    /*
+      Mouse tracking:
+        - ?1000h: report button press/release
+        - ?1002h: report drag motion
+        - ?1003h: report any motion (hover)
+        - ?1006h: SGR encoding (needed for >223 coords and modern terminals)
+    */
+    (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h");
   }
 }
 
@@ -368,7 +375,7 @@ static void zr_posix_emit_leave_sequences(plat_t* plat) {
       - wrap policy: leave wrap enabled
   */
   if (plat->cfg.enable_mouse && plat->caps.supports_mouse) {
-    (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1006l\x1b[?1000l");
+    (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l");
   }
   if (plat->cfg.enable_bracketed_paste && plat->caps.supports_bracketed_paste) {
     (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?2004l");

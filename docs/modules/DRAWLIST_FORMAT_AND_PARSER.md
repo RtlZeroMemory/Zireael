@@ -50,7 +50,7 @@ Unknown opcodes MUST be rejected with `ZR_ERR_UNSUPPORTED`.
 | `ZR_DL_OP_PUSH_CLIP` | 4 | v1 | 16B | Push clipping rectangle |
 | `ZR_DL_OP_POP_CLIP` | 5 | v1 | 0B | Pop clipping rectangle |
 | `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1 | 16B | Draw pre-measured text run (blob) |
-| `ZR_DL_OP_SET_CURSOR` | 7 | v2 | 16B | Set cursor position/shape/visibility |
+| `ZR_DL_OP_SET_CURSOR` | 7 | v2 | 12B | Set cursor position/shape/visibility |
 
 Command sizes include the 8-byte header (`zr_dl_cmd_header_t`).
 

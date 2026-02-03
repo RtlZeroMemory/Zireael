@@ -109,7 +109,7 @@ Wrapper handles widgets/layout/state. Engine handles terminal correctness and ou
 | `DRAW_TEXT` | v1 | Draw text from string table |
 | `PUSH_CLIP` / `POP_CLIP` | v1 | Clipping stack |
 | `DRAW_TEXT_RUN` | v1 | Multiple styled segments |
-| `SET_CURSOR` | v2 | Cursor position, shape, visibility |
+| `SET_CURSOR` | v2 | Cursor position, shape, visibility (12B payload) |
 
 **Event Batch v1** — engine writes packed input events (key, text, mouse, resize, paste) into caller buffer.
 

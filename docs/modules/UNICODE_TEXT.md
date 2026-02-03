@@ -51,9 +51,11 @@ This pin ensures identical grapheme segmentation and width calculation across al
 zr_grapheme_iter_t iter;
 zr_grapheme_iter_init(&iter, utf8_bytes, utf8_len);
 
-while (zr_grapheme_iter_next(&iter)) {
-    // iter.ptr, iter.len contain current grapheme bytes
-    uint8_t w = zr_width_grapheme_utf8(iter.ptr, iter.len, policy);
+zr_grapheme_t g;
+while (zr_grapheme_next(&iter, &g)) {
+    // g.offset, g.size identify grapheme bytes within the buffer
+    const uint8_t* ptr = iter.bytes + g.offset;
+    uint8_t w = zr_width_grapheme_utf8(ptr, g.size, policy);
     // w is 0, 1, or 2
 }
 ```

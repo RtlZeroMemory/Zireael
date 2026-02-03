@@ -784,12 +784,13 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
   }
 
   uint32_t time_ms = zr_engine_now_ms_u32();
-  zr_engine_maybe_enqueue_tick(e, time_ms);
 
   int wait_ms = timeout_ms;
   if (zr_event_queue_count(&e->evq) == 0u && wait_ms > 0) {
     const uint32_t until_tick_ms = zr_engine_tick_until_due_ms(e, time_ms);
-    if (until_tick_ms != 0u && until_tick_ms < (uint32_t)wait_ms) {
+    if (until_tick_ms == 0u) {
+      wait_ms = 0;
+    } else if (until_tick_ms < (uint32_t)wait_ms) {
       wait_ms = (int)until_tick_ms;
     }
   }

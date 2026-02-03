@@ -40,6 +40,7 @@ struct plat_t {
 
   int stdin_fd;
   int stdout_fd;
+  int tty_fd_owned;
 
   int wake_read_fd;
   int wake_write_fd;
@@ -410,8 +411,29 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->cfg = *cfg;
   plat->stdin_fd = STDIN_FILENO;
   plat->stdout_fd = STDOUT_FILENO;
+  plat->tty_fd_owned = -1;
   plat->wake_read_fd = -1;
   plat->wake_write_fd = -1;
+
+  /*
+    Some launchers (certain npm/WSL setups, IDE tasks, etc.) start Node with
+    stdin/stdout not attached to the controlling terminal even though a TTY
+    exists for interactive use. Raw mode requires a TTY for termios/ioctl.
+
+    If either standard stream is not a TTY, fall back to /dev/tty so the
+    engine can still render/interact with the controlling terminal.
+  */
+  if (isatty(plat->stdin_fd) == 0 || isatty(plat->stdout_fd) == 0) {
+    int fd = open("/dev/tty", O_RDWR | O_NOCTTY);
+    if (fd < 0) {
+      free(plat);
+      return ZR_ERR_PLATFORM;
+    }
+    (void)zr_posix_set_fd_cloexec(fd);
+    plat->tty_fd_owned = fd;
+    plat->stdin_fd = fd;
+    plat->stdout_fd = fd;
+  }
 
   plat->caps.color_mode = cfg->requested_color_mode;
   plat->caps.supports_mouse = 1u;
@@ -480,6 +502,11 @@ void plat_destroy(plat_t* plat) {
   if (plat->wake_write_fd >= 0) {
     (void)close(plat->wake_write_fd);
     plat->wake_write_fd = -1;
+  }
+
+  if (plat->tty_fd_owned >= 0) {
+    (void)close(plat->tty_fd_owned);
+    plat->tty_fd_owned = -1;
   }
 
   free(plat);

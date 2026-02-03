@@ -39,6 +39,9 @@ struct zr_engine_t {
   zr_engine_config_t cfg_create;
   zr_engine_runtime_config_t cfg_runtime;
 
+  /* --- Tick scheduling (ZR_EV_TICK emission) --- */
+  uint32_t last_tick_ms;
+
   /* --- Framebuffers (double buffered + staging for no-partial-effects) --- */
   zr_fb_t fb_prev;
   zr_fb_t fb_next;
@@ -75,6 +78,7 @@ enum {
   ZR_ENGINE_USER_BYTES_CAP = 64u * 1024u,
   ZR_ENGINE_READ_CHUNK_CAP = 4096u,
   ZR_ENGINE_READ_LOOP_MAX = 64u,
+  ZR_ENGINE_DEFAULT_TICK_INTERVAL_MS = 16u,
 };
 
 static const uint8_t ZR_SYNC_BEGIN[] = "\x1b[?2026h";
@@ -83,6 +87,68 @@ static const uint8_t ZR_SYNC_END[] = "\x1b[?2026l";
 static uint32_t zr_engine_now_ms_u32(void) {
   /* v1: time_ms is u32; truncation is deterministic and acceptable for telemetry. */
   return (uint32_t)plat_now_ms();
+}
+
+static uint32_t zr_engine_tick_interval_ms(const zr_engine_runtime_config_t* cfg) {
+  if (!cfg || cfg->target_fps == 0u) {
+    return ZR_ENGINE_DEFAULT_TICK_INTERVAL_MS;
+  }
+  uint32_t ms_u32 = 1000u / cfg->target_fps;
+  if (ms_u32 == 0u) {
+    ms_u32 = 1u;
+  }
+  return ms_u32;
+}
+
+static uint32_t zr_engine_tick_until_due_ms(const zr_engine_t* e, uint32_t now_ms) {
+  if (!e) {
+    return 0u;
+  }
+  const uint32_t interval_ms = zr_engine_tick_interval_ms(&e->cfg_runtime);
+  const uint32_t elapsed_ms = now_ms - e->last_tick_ms;
+  if (elapsed_ms >= interval_ms) {
+    return 0u;
+  }
+  return interval_ms - elapsed_ms;
+}
+
+/*
+  Best-effort periodic tick insertion.
+
+  Why: Wrappers rely on ZR_EV_TICK for animation/perf overlays even when there
+  is no input. Ticks must not evict existing input events; if the queue is full,
+  the tick is dropped silently and poll continues.
+*/
+static void zr_engine_maybe_enqueue_tick(zr_engine_t* e, uint32_t now_ms) {
+  if (!e) {
+    return;
+  }
+
+  const uint32_t interval_ms = zr_engine_tick_interval_ms(&e->cfg_runtime);
+  const uint32_t elapsed_ms = now_ms - e->last_tick_ms;
+  if (elapsed_ms < interval_ms) {
+    return;
+  }
+
+  uint32_t dt_ms = elapsed_ms;
+  if (dt_ms == 0u) {
+    dt_ms = 1u;
+  }
+
+  zr_event_t ev;
+  memset(&ev, 0, sizeof(ev));
+  ev.type = ZR_EV_TICK;
+  ev.time_ms = now_ms;
+  ev.flags = 0u;
+  ev.u.tick.dt_ms = dt_ms;
+  ev.u.tick.reserved0 = 0u;
+  ev.u.tick.reserved1 = 0u;
+  ev.u.tick.reserved2 = 0u;
+
+  (void)zr_event_queue_try_push_no_drop(&e->evq, &ev);
+
+  /* Advance regardless of queue space to avoid repeated tick attempts. */
+  e->last_tick_ms = now_ms;
 }
 
 static zr_cursor_state_t zr_engine_cursor_default(void) {
@@ -419,6 +485,7 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
   }
 
   e->cursor_desired = zr_engine_cursor_default();
+  e->last_tick_ms = zr_engine_now_ms_u32();
 
   zr_engine_runtime_from_create_cfg(e, cfg);
   zr_engine_metrics_init(e, cfg);
@@ -448,6 +515,9 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
   if (rc != ZR_OK) {
     goto cleanup;
   }
+
+  /* Re-seed after backend init in case creation time was far from polling time. */
+  e->last_tick_ms = zr_engine_now_ms_u32();
 
   *out_engine = e;
   return ZR_OK;
@@ -713,12 +783,24 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
     return (int)ZR_ERR_INVALID_ARGUMENT;
   }
 
-  const uint32_t time_ms = zr_engine_now_ms_u32();
+  uint32_t time_ms = zr_engine_now_ms_u32();
+  zr_engine_maybe_enqueue_tick(e, time_ms);
 
-  const int ready = zr_engine_poll_wait_and_fill(e, timeout_ms, time_ms);
-  if (ready <= 0) {
+  int wait_ms = timeout_ms;
+  if (zr_event_queue_count(&e->evq) == 0u && wait_ms > 0) {
+    const uint32_t until_tick_ms = zr_engine_tick_until_due_ms(e, time_ms);
+    if (until_tick_ms != 0u && until_tick_ms < (uint32_t)wait_ms) {
+      wait_ms = (int)until_tick_ms;
+    }
+  }
+
+  const int ready = zr_engine_poll_wait_and_fill(e, wait_ms, time_ms);
+  if (ready < 0) {
     return ready;
   }
+
+  time_ms = zr_engine_now_ms_u32();
+  zr_engine_maybe_enqueue_tick(e, time_ms);
 
   if (zr_event_queue_count(&e->evq) == 0u) {
     return 0;

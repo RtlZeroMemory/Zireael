@@ -142,6 +142,17 @@ else ()
     target_link_libraries(zireael_integration_posix_pty_wake PRIVATE Threads::Threads)
     add_test(NAME zireael.integration.posix.pty.wake COMMAND zireael_integration_posix_pty_wake)
     set_tests_properties(zireael.integration.posix.pty.wake PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+    add_executable(zireael_integration_posix_create_fd_leak
+            integration/posix_create_fd_leak.c
+    )
+    target_include_directories(zireael_integration_posix_create_fd_leak PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(zireael_integration_posix_create_fd_leak PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_posix_create_fd_leak PRIVATE zireael)
+    add_test(NAME zireael.integration.posix.create.fd_leak COMMAND zireael_integration_posix_create_fd_leak)
+    set_tests_properties(zireael.integration.posix.create.fd_leak PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
 endif ()
 
 add_executable(zireael_fuzz_smoke

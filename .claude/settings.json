@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /home/k3nig/Zireael && bash scripts/guardrails.sh 2>&1 | head -20 || echo 'Guardrails check completed'",
+            "command": "bash scripts/guardrails.sh 2>&1 | head -20",
             "timeout": 30,
             "statusMessage": "Running guardrails check..."
           }

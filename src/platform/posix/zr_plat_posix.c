@@ -408,6 +408,8 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
     return ZR_ERR_OOM;
   }
 
+  zr_result_t r = ZR_ERR_PLATFORM;
+
   plat->cfg = *cfg;
   plat->stdin_fd = STDIN_FILENO;
   plat->stdout_fd = STDOUT_FILENO;
@@ -426,8 +428,8 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   if (isatty(plat->stdin_fd) == 0 || isatty(plat->stdout_fd) == 0) {
     int fd = open("/dev/tty", O_RDWR | O_NOCTTY);
     if (fd < 0) {
-      free(plat);
-      return ZR_ERR_PLATFORM;
+      r = ZR_ERR_PLATFORM;
+      goto cleanup;
     }
     (void)zr_posix_set_fd_cloexec(fd);
     plat->tty_fd_owned = fd;
@@ -449,10 +451,9 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps._pad0[2] = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
-  zr_result_t r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);
+  r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);
   if (r != ZR_OK) {
-    free(plat);
-    return r;
+    goto cleanup;
   }
 
   g_posix_wake_write_fd = plat->wake_write_fd;
@@ -463,16 +464,35 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
   if (sigaction(SIGWINCH, &sa, &plat->sigwinch_prev) != 0) {
-    (void)close(plat->wake_read_fd);
-    (void)close(plat->wake_write_fd);
-    g_posix_wake_write_fd = -1;
-    free(plat);
-    return ZR_ERR_PLATFORM;
+    r = ZR_ERR_PLATFORM;
+    goto cleanup;
   }
   plat->sigwinch_installed = true;
 
   *out_plat = plat;
   return ZR_OK;
+
+cleanup:
+  if (g_posix_wake_write_fd == plat->wake_write_fd) {
+    g_posix_wake_write_fd = -1;
+  }
+
+  if (plat->wake_read_fd >= 0) {
+    (void)close(plat->wake_read_fd);
+    plat->wake_read_fd = -1;
+  }
+  if (plat->wake_write_fd >= 0) {
+    (void)close(plat->wake_write_fd);
+    plat->wake_write_fd = -1;
+  }
+
+  if (plat->tty_fd_owned >= 0) {
+    (void)close(plat->tty_fd_owned);
+    plat->tty_fd_owned = -1;
+  }
+
+  free(plat);
+  return r;
 }
 
 void plat_destroy(plat_t* plat) {

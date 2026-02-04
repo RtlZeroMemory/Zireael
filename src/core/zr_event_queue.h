@@ -23,6 +23,11 @@ typedef struct zr_event_t {
   union {
     zr_ev_key_t key;
     zr_ev_text_t text;
+    struct {
+      zr_ev_paste_t hdr; /* includes byte_len */
+      uint32_t payload_off;
+      uint32_t reserved0;
+    } paste;
     zr_ev_mouse_t mouse;
     zr_ev_resize_t resize;
     zr_ev_tick_t tick;
@@ -58,7 +63,7 @@ typedef struct zr_event_queue_t {
 /*
   zr_event_queue_init:
     - Caller supplies all storage (no heap allocation).
-    - user_bytes is used only for ZR_EV_USER payload copies.
+    - user_bytes is used for variable-length payload copies (USER/PASTE).
 */
 zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_t events_cap,
                                 uint8_t* user_bytes, uint32_t user_bytes_cap);
@@ -82,6 +87,14 @@ zr_result_t zr_event_queue_try_push_no_drop(zr_event_queue_t* q, const zr_event_
 zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag,
                                      const uint8_t* payload, uint32_t payload_len);
 
+/*
+  Engine-thread bracketed paste enqueue:
+    - copies paste bytes into the queue's user_bytes ring
+    - returns ZR_ERR_LIMIT if user_bytes capacity is exceeded
+    - may drop the oldest event if the event queue is full
+*/
+zr_result_t zr_event_queue_post_paste(zr_event_queue_t* q, uint32_t time_ms, const uint8_t* bytes, uint32_t byte_len);
+
 /* Pop/peek in FIFO order. */
 bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev);
 bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev);
@@ -96,5 +109,12 @@ static inline uint32_t zr_event_queue_count(const zr_event_queue_t* q) {
 */
 bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
                                       const uint8_t** out_bytes, uint32_t* out_len);
+
+/*
+  Returns a borrowed pointer to the paste payload bytes for a ZR_EV_PASTE event.
+  The pointer remains valid until the corresponding event is popped/dropped.
+*/
+bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
+                                       const uint8_t** out_bytes, uint32_t* out_len);
 
 #endif /* ZR_CORE_ZR_EVENT_QUEUE_H_INCLUDED */

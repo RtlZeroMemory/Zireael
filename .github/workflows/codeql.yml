@@ -1,0 +1,33 @@
+name: codeql
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: analyze (c/c++)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+          build-mode: manual
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: cmake --preset posix-clang-debug -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset posix-clang-debug
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+

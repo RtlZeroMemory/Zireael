@@ -11,7 +11,9 @@ Zireael is a C core engine with strict determinism and safety requirements.
 
 ## Source of Truth
 
-Internal specs live in `docs/` (start at `docs/00_INDEX.md`). If code conflicts with docs, fix the code.
+Internal specs live in `docs/` (start at `docs/00_INDEX.md`). If code conflicts with internal specs, fix the code.
+
+Wrapper-facing documentation is published via MkDocs (also sourced from `docs/`).
 
 ## Development Setup
 
@@ -49,6 +51,16 @@ See `docs/CODE_STANDARDS.md`. Key points:
 2. Write tests for new functionality
 3. Ensure all tests pass and guardrails are clean
 4. Submit PR with clear description of changes
+
+Recommended pre-flight checks:
+
+```bash
+# Format (if clang-format is installed)
+bash scripts/clang_format_check.sh --all
+
+# Docs
+bash scripts/docs.sh build
+```
 
 ## What We Accept
 

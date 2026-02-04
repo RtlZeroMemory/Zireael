@@ -1,0 +1,55 @@
+/*
+  docs/stylesheets/extra.css — Docs site visual tweaks.
+
+  Why: Keeps site styling consistent and readable without adding heavy tooling.
+*/
+
+/* --- Headlines --- */
+
+.md-typeset h1 {
+  margin-bottom: 0.8em;
+}
+
+.md-typeset h2 {
+  margin-top: 1.6em;
+}
+
+/* --- Code --- */
+
+.md-typeset code {
+  font-size: 0.95em;
+}
+
+/* --- Grid Cards --- */
+
+.md-typeset .grid.cards > ul > li {
+  min-height: 180px;
+}
+
+/* --- ASCII diagrams --- */
+
+.md-typeset pre:has(code:not([class*="language-"])) {
+  background: var(--md-code-bg-color);
+  border-left: 3px solid var(--md-accent-fg-color);
+}
+
+/* --- Tables --- */
+
+.md-typeset table:not([class]) {
+  font-size: 0.85rem;
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--md-default-fg-color--lightest);
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background: var(--md-default-fg-color--lighter);
+}
+
+/* --- Banner --- */
+
+.md-banner {
+  font-size: 0.8rem;
+}
+

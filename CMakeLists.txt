@@ -137,11 +137,23 @@ if (ZIREAEL_BUILD_SHARED)
 endif ()
 
 if (ZIREAEL_BUILD_EXAMPLES)
-    add_executable(zireael_example
-            examples/example.c
+    add_executable(zr_example_minimal_render_loop
+            examples/minimal_render_loop.c
     )
-    target_link_libraries(zireael_example PRIVATE zireael_build_settings)
-    target_link_libraries(zireael_example PRIVATE zireael)
+    target_link_libraries(zr_example_minimal_render_loop PRIVATE zireael_build_settings)
+    target_link_libraries(zr_example_minimal_render_loop PRIVATE zireael)
+
+    add_executable(zr_example_input_echo
+            examples/input_echo.c
+    )
+    target_link_libraries(zr_example_input_echo PRIVATE zireael_build_settings)
+    target_link_libraries(zr_example_input_echo PRIVATE zireael)
+
+    add_executable(zr_example_resize_redraw
+            examples/resize_redraw.c
+    )
+    target_link_libraries(zr_example_resize_redraw PRIVATE zireael_build_settings)
+    target_link_libraries(zr_example_resize_redraw PRIVATE zireael)
 endif ()
 
 if (ZIREAEL_BUILD_TESTS)

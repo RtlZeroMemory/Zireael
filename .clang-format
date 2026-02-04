@@ -1,0 +1,21 @@
+# Zireael clang-format configuration.
+#
+# Why: Keep formatting consistent across platforms and editors, while staying
+# close to the existing code style (2-space indents, readable wrapping).
+
+BasedOnStyle: LLVM
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ColumnLimit: 120
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+DerivePointerAlignment: false
+PointerAlignment: Left
+SpaceAfterCStyleCast: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SortIncludes: false
+

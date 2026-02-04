@@ -2,12 +2,20 @@
 
 This document centralizes determinism-critical pins.
 
+## Library version
+
+Pinned library version (see `include/zr/zr_version.h`):
+
+- `ZR_LIBRARY_VERSION_MAJOR = 1`
+- `ZR_LIBRARY_VERSION_MINOR = 2`
+- `ZR_LIBRARY_VERSION_PATCH = 0`
+
 ## Engine ABI
 
-Pinned engine ABI version (see `src/core/zr_version.h`):
+Pinned engine ABI version (see `include/zr/zr_version.h`):
 
 - `ZR_ENGINE_ABI_MAJOR = 1`
-- `ZR_ENGINE_ABI_MINOR = 0`
+- `ZR_ENGINE_ABI_MINOR = 1`
 - `ZR_ENGINE_ABI_PATCH = 0`
 
 ## Unicode
@@ -28,7 +36,7 @@ All on-buffer/on-wire formats are:
 
 ### Drawlist
 
-Defined in `src/core/zr_drawlist.h` (version pins are centralized in `src/core/zr_version.h`):
+Defined in `include/zr/zr_drawlist.h` (version pins are centralized in `include/zr/zr_version.h`):
 
 - Supported drawlist header versions:
   - v1 (`ZR_DRAWLIST_VERSION_V1 = 1`) — baseline; must remain behavior-stable.
@@ -38,7 +46,7 @@ Wrappers select the version via `zr_engine_config_t.requested_drawlist_version` 
 
 ### Packed event batches
 
-Defined in `src/core/zr_event.h` (version pins are centralized in `src/core/zr_version.h`):
+Defined in `include/zr/zr_event.h` (version pins are centralized in `include/zr/zr_version.h`):
 
 - Magic: `ZR_EV_MAGIC = 0x5645525A` (`'Z''R''E''V'` in little-endian u32)
 - Version: `ZR_EVENT_BATCH_VERSION_V1 = 1`

@@ -256,6 +256,29 @@ ZR_TEST_UNIT(event_queue_post_paste_drops_oldest_and_frees_user_payload) {
   ZR_ASSERT_EQ_U32(q.user_used, 0u);
 }
 
+ZR_TEST_UNIT(event_queue_push_drops_paste_and_frees_payload_bytes) {
+  zr_event_t storage[1];
+  uint8_t user_bytes[8];
+  zr_event_queue_t q;
+  ZR_ASSERT_EQ_U32(zr_event_queue_init(&q, storage, 1u, user_bytes, (uint32_t)sizeof(user_bytes)), ZR_OK);
+
+  const uint8_t paste_payload[] = {(uint8_t)'p', (uint8_t)'a', (uint8_t)'s', (uint8_t)'t'};
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_paste(&q, 1u, paste_payload, (uint32_t)sizeof(paste_payload)), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 1u);
+  ZR_ASSERT_EQ_U32(q.user_used, (uint32_t)sizeof(paste_payload));
+
+  zr_event_t ev = zr_make_key(2u, ZR_KEY_ESCAPE);
+  ZR_ASSERT_EQ_U32(zr_event_queue_push(&q, &ev), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 1u);
+  ZR_ASSERT_EQ_U32(q.dropped_due_to_full, 1u);
+  ZR_ASSERT_EQ_U32(q.user_used, 0u);
+
+  zr_event_t head;
+  ZR_ASSERT_TRUE(zr_event_queue_peek(&q, &head));
+  ZR_ASSERT_EQ_U32(head.type, (uint32_t)ZR_EV_KEY);
+  ZR_ASSERT_EQ_U32(head.u.key.key, (uint32_t)ZR_KEY_ESCAPE);
+}
+
 ZR_TEST_UNIT(event_queue_post_paste_does_not_drop_when_ring_full) {
   zr_event_t storage[2];
   uint8_t user_bytes[8];

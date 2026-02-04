@@ -128,8 +128,17 @@ static bool zr_evq_user_alloc_locked(zr_event_queue_t* q, uint32_t n, uint32_t* 
 
   if (q->user_used == 0u) {
     q->user_head = q->user_tail;
+    q->user_pad_end = 0u;
   }
 
+  /*
+    This ring stores variable-sized, contiguous payload slices in FIFO order.
+    When a write cannot fit at the end, we may wrap to 0. Any remaining bytes at
+    the end become "pad" that is temporarily unusable until the read head wraps.
+
+    We track that pad explicitly (user_pad_end) so allocations remain correct and
+    freeing can advance over the pad deterministically.
+  */
   if (q->user_tail >= q->user_head) {
     const uint32_t space_end = q->user_bytes_cap - q->user_tail;
     if (n <= space_end) {
@@ -141,25 +150,38 @@ static bool zr_evq_user_alloc_locked(zr_event_queue_t* q, uint32_t n, uint32_t* 
       q->user_used += n;
       return true;
     }
-    /* Wrap to 0 if there is space before head. */
-    if (n <= q->user_head) {
-      *out_off = 0u;
-      q->user_tail = n;
-      q->user_used += n;
-      return true;
-    }
-    return false;
-  }
 
-  /* tail < head: contiguous space between them. */
-  const uint32_t space_mid = q->user_head - q->user_tail;
-  if (n <= space_mid) {
-    *out_off = q->user_tail;
-    q->user_tail += n;
+    /* Wrap to 0 if there is space before head and we can afford the end pad. */
+    const uint32_t pad = space_end;
+    if (q->user_pad_end != 0u) {
+      return false;
+    }
+    if (n > q->user_head) {
+      return false;
+    }
+    if (pad > (q->user_bytes_cap - q->user_used - n)) {
+      return false;
+    }
+
+    q->user_pad_end = pad;
+    q->user_used += pad;
+    q->user_tail = 0u;
+
+    *out_off = 0u;
+    q->user_tail = n;
     q->user_used += n;
     return true;
   }
-  return false;
+
+  /* tail < head: contiguous space between them (end pad, if any, is already accounted for in user_used). */
+  const uint32_t space_mid = q->user_head - q->user_tail;
+  if (n > space_mid) {
+    return false;
+  }
+  *out_off = q->user_tail;
+  q->user_tail += n;
+  q->user_used += n;
+  return true;
 }
 
 /* Free user payload bytes at ring buffer head when an event is consumed. */
@@ -175,9 +197,25 @@ static void zr_evq_user_free_head_locked(zr_event_queue_t* q, uint32_t off, uint
     q->user_head -= q->user_bytes_cap;
   }
   q->user_used -= n;
+
+  /*
+    If we wrapped during allocation, bytes at the end are marked as pad until
+    the read head reaches them. Once the head hits the pad start, drop the pad
+    and wrap the head to 0 so the next payload offset matches.
+  */
+  if (q->user_pad_end != 0u) {
+    const uint32_t pad_start = q->user_bytes_cap - q->user_pad_end;
+    if (q->user_head == pad_start) {
+      ZR_ASSERT(q->user_used >= q->user_pad_end);
+      q->user_used -= q->user_pad_end;
+      q->user_pad_end = 0u;
+      q->user_head = 0u;
+    }
+  }
   if (q->user_used == 0u) {
     q->user_head = 0u;
     q->user_tail = 0u;
+    q->user_pad_end = 0u;
   }
 }
 

@@ -25,4 +25,13 @@
 */
 void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms);
 
+/*
+  zr_input_parse_bytes_prefix:
+    - Like zr_input_parse_bytes(), but may stop before a trailing, incomplete
+      supported escape sequence so callers can buffer it and retry.
+
+  Returns: number of bytes consumed from the front of {bytes,len}.
+*/
+size_t zr_input_parse_bytes_prefix(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms);
+
 #endif /* ZR_CORE_ZR_INPUT_PARSER_H_INCLUDED */

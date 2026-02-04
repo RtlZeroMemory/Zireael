@@ -231,6 +231,10 @@ static void zr_evq_drop_head_locked(zr_event_queue_t* q) {
     const uint32_t n = head_ev->u.user.hdr.byte_len;
     zr_evq_user_free_head_locked(q, off, n);
     q->dropped_user_due_to_full++;
+  } else if (head_ev->type == ZR_EV_PASTE) {
+    const uint32_t off = head_ev->u.paste.payload_off;
+    const uint32_t n = head_ev->u.paste.hdr.byte_len;
+    zr_evq_user_free_head_locked(q, off, n);
   }
 
   q->head = (q->head + 1u) % q->cap;
@@ -238,6 +242,40 @@ static void zr_evq_drop_head_locked(zr_event_queue_t* q) {
 
   q->dropped_total++;
   q->dropped_due_to_full++;
+}
+
+/*
+  Check whether a paste payload can be enqueued without mutating the queue.
+
+  Why: Paste enqueue may drop the oldest event when full. We avoid dropping an
+  event if the payload ring cannot accept this paste anyway.
+*/
+static bool zr_evq_can_enqueue_paste_locked(const zr_event_queue_t* q, uint32_t byte_len) {
+  if (!q) {
+    return false;
+  }
+
+  zr_event_queue_t tmp;
+  memset(&tmp, 0, sizeof(tmp));
+
+  tmp.events = q->events;
+  tmp.cap = q->cap;
+  tmp.head = q->head;
+  tmp.count = q->count;
+
+  tmp.user_bytes = q->user_bytes;
+  tmp.user_bytes_cap = q->user_bytes_cap;
+  tmp.user_head = q->user_head;
+  tmp.user_tail = q->user_tail;
+  tmp.user_used = q->user_used;
+  tmp.user_pad_end = q->user_pad_end;
+
+  if (tmp.count == tmp.cap) {
+    zr_evq_drop_head_locked(&tmp);
+  }
+
+  uint32_t off_tmp = 0u;
+  return zr_evq_user_alloc_locked(&tmp, byte_len, &off_tmp);
 }
 
 zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_t events_cap,
@@ -359,6 +397,60 @@ zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint
   return ZR_OK;
 }
 
+/*
+  Post a bracketed paste event from the engine thread.
+
+  Why: Bracketed paste can deliver large payloads (including newlines) that
+  wrappers need as a single byte slice, not as per-byte text events. Payload is
+  copied into bounded storage; on queue-full we drop the oldest event to
+  preserve forward progress.
+*/
+zr_result_t zr_event_queue_post_paste(zr_event_queue_t* q, uint32_t time_ms, const uint8_t* bytes, uint32_t byte_len) {
+  if (!q || !q->events || q->cap == 0u || (!bytes && byte_len != 0u)) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_evq_lock(q);
+
+  if (byte_len > q->user_bytes_cap) {
+    zr_evq_unlock(q);
+    return ZR_ERR_LIMIT;
+  }
+
+  if (!zr_evq_can_enqueue_paste_locked(q, byte_len)) {
+    zr_evq_unlock(q);
+    return ZR_ERR_LIMIT;
+  }
+
+  if (q->count == q->cap) {
+    zr_evq_drop_head_locked(q);
+  }
+
+  uint32_t off = 0u;
+  ZR_ASSERT(zr_evq_user_alloc_locked(q, byte_len, &off));
+
+  if (byte_len != 0u) {
+    memcpy(q->user_bytes + off, bytes, byte_len);
+  }
+
+  zr_event_t ev;
+  memset(&ev, 0, sizeof(ev));
+  ev.type = ZR_EV_PASTE;
+  ev.time_ms = time_ms;
+  ev.flags = 0u;
+  ev.u.paste.hdr.byte_len = byte_len;
+  ev.u.paste.hdr.reserved0 = 0u;
+  ev.u.paste.payload_off = off;
+  ev.u.paste.reserved0 = 0u;
+
+  const uint32_t tail = zr_evq_index(q, q->count);
+  q->events[tail] = ev;
+  q->count++;
+
+  zr_evq_unlock(q);
+  return ZR_OK;
+}
+
 bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev) {
   if (!q || !out_ev || !q->events || q->cap == 0u) {
     return false;
@@ -392,6 +484,8 @@ bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev) {
 
   if (ev.type == ZR_EV_USER) {
     zr_evq_user_free_head_locked(q, ev.u.user.payload_off, ev.u.user.hdr.byte_len);
+  } else if (ev.type == ZR_EV_PASTE) {
+    zr_evq_user_free_head_locked(q, ev.u.paste.payload_off, ev.u.paste.hdr.byte_len);
   }
 
   zr_evq_unlock(q);
@@ -420,5 +514,29 @@ bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_
 
   *out_bytes = q->user_bytes + ev->u.user.payload_off;
   *out_len = ev->u.user.hdr.byte_len;
+  return true;
+}
+
+/* Get a read-only view into a paste event's payload bytes; valid until event is popped. */
+bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
+                                       const uint8_t** out_bytes, uint32_t* out_len) {
+  if (!q || !q->events || q->cap == 0u || !ev || !out_bytes || !out_len) {
+    return false;
+  }
+  if (ev->type != ZR_EV_PASTE) {
+    return false;
+  }
+  if (!q->user_bytes && ev->u.paste.hdr.byte_len != 0u) {
+    return false;
+  }
+  if (ev->u.paste.payload_off > q->user_bytes_cap) {
+    return false;
+  }
+  if (ev->u.paste.hdr.byte_len > (q->user_bytes_cap - ev->u.paste.payload_off)) {
+    return false;
+  }
+
+  *out_bytes = q->user_bytes + ev->u.paste.payload_off;
+  *out_len = ev->u.paste.hdr.byte_len;
   return true;
 }

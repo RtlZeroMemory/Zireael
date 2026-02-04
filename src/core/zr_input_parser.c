@@ -68,6 +68,9 @@ static bool zr__parse_u32_dec(const uint8_t* bytes, size_t len, size_t* io_i, ui
     if (v > (UINT32_MAX / 10u)) {
       return false;
     }
+    if (v == (UINT32_MAX / 10u) && d > (UINT32_MAX % 10u)) {
+      return false;
+    }
     v = (v * 10u) + d;
     i++;
   }
@@ -400,16 +403,97 @@ static bool zr__parse_sgr_mouse(const uint8_t* bytes, size_t len, size_t i, uint
   return true;
 }
 
-/*
-  Parse terminal input bytes into key/mouse/text events.
+static bool zr__esc_is_incomplete_supported(const uint8_t* bytes, size_t len, size_t i) {
+  if (!bytes || i >= len) {
+    return false;
+  }
+  if (bytes[i] != 0x1Bu) {
+    return false;
+  }
+  if ((i + 1u) >= len) {
+    return true;
+  }
 
-  Why: The engine reads raw bytes on POSIX backends. This parser must accept
-  common VT/xterm control sequences (arrows, home/end, SGR mouse) and degrade
-  deterministically on unknown sequences without hangs.
-*/
-void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms) {
+  const uint8_t b1 = bytes[i + 1u];
+  if (b1 == (uint8_t)'[') {
+    if ((i + 2u) >= len) {
+      return true;
+    }
+
+    const uint8_t b2 = bytes[i + 2u];
+    if (b2 == (uint8_t)'<') {
+      /* SGR mouse: require a terminating M/m. */
+      for (size_t j = i + 3u; j < len; j++) {
+        const uint8_t t = bytes[j];
+        if (t == (uint8_t)'M' || t == (uint8_t)'m') {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    /* CSI keys: require a terminator (not digit/;). */
+    for (size_t j = i + 2u; j < len; j++) {
+      const uint8_t t = bytes[j];
+      if (zr__is_digit(t) || t == (uint8_t)';') {
+        continue;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  if (b1 == (uint8_t)'O') {
+    /* SS3 keys: ESC O <final>. */
+    return (i + 2u) >= len;
+  }
+
+  return false;
+}
+
+static size_t zr__consume_escape(zr_event_queue_t* q, const uint8_t* bytes, size_t len, size_t i, uint32_t time_ms) {
+  if (!q || !bytes || i >= len) {
+    return 0u;
+  }
+  if (bytes[i] != 0x1Bu) {
+    return 0u;
+  }
+
+  zr_key_t key = ZR_KEY_UNKNOWN;
+  size_t consumed = 0u;
+
+  if ((i + 2u) < len && bytes[i + 1u] == (uint8_t)'[') {
+    /* SGR mouse: ESC [ < ... (M or m) */
+    if (bytes[i + 2u] == (uint8_t)'<') {
+      if (zr__parse_sgr_mouse(bytes, len, i, time_ms, q, &consumed)) {
+        return consumed;
+      }
+    }
+
+    if (zr__parse_csi_simple_key(bytes, len, i, &key, &consumed)) {
+      zr__push_key(q, time_ms, key);
+      return consumed;
+    }
+    if (zr__parse_csi_tilde_key(bytes, len, i, &key, &consumed)) {
+      zr__push_key(q, time_ms, key);
+      return consumed;
+    }
+  }
+
+  if (zr__parse_ss3_key(bytes, len, i, &key, &consumed)) {
+    zr__push_key(q, time_ms, key);
+    return consumed;
+  }
+
+  /* Deterministic fallback: treat bare ESC as an Escape key. */
+  zr__push_key(q, time_ms, ZR_KEY_ESCAPE);
+  return 1u;
+}
+
+static size_t zr_input_parse_bytes_internal(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms,
+                                            bool stop_before_incomplete_escape) {
   if (!q || (!bytes && len != 0u)) {
-    return;
+    return 0u;
   }
 
   size_t i = 0u;
@@ -418,39 +502,11 @@ void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len,
 
     /* --- Escape-driven VT sequences --- */
     if (b == 0x1Bu) {
-      zr_key_t key = ZR_KEY_UNKNOWN;
-      size_t consumed = 0u;
-
-      if ((i + 2u) < len && bytes[i + 1u] == (uint8_t)'[') {
-        /* SGR mouse: ESC [ < ... (M or m) */
-        if ((i + 2u) < len && bytes[i + 2u] == (uint8_t)'<') {
-          if (zr__parse_sgr_mouse(bytes, len, i, time_ms, q, &consumed)) {
-            i += consumed;
-            continue;
-          }
-        }
-
-        if (zr__parse_csi_simple_key(bytes, len, i, &key, &consumed)) {
-          zr__push_key(q, time_ms, key);
-          i += consumed;
-          continue;
-        }
-        if (zr__parse_csi_tilde_key(bytes, len, i, &key, &consumed)) {
-          zr__push_key(q, time_ms, key);
-          i += consumed;
-          continue;
-        }
+      if (stop_before_incomplete_escape && zr__esc_is_incomplete_supported(bytes, len, i)) {
+        break;
       }
 
-      if (zr__parse_ss3_key(bytes, len, i, &key, &consumed)) {
-        zr__push_key(q, time_ms, key);
-        i += consumed;
-        continue;
-      }
-
-      /* Deterministic fallback: treat bare ESC as an Escape key. */
-      zr__push_key(q, time_ms, ZR_KEY_ESCAPE);
-      i += 1u;
+      i += zr__consume_escape(q, bytes, len, i, time_ms);
       continue;
     }
 
@@ -474,4 +530,21 @@ void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len,
     zr__push_text_byte(q, time_ms, b);
     i += 1u;
   }
+
+  return i;
+}
+
+/*
+  Parse terminal input bytes into key/mouse/text events.
+
+  Why: The engine reads raw bytes on POSIX backends. This parser must accept
+  common VT/xterm control sequences (arrows, home/end, SGR mouse) and degrade
+  deterministically on unknown sequences without hangs.
+*/
+void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms) {
+  (void)zr_input_parse_bytes_internal(q, bytes, len, time_ms, false);
+}
+
+size_t zr_input_parse_bytes_prefix(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms) {
+  return zr_input_parse_bytes_internal(q, bytes, len, time_ms, true);
 }

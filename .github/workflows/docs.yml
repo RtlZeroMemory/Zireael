@@ -28,7 +28,9 @@ jobs:
       - name: Install docs dependencies
         run: python3 -m pip install --upgrade pip && python3 -m pip install -r requirements-docs.txt
       - name: Build Doxygen
-        run: doxygen Doxyfile
+        run: |
+          mkdir -p out
+          doxygen Doxyfile
       - name: Build MkDocs site
         run: mkdocs build --strict
       - name: Publish API into site

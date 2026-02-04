@@ -33,6 +33,7 @@ python -m pip install --upgrade pip >/dev/null
 python -m pip install -r requirements-docs.txt >/dev/null
 
 if command -v doxygen >/dev/null 2>&1; then
+  mkdir -p out
   doxygen Doxyfile
 fi
 
@@ -53,4 +54,3 @@ case "${cmd}" in
     exit 2
     ;;
 esac
-

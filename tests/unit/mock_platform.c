@@ -27,6 +27,7 @@ typedef struct plat_t {
   uint8_t input[ZR_MOCK_INPUT_CAP];
   size_t input_len;
   size_t input_off;
+  uint32_t read_max;
 
   uint8_t write_last[ZR_MOCK_WRITE_CAPTURE_CAP];
   size_t write_last_len;
@@ -70,6 +71,7 @@ void mock_plat_reset(void) {
   memset(&g_plat, 0, sizeof(g_plat));
   g_plat.size.cols = 80u;
   g_plat.size.rows = 24u;
+  g_plat.read_max = 0u;
   g_plat.output_writable = true;
   g_plat.wait_output_calls = 0u;
   zr_mock_plat_default_caps(&g_plat.caps);
@@ -85,6 +87,8 @@ void mock_plat_set_caps(plat_caps_t caps) { g_plat.caps = caps; }
 void mock_plat_set_now_ms(uint64_t now_ms) { g_plat.now_ms = now_ms; }
 
 void mock_plat_set_output_writable(uint8_t writable) { g_plat.output_writable = (writable != 0u); }
+
+void mock_plat_set_read_max(uint32_t max_bytes) { g_plat.read_max = max_bytes; }
 
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len) {
   if (!bytes && len != 0u) {
@@ -210,6 +214,10 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
   size_t n = (size_t)out_cap;
   if (n > avail) {
     n = avail;
+  }
+
+  if (plat->read_max != 0u && n > (size_t)plat->read_max) {
+    n = (size_t)plat->read_max;
   }
 
   memcpy(out_buf, plat->input + plat->input_off, n);

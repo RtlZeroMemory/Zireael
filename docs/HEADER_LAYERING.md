@@ -22,18 +22,18 @@ Rules:
 
 ## Public header responsibilities
 
-### `src/core/zr_version.h`
+### `include/zr/zr_version.h`
 
 - Pure pinned constants/macros for ABI negotiation and binary formats.
 - MUST remain OS-header-free and free of runtime logic.
 
-### `src/core/zr_config.h`
+### `include/zr/zr_config.h`
 
 - Defines `zr_engine_config_t` and `zr_engine_runtime_config_t`.
 - Declares deterministic defaults and validation entrypoints.
 - MUST NOT expose ownership that requires the caller to free engine memory.
 
-### `src/core/zr_engine.h`
+### `include/zr/zr_engine.h`
 
 - Primary public ABI entrypoints.
 - Exposes only an opaque `zr_engine_t` handle; callers do not know the engine layout.

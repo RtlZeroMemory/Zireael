@@ -18,6 +18,37 @@ jobs:
       - name: Run guardrails
         run: bash scripts/guardrails.sh
 
+  version-pins:
+    name: version pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check docs vs header pins
+        run: python3 scripts/check_version_pins.py
+
+  clang-format:
+    name: linux / clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.before }}"
+          head="${{ github.sha }}"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          fi
+          if [[ -z "${base}" || "${base}" == "0000000000000000000000000000000000000000" ]]; then
+            bash scripts/clang_format_check.sh --all
+          else
+            bash scripts/clang_format_check.sh --diff "${base}" "${head}"
+          fi
+
   clang-tidy:
     name: linux / clang-tidy
     runs-on: ubuntu-latest
@@ -43,6 +74,14 @@ jobs:
         run: cmake --build --preset posix-clang-debug
       - name: Test
         run: ctest --test-dir out/build/posix-clang-debug --no-tests=ignore --output-on-failure
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-linux-clang-debug
+          path: |
+            out/build/posix-clang-debug/Testing/Temporary/**
+            out/build/posix-clang-debug/CMakeCache.txt
 
   linux-gcc-debug:
     name: linux / gcc / Debug
@@ -57,6 +96,14 @@ jobs:
         run: cmake --build --preset posix-gcc-debug
       - name: Test
         run: ctest --test-dir out/build/posix-gcc-debug --no-tests=ignore --output-on-failure
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-linux-gcc-debug
+          path: |
+            out/build/posix-gcc-debug/Testing/Temporary/**
+            out/build/posix-gcc-debug/CMakeCache.txt
 
   linux-clang-asan-ubsan:
     name: linux / clang / Debug + ASan+UBSan
@@ -74,6 +121,14 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0
           UBSAN_OPTIONS: print_stacktrace=1
         run: ctest --test-dir out/build/posix-clang-asan-ubsan --no-tests=ignore --output-on-failure
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-linux-clang-asan-ubsan
+          path: |
+            out/build/posix-clang-asan-ubsan/Testing/Temporary/**
+            out/build/posix-clang-asan-ubsan/CMakeCache.txt
 
   macos-appleclang-debug:
     name: macos / AppleClang / Debug
@@ -88,6 +143,14 @@ jobs:
         run: cmake --build --preset posix-clang-debug
       - name: Test
         run: ctest --test-dir out/build/posix-clang-debug --no-tests=ignore --output-on-failure
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-macos-appleclang-debug
+          path: |
+            out/build/posix-clang-debug/Testing/Temporary/**
+            out/build/posix-clang-debug/CMakeCache.txt
 
   windows-clangcl-debug:
     name: windows / clang-cl / Debug
@@ -104,3 +167,11 @@ jobs:
         run: cmake --build --preset windows-clangcl-debug
       - name: Test
         run: ctest --test-dir out/build/windows-clangcl-debug --no-tests=ignore --output-on-failure
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-windows-clangcl-debug
+          path: |
+            out/build/windows-clangcl-debug/Testing/Temporary/**
+            out/build/windows-clangcl-debug/CMakeCache.txt

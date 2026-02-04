@@ -4,6 +4,18 @@ This project follows Semantic Versioning.
 
 ## Unreleased
 
+## 1.2.0-rc5 — 2026-02-03
+
+### Fixed
+
+- posix: fall back to `/dev/tty` when stdio isn't a tty (#17)
+
+## 1.2.0-rc4 — 2026-02-03
+
+### Fixed
+
+- posix: decode function keys and enable richer mouse tracking (#16)
+
 ## 1.2.0-rc3 — 2026-02-03
 
 ### Fixed

@@ -22,6 +22,9 @@ Makefile
 # Prerequisites
 *.d
 
+# Docs (MkDocs venv)
+.venv-docs/
+
 # Object files
 *.o
 *.ko

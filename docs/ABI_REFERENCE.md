@@ -10,19 +10,20 @@ the binding-critical rules that matter across languages and toolchains.
 
 Primary entrypoints:
 
-- `src/core/zr_engine.h`
-- `src/core/zr_config.h`
-- `src/core/zr_metrics.h`
+- `include/zr/zr_engine.h`
+- `include/zr/zr_config.h`
+- `include/zr/zr_metrics.h`
+- `include/zr/zr_result.h`
 
 Pinned versions:
 
-- `src/core/zr_version.h`
-- `src/unicode/zr_unicode_pins.h`
+- `include/zr/zr_version.h`
+- `src/unicode/zr_unicode_pins.h` (internal pin; exposed indirectly via core behavior)
 
 Binary formats:
 
 - `include/zr/zr_drawlist.h` (drawlist v1 + v2)
-- `src/core/zr_event.h` (packed event batch v1)
+- `include/zr/zr_event.h` (packed event batch v1)
 
 ## Result / error model
 
@@ -42,7 +43,8 @@ In v1, requested versions must match the pinned versions exactly; otherwise
 `engine_create()` fails with `ZR_ERR_UNSUPPORTED` and performs no partial
 effects.
 
-Pinned versions are defined in `src/core/zr_version.h`.
+Pinned versions are defined in `include/zr/zr_version.h` (internal includes may
+provide compatibility paths, but the public root is `include/zr/`).
 
 ## Ownership and lifetimes
 

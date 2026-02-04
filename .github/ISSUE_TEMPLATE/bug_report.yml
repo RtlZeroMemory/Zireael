@@ -24,14 +24,27 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: OS, terminal emulator, compiler, CMake preset, etc.
+      description: OS, terminal emulator, compiler, CMake preset, and version pins.
       placeholder: |
         OS:
         Terminal:
         Compiler:
         Preset:
+        Zireael version (tag or SHA):
+        Requested ABI pins (engine/drawlist/event):
     validations:
       required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: ABI / format versions (if relevant)
+      description: Engine ABI version and drawlist/event batch versions involved.
+      placeholder: |
+        Engine ABI:
+        Drawlist format:
+        Event batch format:
+    validations:
+      required: false
   - type: textarea
     id: logs
     attributes:

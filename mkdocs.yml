@@ -3,14 +3,14 @@ site_description: A deterministic terminal UI core engine in C — the foundatio
 site_url: https://rtlzeromemory.github.io/Zireael/
 repo_url: https://github.com/RtlZeroMemory/Zireael
 repo_name: RtlZeroMemory/Zireael
-edit_uri: edit/main/docs-user/
+edit_uri: edit/main/docs/
 
-docs_dir: docs-user
+docs_dir: docs
 site_dir: out/site
 
 theme:
   name: material
-  custom_dir: docs-user/overrides
+  custom_dir: docs/overrides
   language: en
   icon:
     repo: fontawesome/brands/github
@@ -64,7 +64,11 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
       combine_header_slug: true
@@ -76,6 +80,10 @@ markdown_extensions:
 
 extra_css:
   - stylesheets/extra.css
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10.9.1/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
 
 extra:
   version:
@@ -89,19 +97,55 @@ extra:
 nav:
   - Home: index.md
   - Getting Started:
-      - Build & Test: getting-started/build-and-test.md
-      - Integration: getting-started/cmake-integration.md
-      - Examples: getting-started/examples.md
-  - ABI Reference:
-      - Overview: abi/overview.md
-      - Configuration: abi/config.md
-      - Metrics: abi/metrics.md
-      - Drawlist v1: abi/drawlist-v1.md
-      - Event Batch v1: abi/event-batch-v1.md
-  - Concepts:
-      - Engine Model: concepts/engine-model.md
-      - Ownership: concepts/ownership.md
-      - Determinism: concepts/determinism.md
-  - Platform:
-      - POSIX: platform/posix.md
-      - Win32: platform/win32.md
+      - Quickstart: getting-started/quickstart.md
+      - Install & Build: getting-started/install-build.md
+      - FAQ: getting-started/faq.md
+  - User Guide:
+      - Concepts: user-guide/concepts.md
+      - Rendering Model: user-guide/rendering-model.md
+      - Input Model: user-guide/input-model.md
+      - Platform Support: user-guide/platform-support.md
+  - ABI:
+      - ABI Policy: abi/abi-policy.md
+      - Versioning: abi/versioning.md
+      - C ABI Reference: abi/c-abi-reference.md
+      - Drawlist Format: abi/drawlist-format.md
+      - Event Batch Format: abi/event-batch-format.md
+      - API (Doxygen): api.md
+  - Examples:
+      - Overview: examples/index.md
+      - Minimal Render Loop: examples/minimal-render-loop.md
+      - Input Echo: examples/input-echo.md
+      - Resize + Redraw: examples/resize-redraw.md
+  - Dev:
+      - Architecture: dev/architecture.md
+      - Build System: dev/build-system.md
+      - Testing: dev/testing.md
+      - Style Guide: dev/style-guide.md
+      - Debugging: dev/debugging.md
+      - Maintaining Docs: maintainers.md
+  - Reference:
+      - Glossary: glossary.md
+  - Internal Specs:
+      - Wrapper/FFI Notes: ABI_REFERENCE.md
+      - Index: 00_INDEX.md
+      - Version Pins (Locked): VERSION_PINS.md
+      - Error Codes (Locked): ERROR_CODES_CATALOG.md
+      - Safety Ruleset (Locked): SAFETY_RULESET.md
+      - Libc Policy (Locked): LIBC_POLICY.md
+      - Code Standards: CODE_STANDARDS.md
+      - Header Layering (Locked): HEADER_LAYERING.md
+      - Repo Layout: REPO_LAYOUT.md
+      - Build Toolchains + CMake: BUILD_TOOLCHAINS_AND_CMAKE.md
+      - Golden Fixture Format (Locked): GOLDEN_FIXTURE_FORMAT.md
+      - Module Specs:
+          - Config + ABI Versioning: modules/CONFIG_AND_ABI_VERSIONING.md
+          - Drawlist: modules/DRAWLIST_FORMAT_AND_PARSER.md
+          - Events + Packed ABI: modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md
+          - Framebuffer: modules/FRAMEBUFFER_MODEL_AND_OPS.md
+          - Diff + Output: modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md
+          - Platform Interface: modules/PLATFORM_INTERFACE.md
+          - Unicode/Text: modules/UNICODE_TEXT.md
+          - Testing: modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md
+          - Debug Trace: modules/DEBUG_TRACE.md
+          - Diagnostics: modules/DIAGNOSTICS_METRICS_DEBUG_OVERLAY.md

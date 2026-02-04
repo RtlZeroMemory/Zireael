@@ -502,18 +502,24 @@ bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_
   if (ev->type != ZR_EV_USER) {
     return false;
   }
-  if (!q->user_bytes && ev->u.user.hdr.byte_len != 0u) {
+
+  *out_len = ev->u.user.hdr.byte_len;
+  if (*out_len == 0u) {
+    *out_bytes = NULL;
+    return true;
+  }
+
+  if (!q->user_bytes || q->user_bytes_cap == 0u) {
     return false;
   }
   if (ev->u.user.payload_off > q->user_bytes_cap) {
     return false;
   }
-  if (ev->u.user.hdr.byte_len > (q->user_bytes_cap - ev->u.user.payload_off)) {
+  if (*out_len > (q->user_bytes_cap - ev->u.user.payload_off)) {
     return false;
   }
 
   *out_bytes = q->user_bytes + ev->u.user.payload_off;
-  *out_len = ev->u.user.hdr.byte_len;
   return true;
 }
 
@@ -526,17 +532,23 @@ bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event
   if (ev->type != ZR_EV_PASTE) {
     return false;
   }
-  if (!q->user_bytes && ev->u.paste.hdr.byte_len != 0u) {
+
+  *out_len = ev->u.paste.hdr.byte_len;
+  if (*out_len == 0u) {
+    *out_bytes = NULL;
+    return true;
+  }
+
+  if (!q->user_bytes || q->user_bytes_cap == 0u) {
     return false;
   }
   if (ev->u.paste.payload_off > q->user_bytes_cap) {
     return false;
   }
-  if (ev->u.paste.hdr.byte_len > (q->user_bytes_cap - ev->u.paste.payload_off)) {
+  if (*out_len > (q->user_bytes_cap - ev->u.paste.payload_off)) {
     return false;
   }
 
   *out_bytes = q->user_bytes + ev->u.paste.payload_off;
-  *out_len = ev->u.paste.hdr.byte_len;
   return true;
 }

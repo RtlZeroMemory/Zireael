@@ -305,7 +305,7 @@ static uint32_t zr__buttons_mask_from_base(uint32_t base) {
 }
 
 static bool zr__parse_sgr_mouse(const uint8_t* bytes, size_t len, size_t i, uint32_t time_ms, zr_event_queue_t* q,
-                               size_t* out_consumed) {
+                                size_t* out_consumed) {
   if (!bytes || !q || !out_consumed) {
     return false;
   }
@@ -403,6 +403,13 @@ static bool zr__parse_sgr_mouse(const uint8_t* bytes, size_t len, size_t i, uint
   return true;
 }
 
+/*
+  Check whether an ESC byte begins a supported escape sequence that is incomplete.
+
+  Why: The engine may split platform reads arbitrarily. Callers that want to
+  buffer only supported partial sequences can stop before consuming them, and
+  only flush them as a bare Escape key on idle.
+*/
 static bool zr__esc_is_incomplete_supported(const uint8_t* bytes, size_t len, size_t i) {
   if (!bytes || i >= len) {
     return false;
@@ -451,6 +458,12 @@ static bool zr__esc_is_incomplete_supported(const uint8_t* bytes, size_t len, si
   return false;
 }
 
+/*
+  Consume an escape-driven sequence starting at bytes[i], enqueuing a normalized event.
+
+  Why: Centralizes the "try parse known VT sequences; otherwise fallback to
+  Escape key" behavior so prefix parsing and full parsing stay consistent.
+*/
 static size_t zr__consume_escape(zr_event_queue_t* q, const uint8_t* bytes, size_t len, size_t i, uint32_t time_ms) {
   if (!q || !bytes || i >= len) {
     return 0u;
@@ -490,6 +503,7 @@ static size_t zr__consume_escape(zr_event_queue_t* q, const uint8_t* bytes, size
   return 1u;
 }
 
+/* Parse bytes into events, optionally stopping before an incomplete supported ESC sequence. */
 static size_t zr_input_parse_bytes_internal(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms,
                                             bool stop_before_incomplete_escape) {
   if (!q || (!bytes && len != 0u)) {

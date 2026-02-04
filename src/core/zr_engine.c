@@ -33,6 +33,7 @@
 enum {
   ZR_ENGINE_INPUT_PENDING_CAP = 64u,
   ZR_ENGINE_PASTE_MARKER_LEN = 6u,
+  ZR_ENGINE_PASTE_IDLE_FLUSH_POLLS = 4u,
 };
 
 static const uint8_t ZR_ENGINE_PASTE_BEGIN[] = "\x1b[200~";
@@ -87,6 +88,7 @@ struct zr_engine_t {
   uint32_t paste_len;
   bool paste_active;
   bool paste_overflowed;
+  uint32_t paste_idle_polls;
 
   uint8_t paste_end_hold[ZR_ENGINE_PASTE_MARKER_LEN];
   uint32_t paste_end_hold_len;
@@ -326,6 +328,7 @@ static zr_result_t zr_engine_try_handle_resize(zr_engine_t* e, uint32_t time_ms)
   return ZR_OK;
 }
 
+/* Consume as much as possible from the pending input buffer without flushing incomplete escape sequences. */
 static void zr_engine_input_pending_parse(zr_engine_t* e, uint32_t time_ms) {
   if (!e) {
     return;
@@ -350,6 +353,7 @@ static void zr_engine_input_pending_parse(zr_engine_t* e, uint32_t time_ms) {
   }
 }
 
+/* Append a byte into pending input, parsing prefixes and bounding memory on malformed input. */
 static void zr_engine_input_pending_append_byte(zr_engine_t* e, uint8_t b, uint32_t time_ms) {
   if (!e) {
     return;
@@ -365,6 +369,7 @@ static void zr_engine_input_pending_append_byte(zr_engine_t* e, uint8_t b, uint3
   zr_engine_input_pending_parse(e, time_ms);
 }
 
+/* Store a payload byte into the current paste buffer, tracking overflow deterministically. */
 static void zr_engine_paste_store_byte(zr_engine_t* e, uint8_t b) {
   if (!e || !e->paste_buf || e->paste_buf_cap == 0u) {
     return;
@@ -379,6 +384,7 @@ static void zr_engine_paste_store_byte(zr_engine_t* e, uint8_t b) {
   e->paste_buf[e->paste_len++] = b;
 }
 
+/* Finish a paste capture and enqueue a single ZR_EV_PASTE event (best-effort). */
 static void zr_engine_paste_finish(zr_engine_t* e, uint32_t time_ms) {
   if (!e) {
     return;
@@ -393,12 +399,15 @@ static void zr_engine_paste_finish(zr_engine_t* e, uint32_t time_ms) {
   e->paste_overflowed = false;
   e->paste_len = 0u;
   e->paste_end_hold_len = 0u;
+  e->paste_idle_polls = 0u;
 }
 
+/* Consume a byte while in paste mode, matching (and excluding) the end marker. */
 static void zr_engine_input_process_paste_byte(zr_engine_t* e, uint8_t b, uint32_t time_ms) {
   if (!e) {
     return;
   }
+  e->paste_idle_polls = 0u;
 
   const uint32_t seq_len = (uint32_t)(sizeof(ZR_ENGINE_PASTE_END) - 1u);
   ZR_ASSERT(seq_len == (uint32_t)ZR_ENGINE_PASTE_MARKER_LEN);
@@ -437,6 +446,7 @@ static void zr_engine_input_process_paste_byte(zr_engine_t* e, uint8_t b, uint32
   zr_engine_paste_store_byte(e, b);
 }
 
+/* Consume a byte while not in paste mode, detecting the paste begin marker. */
 static void zr_engine_input_process_normal_byte(zr_engine_t* e, uint8_t b, uint32_t time_ms) {
   if (!e) {
     return;
@@ -465,6 +475,7 @@ static void zr_engine_input_process_normal_byte(zr_engine_t* e, uint8_t b, uint3
       e->paste_overflowed = false;
       e->paste_len = 0u;
       e->paste_end_hold_len = 0u;
+      e->paste_idle_polls = 0u;
     }
     return;
   }
@@ -503,7 +514,33 @@ static void zr_engine_input_flush_pending(zr_engine_t* e, uint32_t time_ms) {
     return;
   }
   if (e->paste_active) {
-    /* Malformed paste (missing end marker): keep buffering until it ends. */
+    /*
+      Paste capture must not permanently wedge input if the end marker is missing.
+
+      Policy: after a small number of idle polls, treat the paste as terminated
+      and enqueue what was captured so far (best-effort). Any held end-marker
+      prefix bytes are part of the payload in this case.
+    */
+    if (e->paste_idle_polls < UINT32_MAX) {
+      e->paste_idle_polls++;
+    }
+    if (e->paste_idle_polls < (uint32_t)ZR_ENGINE_PASTE_IDLE_FLUSH_POLLS) {
+      return;
+    }
+
+    for (uint32_t i = 0u; i < e->paste_end_hold_len; i++) {
+      zr_engine_paste_store_byte(e, e->paste_end_hold[i]);
+    }
+    e->paste_end_hold_len = 0u;
+
+    if (e->paste_len != 0u || e->paste_overflowed) {
+      zr_engine_paste_finish(e, time_ms);
+      return;
+    }
+
+    e->paste_active = false;
+    e->paste_overflowed = false;
+    e->paste_idle_polls = 0u;
     return;
   }
 
@@ -834,6 +871,7 @@ void engine_destroy(zr_engine_t* e) {
   e->paste_overflowed = false;
   e->paste_begin_hold_len = 0u;
   e->paste_end_hold_len = 0u;
+  e->paste_idle_polls = 0u;
   e->input_pending_len = 0u;
 
   zr_engine_debug_free(e);

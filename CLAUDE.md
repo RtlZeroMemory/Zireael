@@ -67,6 +67,28 @@ See `.claude/skills/zireael-code-style/SKILL.md` for detailed guidance.
 - Tests run via CTest (`ctest --output-on-failure`)
 - Windows (clang-cl): run `.\scripts\vsdev.ps1` before cmake
 
+## Code Quality
+
+When implementing features, always complete the full implementation including all edge cases (error handling, bounds checking, cleanup paths) before presenting code. Never leave partial implementations or placeholder comments like `// TODO`.
+
+For C code, always verify it compiles without warnings before presenting. Run the build and fix any issues:
+```bash
+cmake --preset posix-clang-debug && cmake --build --preset posix-clang-debug
+```
+
+Run guardrails to ensure platform boundary compliance:
+```bash
+bash scripts/guardrails.sh
+```
+
+## Communication Style
+
+When analyzing or reviewing code, get to actionable output quickly. Avoid lengthy preambles before providing concrete analysis.
+
+Before writing significant code, explain your implementation approach in 3-4 bullets. Wait for approval before proceeding with implementation.
+
+After reading core files, summarize key data structures and function signatures you'll reference. Keep this summary and avoid re-reading unless the file changed.
+
 ## Claude skills (repo-scoped)
 
 This repo defines project skills under `.claude/skills/` (checked in).
@@ -79,6 +101,7 @@ This repo defines project skills under `.claude/skills/` (checked in).
 | Task                  | Skill to Read                                       |
 |-----------------------|-----------------------------------------------------|
 | Any task (start here) | `.claude/skills/zireael-spec-guardian/SKILL.md`     |
+| Code review/PR        | `.claude/skills/zireael-code-review/SKILL.md`       |
 | Code style/comments   | `.claude/skills/zireael-code-style/SKILL.md`        |
 | Platform code         | `.claude/skills/zireael-platform-boundary/SKILL.md` |
 | Unicode/text          | `.claude/skills/zireael-unicode-text/SKILL.md`      |

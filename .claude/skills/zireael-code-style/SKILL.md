@@ -1,9 +1,21 @@
 ---
 name: zireael-code-style
 description: Write readable C with proper comments, named constants, and consistent style per CODE_STANDARDS.md.
+user-invocable: true
+allowed-tools: Read, Glob, Grep
+argument-hint: "[file-path]"
 metadata:
   short-description: Code style + comments + constants
 ---
+
+## Response Format (IMPORTANT)
+
+1. **Start with a 3-sentence summary** of the code's style compliance
+2. **List specific issues with file:line references** (e.g., `src/core/engine.c:42`)
+3. **Provide copyable fix suggestions** for each issue
+4. **Keep total response under 500 lines**
+
+Get to actionable output quickly. No lengthy preambles.
 
 ## When to use
 

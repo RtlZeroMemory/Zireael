@@ -21,6 +21,7 @@
 #include "platform/zr_platform.h"
 
 #include "util/zr_arena.h"
+#include "util/zr_assert.h"
 #include "util/zr_checked.h"
 
 #include <limits.h>
@@ -28,6 +29,15 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+
+enum {
+  ZR_ENGINE_INPUT_PENDING_CAP = 64u,
+  ZR_ENGINE_PASTE_MARKER_LEN = 6u,
+  ZR_ENGINE_PASTE_IDLE_FLUSH_POLLS = 4u,
+};
+
+static const uint8_t ZR_ENGINE_PASTE_BEGIN[] = "\x1b[200~";
+static const uint8_t ZR_ENGINE_PASTE_END[] = "\x1b[201~";
 
 struct zr_engine_t {
   /* --- Platform (OS boundary) --- */
@@ -65,6 +75,23 @@ struct zr_engine_t {
   uint32_t ev_cap;
   uint8_t* user_bytes;
   uint32_t user_bytes_cap;
+
+  /* --- Input buffering (escape + bracketed paste) --- */
+  uint8_t input_pending[ZR_ENGINE_INPUT_PENDING_CAP];
+  uint32_t input_pending_len;
+
+  uint8_t paste_begin_hold[ZR_ENGINE_PASTE_MARKER_LEN];
+  uint32_t paste_begin_hold_len;
+
+  uint8_t* paste_buf;
+  uint32_t paste_buf_cap;
+  uint32_t paste_len;
+  bool paste_active;
+  bool paste_overflowed;
+  uint32_t paste_idle_polls;
+
+  uint8_t paste_end_hold[ZR_ENGINE_PASTE_MARKER_LEN];
+  uint32_t paste_end_hold_len;
 
   /* --- Arenas (reserved for future wiring; reset contract is enforced) --- */
   zr_arena_t arena_frame;
@@ -301,6 +328,233 @@ static zr_result_t zr_engine_try_handle_resize(zr_engine_t* e, uint32_t time_ms)
   return ZR_OK;
 }
 
+/* Consume as much as possible from the pending input buffer without flushing incomplete escape sequences. */
+static void zr_engine_input_pending_parse(zr_engine_t* e, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+
+  for (;;) {
+    const size_t pending_len = (size_t)e->input_pending_len;
+    if (pending_len == 0u) {
+      return;
+    }
+
+    const size_t consumed = zr_input_parse_bytes_prefix(&e->evq, e->input_pending, pending_len, time_ms);
+    if (consumed == 0u || consumed > pending_len) {
+      return;
+    }
+
+    const size_t remain = pending_len - consumed;
+    if (remain != 0u) {
+      memmove(e->input_pending, e->input_pending + consumed, remain);
+    }
+    e->input_pending_len = (uint32_t)remain;
+  }
+}
+
+/* Append a byte into pending input, parsing prefixes and bounding memory on malformed input. */
+static void zr_engine_input_pending_append_byte(zr_engine_t* e, uint8_t b, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+
+  if (e->input_pending_len >= (uint32_t)ZR_ENGINE_INPUT_PENDING_CAP) {
+    /* Defensive bound: avoid pending overflow on malformed/unsupported sequences. */
+    zr_input_parse_bytes(&e->evq, e->input_pending, (size_t)e->input_pending_len, time_ms);
+    e->input_pending_len = 0u;
+  }
+
+  e->input_pending[e->input_pending_len++] = b;
+  zr_engine_input_pending_parse(e, time_ms);
+}
+
+/* Store a payload byte into the current paste buffer, tracking overflow deterministically. */
+static void zr_engine_paste_store_byte(zr_engine_t* e, uint8_t b) {
+  if (!e || !e->paste_buf || e->paste_buf_cap == 0u) {
+    return;
+  }
+  if (e->paste_overflowed) {
+    return;
+  }
+  if (e->paste_len >= e->paste_buf_cap) {
+    e->paste_overflowed = true;
+    return;
+  }
+  e->paste_buf[e->paste_len++] = b;
+}
+
+/* Finish a paste capture and enqueue a single ZR_EV_PASTE event (best-effort). */
+static void zr_engine_paste_finish(zr_engine_t* e, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+
+  e->paste_active = false;
+
+  if (!e->paste_overflowed) {
+    (void)zr_event_queue_post_paste(&e->evq, time_ms, e->paste_buf, e->paste_len);
+  }
+
+  e->paste_overflowed = false;
+  e->paste_len = 0u;
+  e->paste_end_hold_len = 0u;
+  e->paste_idle_polls = 0u;
+}
+
+/* Consume a byte while in paste mode, matching (and excluding) the end marker. */
+static void zr_engine_input_process_paste_byte(zr_engine_t* e, uint8_t b, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+  e->paste_idle_polls = 0u;
+
+  const uint32_t seq_len = (uint32_t)(sizeof(ZR_ENGINE_PASTE_END) - 1u);
+  ZR_ASSERT(seq_len == (uint32_t)ZR_ENGINE_PASTE_MARKER_LEN);
+
+  if (e->paste_end_hold_len == 0u) {
+    if (b == ZR_ENGINE_PASTE_END[0]) {
+      e->paste_end_hold[0] = b;
+      e->paste_end_hold_len = 1u;
+      return;
+    }
+    zr_engine_paste_store_byte(e, b);
+    return;
+  }
+
+  const uint32_t want = e->paste_end_hold_len;
+  if (want < seq_len && b == (uint8_t)ZR_ENGINE_PASTE_END[want]) {
+    e->paste_end_hold[want] = b;
+    e->paste_end_hold_len++;
+    if (e->paste_end_hold_len == seq_len) {
+      zr_engine_paste_finish(e, time_ms);
+    }
+    return;
+  }
+
+  /* Mismatch: flush held bytes into the paste payload and restart matching. */
+  for (uint32_t i = 0u; i < e->paste_end_hold_len; i++) {
+    zr_engine_paste_store_byte(e, e->paste_end_hold[i]);
+  }
+  e->paste_end_hold_len = 0u;
+
+  if (b == ZR_ENGINE_PASTE_END[0]) {
+    e->paste_end_hold[0] = b;
+    e->paste_end_hold_len = 1u;
+    return;
+  }
+  zr_engine_paste_store_byte(e, b);
+}
+
+/* Consume a byte while not in paste mode, detecting the paste begin marker. */
+static void zr_engine_input_process_normal_byte(zr_engine_t* e, uint8_t b, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+
+  const uint32_t seq_len = (uint32_t)(sizeof(ZR_ENGINE_PASTE_BEGIN) - 1u);
+  ZR_ASSERT(seq_len == (uint32_t)ZR_ENGINE_PASTE_MARKER_LEN);
+
+  if (e->paste_begin_hold_len == 0u) {
+    if (b == ZR_ENGINE_PASTE_BEGIN[0]) {
+      e->paste_begin_hold[0] = b;
+      e->paste_begin_hold_len = 1u;
+      return;
+    }
+    zr_engine_input_pending_append_byte(e, b, time_ms);
+    return;
+  }
+
+  const uint32_t want = e->paste_begin_hold_len;
+  if (want < seq_len && b == ZR_ENGINE_PASTE_BEGIN[want]) {
+    e->paste_begin_hold[want] = b;
+    e->paste_begin_hold_len++;
+    if (e->paste_begin_hold_len == seq_len) {
+      e->paste_begin_hold_len = 0u;
+      e->paste_active = true;
+      e->paste_overflowed = false;
+      e->paste_len = 0u;
+      e->paste_end_hold_len = 0u;
+      e->paste_idle_polls = 0u;
+    }
+    return;
+  }
+
+  /* Mismatch: flush held bytes into the normal pending buffer and restart matching. */
+  for (uint32_t i = 0u; i < e->paste_begin_hold_len; i++) {
+    zr_engine_input_pending_append_byte(e, e->paste_begin_hold[i], time_ms);
+  }
+  e->paste_begin_hold_len = 0u;
+
+  if (b == ZR_ENGINE_PASTE_BEGIN[0]) {
+    e->paste_begin_hold[0] = b;
+    e->paste_begin_hold_len = 1u;
+    return;
+  }
+  zr_engine_input_pending_append_byte(e, b, time_ms);
+}
+
+static void zr_engine_input_process_bytes(zr_engine_t* e, const uint8_t* bytes, size_t len, uint32_t time_ms) {
+  if (!e || (!bytes && len != 0u)) {
+    return;
+  }
+
+  for (size_t i = 0u; i < len; i++) {
+    const uint8_t b = bytes[i];
+    if (e->paste_active) {
+      zr_engine_input_process_paste_byte(e, b, time_ms);
+    } else {
+      zr_engine_input_process_normal_byte(e, b, time_ms);
+    }
+  }
+}
+
+static void zr_engine_input_flush_pending(zr_engine_t* e, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+  if (e->paste_active) {
+    /*
+      Paste capture must not permanently wedge input if the end marker is missing.
+
+      Policy: after a small number of idle polls, treat the paste as terminated
+      and enqueue what was captured so far (best-effort). Any held end-marker
+      prefix bytes are part of the payload in this case.
+    */
+    if (e->paste_idle_polls < UINT32_MAX) {
+      e->paste_idle_polls++;
+    }
+    if (e->paste_idle_polls < (uint32_t)ZR_ENGINE_PASTE_IDLE_FLUSH_POLLS) {
+      return;
+    }
+
+    for (uint32_t i = 0u; i < e->paste_end_hold_len; i++) {
+      zr_engine_paste_store_byte(e, e->paste_end_hold[i]);
+    }
+    e->paste_end_hold_len = 0u;
+
+    if (e->paste_len != 0u || e->paste_overflowed) {
+      zr_engine_paste_finish(e, time_ms);
+      return;
+    }
+
+    e->paste_active = false;
+    e->paste_overflowed = false;
+    e->paste_idle_polls = 0u;
+    return;
+  }
+
+  for (uint32_t i = 0u; i < e->paste_begin_hold_len; i++) {
+    zr_engine_input_pending_append_byte(e, e->paste_begin_hold[i], time_ms);
+  }
+  e->paste_begin_hold_len = 0u;
+
+  if (e->input_pending_len != 0u) {
+    zr_input_parse_bytes(&e->evq, e->input_pending, (size_t)e->input_pending_len, time_ms);
+    e->input_pending_len = 0u;
+  }
+}
+
 static zr_result_t zr_engine_drain_platform_input(zr_engine_t* e, uint32_t time_ms) {
   if (!e || !e->plat) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -316,7 +570,7 @@ static zr_result_t zr_engine_drain_platform_input(zr_engine_t* e, uint32_t time_
     if (n == 0) {
       return ZR_OK;
     }
-    zr_input_parse_bytes(&e->evq, buf, (size_t)n, time_ms);
+    zr_engine_input_process_bytes(e, buf, (size_t)n, time_ms);
   }
 
   /* Defensive bound: platform must eventually report no more bytes to read. */
@@ -334,6 +588,15 @@ static bool zr_engine_pack_one_event(zr_evpack_writer_t* w, const zr_event_queue
       return zr_evpack_append_record(w, ZR_EV_KEY, ev->time_ms, ev->flags, &ev->u.key, sizeof(ev->u.key));
     case ZR_EV_TEXT:
       return zr_evpack_append_record(w, ZR_EV_TEXT, ev->time_ms, ev->flags, &ev->u.text, sizeof(ev->u.text));
+    case ZR_EV_PASTE: {
+      const uint8_t* payload = NULL;
+      uint32_t payload_len = 0u;
+      if (!zr_event_queue_paste_payload_view(q, ev, &payload, &payload_len)) {
+        return false;
+      }
+      return zr_evpack_append_record2(w, ZR_EV_PASTE, ev->time_ms, ev->flags, &ev->u.paste.hdr,
+                                      sizeof(ev->u.paste.hdr), payload, (size_t)payload_len);
+    }
     case ZR_EV_MOUSE:
       return zr_evpack_append_record(w, ZR_EV_MOUSE, ev->time_ms, ev->flags, &ev->u.mouse, sizeof(ev->u.mouse));
     case ZR_EV_RESIZE:
@@ -454,6 +717,13 @@ static zr_result_t zr_engine_init_event_queue(zr_engine_t* e) {
   if (!e->user_bytes) {
     return ZR_ERR_OOM;
   }
+
+  e->paste_buf_cap = e->user_bytes_cap;
+  e->paste_buf = (uint8_t*)malloc((size_t)e->paste_buf_cap);
+  if (!e->paste_buf) {
+    return ZR_ERR_OOM;
+  }
+
   return zr_event_queue_init(&e->evq, e->ev_storage, e->ev_cap, e->user_bytes, e->user_bytes_cap);
 }
 
@@ -592,6 +862,17 @@ void engine_destroy(zr_engine_t* e) {
   free(e->user_bytes);
   e->user_bytes = NULL;
   e->user_bytes_cap = 0u;
+
+  free(e->paste_buf);
+  e->paste_buf = NULL;
+  e->paste_buf_cap = 0u;
+  e->paste_len = 0u;
+  e->paste_active = false;
+  e->paste_overflowed = false;
+  e->paste_begin_hold_len = 0u;
+  e->paste_end_hold_len = 0u;
+  e->paste_idle_polls = 0u;
+  e->input_pending_len = 0u;
 
   zr_engine_debug_free(e);
 
@@ -877,6 +1158,7 @@ static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms, uint32_t
     if (rc != ZR_OK) {
       return (int)rc;
     }
+    zr_engine_input_flush_pending(e, time_ms);
     return 0;
   }
 

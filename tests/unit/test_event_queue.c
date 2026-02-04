@@ -210,3 +210,101 @@ ZR_TEST_UNIT(event_queue_full_resize_still_coalesces) {
   ZR_ASSERT_EQ_U32(head.u.resize.rows, 77u);
 }
 
+ZR_TEST_UNIT(event_queue_post_paste_rejects_payload_too_large) {
+  zr_event_t storage[4];
+  uint8_t user_bytes[8];
+  zr_event_queue_t q;
+  ZR_ASSERT_EQ_U32(zr_event_queue_init(&q, storage, 4u, user_bytes, (uint32_t)sizeof(user_bytes)), ZR_OK);
+
+  const uint8_t bytes[9] = {0u};
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_paste(&q, 1u, bytes, (uint32_t)sizeof(bytes)), ZR_ERR_LIMIT);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 0u);
+  ZR_ASSERT_EQ_U32(q.user_used, 0u);
+}
+
+ZR_TEST_UNIT(event_queue_post_paste_drops_oldest_and_frees_user_payload) {
+  zr_event_t storage[1];
+  uint8_t user_bytes[8];
+  zr_event_queue_t q;
+  ZR_ASSERT_EQ_U32(zr_event_queue_init(&q, storage, 1u, user_bytes, (uint32_t)sizeof(user_bytes)), ZR_OK);
+
+  const uint8_t user_payload[] = {(uint8_t)'u', (uint8_t)'s', (uint8_t)'e', (uint8_t)'r'};
+  const uint8_t paste_payload[] = {(uint8_t)'p', (uint8_t)'a', (uint8_t)'s', (uint8_t)'t'};
+
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_user(&q, 1u, 42u, user_payload, (uint32_t)sizeof(user_payload)), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 1u);
+  ZR_ASSERT_EQ_U32(q.user_used, (uint32_t)sizeof(user_payload));
+
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_paste(&q, 2u, paste_payload, (uint32_t)sizeof(paste_payload)), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 1u);
+  ZR_ASSERT_EQ_U32(q.user_used, (uint32_t)sizeof(paste_payload));
+
+  zr_event_t head;
+  ZR_ASSERT_TRUE(zr_event_queue_peek(&q, &head));
+  ZR_ASSERT_EQ_U32(head.type, (uint32_t)ZR_EV_PASTE);
+
+  const uint8_t* bytes = NULL;
+  uint32_t len = 0u;
+  ZR_ASSERT_TRUE(zr_event_queue_paste_payload_view(&q, &head, &bytes, &len));
+  ZR_ASSERT_EQ_U32(len, (uint32_t)sizeof(paste_payload));
+  ZR_ASSERT_TRUE(memcmp(bytes, paste_payload, sizeof(paste_payload)) == 0);
+
+  zr_event_t out;
+  ZR_ASSERT_TRUE(zr_event_queue_pop(&q, &out));
+  ZR_ASSERT_EQ_U32(out.type, (uint32_t)ZR_EV_PASTE);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 0u);
+  ZR_ASSERT_EQ_U32(q.user_used, 0u);
+}
+
+ZR_TEST_UNIT(event_queue_push_drops_paste_and_frees_payload_bytes) {
+  zr_event_t storage[1];
+  uint8_t user_bytes[8];
+  zr_event_queue_t q;
+  ZR_ASSERT_EQ_U32(zr_event_queue_init(&q, storage, 1u, user_bytes, (uint32_t)sizeof(user_bytes)), ZR_OK);
+
+  const uint8_t paste_payload[] = {(uint8_t)'p', (uint8_t)'a', (uint8_t)'s', (uint8_t)'t'};
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_paste(&q, 1u, paste_payload, (uint32_t)sizeof(paste_payload)), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 1u);
+  ZR_ASSERT_EQ_U32(q.user_used, (uint32_t)sizeof(paste_payload));
+
+  zr_event_t ev = zr_make_key(2u, ZR_KEY_ESCAPE);
+  ZR_ASSERT_EQ_U32(zr_event_queue_push(&q, &ev), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 1u);
+  ZR_ASSERT_EQ_U32(q.dropped_due_to_full, 1u);
+  ZR_ASSERT_EQ_U32(q.user_used, 0u);
+
+  zr_event_t head;
+  ZR_ASSERT_TRUE(zr_event_queue_peek(&q, &head));
+  ZR_ASSERT_EQ_U32(head.type, (uint32_t)ZR_EV_KEY);
+  ZR_ASSERT_EQ_U32(head.u.key.key, (uint32_t)ZR_KEY_ESCAPE);
+}
+
+ZR_TEST_UNIT(event_queue_post_paste_does_not_drop_when_ring_full) {
+  zr_event_t storage[2];
+  uint8_t user_bytes[8];
+  zr_event_queue_t q;
+  ZR_ASSERT_EQ_U32(zr_event_queue_init(&q, storage, 2u, user_bytes, (uint32_t)sizeof(user_bytes)), ZR_OK);
+
+  zr_event_t ev = zr_make_key(1u, ZR_KEY_ESCAPE);
+  ZR_ASSERT_EQ_U32(zr_event_queue_push(&q, &ev), ZR_OK);
+
+  /* Fill the payload ring completely with a USER event. */
+  uint8_t full_payload[8];
+  memset(full_payload, 0xA5, sizeof(full_payload));
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_user(&q, 2u, 123u, full_payload, (uint32_t)sizeof(full_payload)), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 2u);
+  ZR_ASSERT_EQ_U32(q.user_used, (uint32_t)sizeof(full_payload));
+
+  const uint8_t one_byte[] = {0x5Au};
+  ZR_ASSERT_EQ_U32(zr_event_queue_post_paste(&q, 3u, one_byte, (uint32_t)sizeof(one_byte)), ZR_ERR_LIMIT);
+
+  /* Must not drop the head event when the paste cannot be enqueued. */
+  ZR_ASSERT_EQ_U32(zr_event_queue_count(&q), 2u);
+  ZR_ASSERT_EQ_U32(q.dropped_due_to_full, 0u);
+  ZR_ASSERT_EQ_U32(q.user_used, (uint32_t)sizeof(full_payload));
+
+  zr_event_t head;
+  ZR_ASSERT_TRUE(zr_event_queue_peek(&q, &head));
+  ZR_ASSERT_EQ_U32(head.type, (uint32_t)ZR_EV_KEY);
+}

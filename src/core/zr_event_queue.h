@@ -47,6 +47,7 @@ typedef struct zr_event_queue_t {
   uint32_t user_head;
   uint32_t user_tail;
   uint32_t user_used;
+  uint32_t user_pad_end; /* bytes reserved at end after wrap (variable-size ring needs explicit pad tracking) */
 
   uint32_t dropped_total;
   uint32_t dropped_due_to_full;

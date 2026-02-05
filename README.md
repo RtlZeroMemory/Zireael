@@ -53,18 +53,20 @@ Wrapper / Host Runtime                 Zireael Engine
 
 ## Architecture
 
-```text
-+--------------------------------------------------------------+
-| Wrapper / Binding (Rust, Go, Python, C#, etc.)              |
-+--------------------------------------------------------------+
-| C ABI (include/zr/*.h)                                      |
-+--------------------------------------------------------------+
-| core: config, events, drawlist, framebuffer, diff, metrics  |
-| unicode: UTF-8, grapheme, width policy                      |
-| util: arenas, checked math, buffers                         |
-+--------------------------------------------------------------+
-| platform: posix backend | win32 backend                     |
-+--------------------------------------------------------------+
+```mermaid
+flowchart TD
+  W[Wrapper / Binding<br/>Rust, Go, Python, C#]
+  A[C ABI<br/>include/zr/*.h]
+  C[Core<br/>config, events, drawlist,<br/>framebuffer, diff, metrics]
+  U[Unicode<br/>UTF-8, grapheme, width policy]
+  T[Util<br/>arenas, checked math, buffers]
+  P[Platform Backends<br/>posix | win32]
+
+  W --> A
+  A --> C
+  C --> U
+  C --> T
+  C --> P
 ```
 
 ## Quickstart

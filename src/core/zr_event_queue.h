@@ -40,7 +40,7 @@ typedef struct zr_event_queue_t {
   zr_event_t* events;
   uint32_t cap;
   uint32_t head;
-  uint32_t count;
+  atomic_uint_least32_t count;
 
   uint8_t* user_bytes;
   uint32_t user_bytes_cap;
@@ -79,7 +79,10 @@ bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev);
 bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev);
 
 static inline uint32_t zr_event_queue_count(const zr_event_queue_t* q) {
-  return q ? q->count : 0u;
+  if (!q) {
+    return 0u;
+  }
+  return (uint32_t)atomic_load_explicit(&q->count, memory_order_acquire);
 }
 
 /*

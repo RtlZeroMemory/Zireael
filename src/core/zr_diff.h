@@ -52,4 +52,22 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
                            zr_term_state_t* out_final_term_state,
                            zr_diff_stats_t* out_stats);
 
+/*
+  zr_diff_render_with_opts:
+    - Same contract as zr_diff_render(), with an explicit tuning flag for
+      dirty-span coalescing.
+    - enable_span_coalescing==0 emits per-cell updates; non-zero coalesces
+      contiguous dirty spans on each line.
+*/
+zr_result_t zr_diff_render_with_opts(const zr_fb_t* prev,
+                                     const zr_fb_t* next,
+                                     const plat_caps_t* caps,
+                                     const zr_term_state_t* initial_term_state,
+                                     uint8_t enable_span_coalescing,
+                                     uint8_t* out_buf,
+                                     size_t out_cap,
+                                     size_t* out_len,
+                                     zr_term_state_t* out_final_term_state,
+                                     zr_diff_stats_t* out_stats);
+
 #endif /* ZR_CORE_ZR_DIFF_H_INCLUDED */

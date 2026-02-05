@@ -872,8 +872,8 @@ zr_result_t zr_fb_blit_rect(zr_fb_painter_t* p, zr_rect_t dst, zr_rect_t src) {
   return ZR_OK;
 }
 
-/* Count total display width (in cells) for UTF-8 text using pinned width policy. */
-size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
+/* Count total display width (in cells) for UTF-8 text using selected width policy. */
+size_t zr_fb_count_cells_utf8_ex(const uint8_t* bytes, size_t len, zr_width_policy_t width_policy) {
   if (!bytes || len == 0u) {
     return 0u;
   }
@@ -884,11 +884,16 @@ size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
 
   zr_grapheme_t g;
   while (zr_grapheme_next(&it, &g)) {
-    const uint8_t w = zr_width_grapheme_utf8(bytes + g.offset, g.size, zr_width_policy_default());
+    const uint8_t w = zr_width_grapheme_utf8(bytes + g.offset, g.size, width_policy);
     total += (size_t)w;
   }
 
   return total;
+}
+
+/* Count total display width (in cells) using the default width policy. */
+size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
+  return zr_fb_count_cells_utf8_ex(bytes, len, zr_width_policy_default());
 }
 
 /*
@@ -898,12 +903,13 @@ size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len) {
  * cannot fit within clip. Cursor advancement is stable regardless of clipping
  * to maintain deterministic layout.
  */
-zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
-                                  int32_t x,
-                                  int32_t y,
-                                  const uint8_t* bytes,
-                                  size_t len,
-                                  const zr_style_t* style) {
+zr_result_t zr_fb_draw_text_bytes_ex(zr_fb_painter_t* p,
+                                     int32_t x,
+                                     int32_t y,
+                                     const uint8_t* bytes,
+                                     size_t len,
+                                     zr_width_policy_t width_policy,
+                                     const zr_style_t* style) {
   if (!p || !p->fb || !bytes || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -925,7 +931,7 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
     const size_t gl = g.size;
-    const uint8_t w = zr_width_grapheme_utf8(gb, gl, zr_width_policy_default());
+    const uint8_t w = zr_width_grapheme_utf8(gb, gl, width_policy);
     if (w == 0u) {
       continue;
     }
@@ -984,4 +990,14 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
   }
 
   return ZR_OK;
+}
+
+/* Draw UTF-8 text using the default width policy. */
+zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
+                                  int32_t x,
+                                  int32_t y,
+                                  const uint8_t* bytes,
+                                  size_t len,
+                                  const zr_style_t* style) {
+  return zr_fb_draw_text_bytes_ex(p, x, y, bytes, len, zr_width_policy_default(), style);
 }

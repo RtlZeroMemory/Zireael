@@ -50,7 +50,9 @@ struct plat_t {
   bool    modes_valid;
   bool    cp_valid;
   bool    raw_active;
-  uint8_t _pad[5];
+  bool    has_pending_high_surrogate;
+  WCHAR   pending_high_surrogate;
+  uint8_t _pad[2];
 };
 
 static zr_result_t zr_win32_write_all(HANDLE h_out, const uint8_t* bytes, int32_t len) {
@@ -267,6 +269,56 @@ static bool zr_win32_query_size_best_effort(HANDLE h_out, plat_size_t* inout_las
   return true;
 }
 
+static bool zr_win32_is_high_surrogate(WCHAR ch) { return ch >= 0xD800u && ch <= 0xDBFFu; }
+static bool zr_win32_is_low_surrogate(WCHAR ch) { return ch >= 0xDC00u && ch <= 0xDFFFu; }
+
+static uint32_t zr_win32_surrogate_pair_to_scalar(WCHAR hi, WCHAR lo) {
+  const uint32_t hi10 = (uint32_t)(hi - 0xD800u);
+  const uint32_t lo10 = (uint32_t)(lo - 0xDC00u);
+  return 0x10000u + (hi10 << 10) + lo10;
+}
+
+static bool zr_win32_emit_utf8_scalar(uint8_t* out_buf, size_t out_cap, size_t* io_len, uint32_t scalar) {
+  if (!out_buf || !io_len) {
+    return false;
+  }
+
+  uint8_t tmp[4];
+  size_t n = 0u;
+  if (scalar <= 0x7Fu) {
+    tmp[0] = (uint8_t)scalar;
+    n = 1u;
+  } else if (scalar <= 0x7FFu) {
+    tmp[0] = (uint8_t)(0xC0u | ((scalar >> 6u) & 0x1Fu));
+    tmp[1] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    n = 2u;
+  } else if (scalar <= 0xFFFFu && !(scalar >= 0xD800u && scalar <= 0xDFFFu)) {
+    tmp[0] = (uint8_t)(0xE0u | ((scalar >> 12u) & 0x0Fu));
+    tmp[1] = (uint8_t)(0x80u | ((scalar >> 6u) & 0x3Fu));
+    tmp[2] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    n = 3u;
+  } else if (scalar <= 0x10FFFFu) {
+    tmp[0] = (uint8_t)(0xF0u | ((scalar >> 18u) & 0x07u));
+    tmp[1] = (uint8_t)(0x80u | ((scalar >> 12u) & 0x3Fu));
+    tmp[2] = (uint8_t)(0x80u | ((scalar >> 6u) & 0x3Fu));
+    tmp[3] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    n = 4u;
+  } else {
+    /* U+FFFD */
+    tmp[0] = 0xEFu;
+    tmp[1] = 0xBFu;
+    tmp[2] = 0xBDu;
+    n = 3u;
+  }
+
+  if (*io_len > out_cap || (out_cap - *io_len) < n) {
+    return false;
+  }
+  memcpy(out_buf + *io_len, tmp, n);
+  *io_len += n;
+  return true;
+}
+
 /* Create Win32 platform handle with wake event and conservative default caps. */
 zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   if (!out_plat || !cfg) {
@@ -437,8 +489,8 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
       Avoid ReadFile() on console input handles: it can still block when the
       handle is signaled due to non-key input records (mouse/focus/resize).
 
-      Instead, consume INPUT_RECORDs and translate only key-down events into
-      the minimal byte stream our core parser understands.
+      Instead, consume INPUT_RECORDs and translate key-down events into a VT-ish
+      byte stream (including UTF-8 text scalars) for the core parser.
     */
     DWORD n_events = 0u;
     if (!GetNumberOfConsoleInputEvents(plat->h_in, &n_events)) {
@@ -532,17 +584,42 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
       }
 
       if (ch == 0) {
+        if (plat->has_pending_high_surrogate) {
+          (void)zr_win32_emit_utf8_scalar(out_buf, out_cap_z, &out_len, 0xFFFDu);
+          plat->has_pending_high_surrogate = false;
+          plat->pending_high_surrogate = 0u;
+        }
         continue;
       }
 
-      /*
-        The core input parser is currently byte-oriented (no UTF-8 decode).
-        Emit ASCII only; ignore non-ASCII so we don't generate spurious multi-byte
-        "text events" for a single key press.
-      */
-      if (ch <= 0x7Fu && out_len + 1u <= out_cap_z) {
-        out_buf[out_len++] = (uint8_t)ch;
+      if (zr_win32_is_high_surrogate(ch)) {
+        if (plat->has_pending_high_surrogate) {
+          (void)zr_win32_emit_utf8_scalar(out_buf, out_cap_z, &out_len, 0xFFFDu);
+        }
+        plat->has_pending_high_surrogate = true;
+        plat->pending_high_surrogate = ch;
+        continue;
       }
+
+      if (zr_win32_is_low_surrogate(ch)) {
+        if (plat->has_pending_high_surrogate) {
+          const uint32_t scalar = zr_win32_surrogate_pair_to_scalar(plat->pending_high_surrogate, ch);
+          (void)zr_win32_emit_utf8_scalar(out_buf, out_cap_z, &out_len, scalar);
+          plat->has_pending_high_surrogate = false;
+          plat->pending_high_surrogate = 0u;
+        } else {
+          (void)zr_win32_emit_utf8_scalar(out_buf, out_cap_z, &out_len, 0xFFFDu);
+        }
+        continue;
+      }
+
+      if (plat->has_pending_high_surrogate) {
+        (void)zr_win32_emit_utf8_scalar(out_buf, out_cap_z, &out_len, 0xFFFDu);
+        plat->has_pending_high_surrogate = false;
+        plat->pending_high_surrogate = 0u;
+      }
+
+      (void)zr_win32_emit_utf8_scalar(out_buf, out_cap_z, &out_len, (uint32_t)ch);
     }
 
     if (out_len > (size_t)INT32_MAX) {

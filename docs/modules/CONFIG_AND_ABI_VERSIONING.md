@@ -102,6 +102,9 @@ Notes:
 
 - `width_policy` is encoded as a fixed-width integer for ABI stability; its values correspond to `zr_width_policy_t`
   enumerators in `src/unicode/zr_width.h` (currently: `ZR_WIDTH_EMOJI_NARROW` or `ZR_WIDTH_EMOJI_WIDE`).
+- `target_fps` MUST be in `[1, 1000]` in v1 validation.
+- `enable_scroll_optimizations` controls diff dirty-span coalescing (0 = per-cell emission, 1 = coalesced spans).
+- `enable_debug_overlay` controls whether a bounded ASCII diagnostics overlay is composited during present.
 - `enable_replay_recording` is currently a reserved toggle (accepted as 0/1 in v1) and does not change runtime behavior.
 
 ## Defaults and validation

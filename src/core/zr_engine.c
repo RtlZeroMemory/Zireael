@@ -9,6 +9,7 @@
 #include "core/zr_engine.h"
 
 #include "core/zr_diff.h"
+#include "core/zr_debug_overlay.h"
 #include "core/zr_drawlist.h"
 #include "core/zr_event_pack.h"
 #include "core/zr_event_queue.h"
@@ -24,6 +25,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define ZR_ENGINE_INPUT_PENDING_CAP 64u
 
 struct zr_engine_t {
   /* --- Platform (OS boundary) --- */
@@ -53,6 +56,10 @@ struct zr_engine_t {
   uint32_t ev_cap;
   uint8_t* user_bytes;
   uint32_t user_bytes_cap;
+  uint8_t input_pending[ZR_ENGINE_INPUT_PENDING_CAP];
+  uint32_t input_pending_len;
+
+  uint32_t last_present_ms;
 
   /* --- Arenas (reserved for future wiring; reset contract is enforced) --- */
   zr_arena_t arena_frame;
@@ -72,6 +79,41 @@ enum {
 static uint32_t zr_engine_now_ms_u32(void) {
   /* v1: time_ms is u32; truncation is deterministic and acceptable for telemetry. */
   return (uint32_t)plat_now_ms();
+}
+
+static uint64_t zr_engine_now_us_estimate(void) {
+  /*
+    Timing source is millisecond-resolution in v1. Convert to microseconds so
+    metrics fields keep stable ABI units (best-effort precision).
+  */
+  return plat_now_ms() * 1000ull;
+}
+
+static uint32_t zr_engine_elapsed_us_saturated(uint64_t start_us, uint64_t end_us) {
+  if (end_us <= start_us) {
+    return 0u;
+  }
+  const uint64_t delta = end_us - start_us;
+  if (delta > (uint64_t)UINT32_MAX) {
+    return UINT32_MAX;
+  }
+  return (uint32_t)delta;
+}
+
+static void zr_engine_metrics_update_arena_high_water(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+
+  const uint64_t frame_total = (uint64_t)e->arena_frame.total_bytes;
+  if (frame_total > e->metrics.arena_frame_high_water_bytes) {
+    e->metrics.arena_frame_high_water_bytes = frame_total;
+  }
+
+  const uint64_t persistent_total = (uint64_t)e->arena_persistent.total_bytes;
+  if (persistent_total > e->metrics.arena_persistent_high_water_bytes) {
+    e->metrics.arena_persistent_high_water_bytes = persistent_total;
+  }
 }
 
 static size_t zr_engine_cells_bytes(const zr_fb_t* fb) {
@@ -186,6 +228,66 @@ static zr_result_t zr_engine_try_handle_resize(zr_engine_t* e, uint32_t time_ms)
   return ZR_OK;
 }
 
+/* Consume complete sequences from pending bytes without flushing trailing partials. */
+static void zr_engine_input_pending_parse(zr_engine_t* e, uint32_t time_ms) {
+  if (!e) {
+    return;
+  }
+
+  for (;;) {
+    const size_t pending_len = (size_t)e->input_pending_len;
+    if (pending_len == 0u) {
+      return;
+    }
+
+    const size_t consumed = zr_input_parse_bytes_prefix(&e->evq, e->input_pending, pending_len, time_ms);
+    if (consumed == 0u || consumed > pending_len) {
+      return;
+    }
+
+    const size_t remain = pending_len - consumed;
+    if (remain != 0u) {
+      memmove(e->input_pending, e->input_pending + consumed, remain);
+    }
+    e->input_pending_len = (uint32_t)remain;
+  }
+}
+
+/* Append bytes to pending input and parse complete prefixes immediately. */
+static void zr_engine_input_pending_append_bytes(zr_engine_t* e, const uint8_t* bytes, size_t len, uint32_t time_ms) {
+  if (!e || (!bytes && len != 0u)) {
+    return;
+  }
+
+  for (size_t i = 0u; i < len; i++) {
+    if (e->input_pending_len >= (uint32_t)ZR_ENGINE_INPUT_PENDING_CAP) {
+      /*
+        Defensive bound: malformed/unsupported sequences must never grow the
+        pending buffer unbounded. Flush pending deterministically and continue.
+      */
+      zr_input_parse_bytes(&e->evq, e->input_pending, (size_t)e->input_pending_len, time_ms);
+      e->input_pending_len = 0u;
+    }
+
+    e->input_pending[e->input_pending_len++] = bytes[i];
+    zr_engine_input_pending_parse(e, time_ms);
+  }
+}
+
+/*
+  Flush any trailing pending bytes as regular input.
+
+  Why: A single ESC byte could represent either "Escape key" or a sequence
+  prefix. On timeout/idleness we must commit pending bytes to avoid wedging.
+*/
+static void zr_engine_input_flush_pending(zr_engine_t* e, uint32_t time_ms) {
+  if (!e || e->input_pending_len == 0u) {
+    return;
+  }
+  zr_input_parse_bytes(&e->evq, e->input_pending, (size_t)e->input_pending_len, time_ms);
+  e->input_pending_len = 0u;
+}
+
 static zr_result_t zr_engine_drain_platform_input(zr_engine_t* e, uint32_t time_ms) {
   if (!e || !e->plat) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -201,7 +303,7 @@ static zr_result_t zr_engine_drain_platform_input(zr_engine_t* e, uint32_t time_
     if (n == 0) {
       return ZR_OK;
     }
-    zr_input_parse_bytes(&e->evq, buf, (size_t)n, time_ms);
+    zr_engine_input_pending_append_bytes(e, buf, (size_t)n, time_ms);
   }
 
   /* Defensive bound: platform must eventually report no more bytes to read. */
@@ -270,6 +372,7 @@ static void zr_engine_metrics_init(zr_engine_t* e, const zr_engine_config_t* cfg
   e->metrics.negotiated_engine_abi_patch = cfg->requested_engine_abi_patch;
   e->metrics.negotiated_drawlist_version = cfg->requested_drawlist_version;
   e->metrics.negotiated_event_batch_version = cfg->requested_event_batch_version;
+  e->metrics.fps = cfg->target_fps;
 }
 
 static zr_result_t zr_engine_alloc_out_buf(zr_engine_t* e) {
@@ -295,8 +398,14 @@ static zr_result_t zr_engine_init_arenas(zr_engine_t* e) {
   if (rc != ZR_OK) {
     return rc;
   }
-  return zr_arena_init(&e->arena_frame, (size_t)e->cfg_runtime.limits.arena_initial_bytes,
-                       (size_t)e->cfg_runtime.limits.arena_max_total_bytes);
+  rc = zr_arena_init(&e->arena_frame, (size_t)e->cfg_runtime.limits.arena_initial_bytes,
+                     (size_t)e->cfg_runtime.limits.arena_max_total_bytes);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  zr_engine_metrics_update_arena_high_water(e);
+  return ZR_OK;
 }
 
 static zr_result_t zr_engine_init_event_queue(zr_engine_t* e) {
@@ -435,39 +544,64 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
+  const uint64_t t0_us = zr_engine_now_us_estimate();
+
   zr_dl_view_t v;
   zr_result_t rc = zr_dl_validate(bytes, (size_t)bytes_len, &e->cfg_runtime.limits, &v);
   if (rc != ZR_OK) {
+    e->metrics.us_drawlist_last_frame = zr_engine_elapsed_us_saturated(t0_us, zr_engine_now_us_estimate());
     return rc;
   }
 
   zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
 
-  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits);
+  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, (zr_width_policy_t)e->cfg_runtime.width_policy);
   if (rc != ZR_OK) {
+    e->metrics.us_drawlist_last_frame = zr_engine_elapsed_us_saturated(t0_us, zr_engine_now_us_estimate());
     return rc;
   }
 
   zr_engine_fb_swap(&e->fb_next, &e->fb_stage);
+  e->metrics.us_drawlist_last_frame = zr_engine_elapsed_us_saturated(t0_us, zr_engine_now_us_estimate());
+  zr_engine_metrics_update_arena_high_water(e);
   return ZR_OK;
 }
 
 static zr_result_t zr_engine_present_render(zr_engine_t* e,
                                             size_t* out_len,
                                             zr_term_state_t* final_ts,
-                                            zr_diff_stats_t* stats) {
-  if (!e || !out_len || !final_ts || !stats) {
+                                            zr_diff_stats_t* stats,
+                                            bool* out_used_stage) {
+  if (!e || !out_len || !final_ts || !stats || !out_used_stage) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_result_t rc = zr_diff_render(&e->fb_prev, &e->fb_next, &e->caps, &e->term_state, e->out_buf, e->out_cap,
-                                  out_len, final_ts, stats);
+  const zr_fb_t* diff_next = &e->fb_next;
+  bool used_stage = false;
+
+  if (e->cfg_runtime.enable_debug_overlay != 0u) {
+    zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
+    zr_result_t orc = zr_debug_overlay_render(&e->fb_stage, &e->metrics);
+    if (orc != ZR_OK) {
+      return orc;
+    }
+    diff_next = &e->fb_stage;
+    used_stage = true;
+  }
+
+  const uint64_t t0_us = zr_engine_now_us_estimate();
+  zr_result_t rc =
+      zr_diff_render_with_opts(&e->fb_prev, diff_next, &e->caps, &e->term_state,
+                               e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts,
+                               stats);
+  e->metrics.us_diff_last_frame = zr_engine_elapsed_us_saturated(t0_us, zr_engine_now_us_estimate());
   if (rc != ZR_OK) {
     return rc;
   }
   if (*out_len > (size_t)INT32_MAX) {
     return ZR_ERR_LIMIT;
   }
+  *out_used_stage = used_stage;
   return ZR_OK;
 }
 
@@ -481,11 +615,15 @@ static zr_result_t zr_engine_present_write(zr_engine_t* e, size_t out_len) {
 static void zr_engine_present_commit(zr_engine_t* e,
                                      size_t out_len,
                                      const zr_term_state_t* final_ts,
-                                     const zr_diff_stats_t* stats) {
+                                     const zr_diff_stats_t* stats,
+                                     bool used_stage) {
   if (!e || !final_ts || !stats) {
     return;
   }
 
+  if (used_stage) {
+    zr_engine_fb_copy(&e->fb_stage, &e->fb_next);
+  }
   zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
   e->term_state = *final_ts;
 
@@ -494,6 +632,23 @@ static void zr_engine_present_commit(zr_engine_t* e,
   e->metrics.bytes_emitted_last_frame = (uint32_t)out_len;
   e->metrics.dirty_lines_last_frame = stats->dirty_lines;
   e->metrics.dirty_cols_last_frame = stats->dirty_cells;
+
+  const uint32_t now_ms = zr_engine_now_ms_u32();
+  if (e->last_present_ms != 0u) {
+    const uint32_t elapsed_ms = now_ms - e->last_present_ms;
+    if (elapsed_ms != 0u) {
+      uint32_t fps = 1000u / elapsed_ms;
+      if (fps == 0u) {
+        fps = 1u;
+      }
+      e->metrics.fps = fps;
+    }
+  } else if (e->cfg_runtime.target_fps != 0u) {
+    e->metrics.fps = e->cfg_runtime.target_fps;
+  }
+  e->last_present_ms = now_ms;
+
+  zr_engine_metrics_update_arena_high_water(e);
 }
 
 /*
@@ -513,17 +668,20 @@ zr_result_t engine_present(zr_engine_t* e) {
   size_t out_len = 0u;
   zr_term_state_t final_ts;
   zr_diff_stats_t stats;
+  bool used_stage = false;
 
-  zr_result_t rc = zr_engine_present_render(e, &out_len, &final_ts, &stats);
+  zr_result_t rc = zr_engine_present_render(e, &out_len, &final_ts, &stats, &used_stage);
   if (rc != ZR_OK) {
     return rc;
   }
+  const uint64_t t_write0_us = zr_engine_now_us_estimate();
   rc = zr_engine_present_write(e, out_len);
+  e->metrics.us_write_last_frame = zr_engine_elapsed_us_saturated(t_write0_us, zr_engine_now_us_estimate());
   if (rc != ZR_OK) {
     return rc;
   }
 
-  zr_engine_present_commit(e, out_len, &final_ts, &stats);
+  zr_engine_present_commit(e, out_len, &final_ts, &stats, used_stage);
   return ZR_OK;
 }
 
@@ -541,7 +699,12 @@ static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms, uint32_t
     return (int)w;
   }
   if (w == 0) {
-    return 0;
+    zr_result_t rc = zr_engine_try_handle_resize(e, time_ms);
+    if (rc != ZR_OK) {
+      return (int)rc;
+    }
+    zr_engine_input_flush_pending(e, time_ms);
+    return zr_event_queue_count(&e->evq) != 0u ? 1 : 0;
   }
 
   zr_result_t rc = zr_engine_try_handle_resize(e, time_ms);
@@ -604,9 +767,11 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
     return (int)ZR_ERR_INVALID_ARGUMENT;
   }
 
+  const uint64_t t0_us = zr_engine_now_us_estimate();
   const uint32_t time_ms = zr_engine_now_ms_u32();
 
   const int ready = zr_engine_poll_wait_and_fill(e, timeout_ms, time_ms);
+  e->metrics.us_input_last_frame = zr_engine_elapsed_us_saturated(t0_us, zr_engine_now_us_estimate());
   if (ready <= 0) {
     return ready;
   }
@@ -735,6 +900,7 @@ static void zr_engine_set_config_commit(zr_engine_t* e,
   }
 
   e->cfg_runtime = *cfg;
+  zr_engine_metrics_update_arena_high_water(e);
 }
 
 /*

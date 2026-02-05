@@ -156,11 +156,8 @@ void engine_debug_disable(zr_engine_t* e);
   Notes:
     - Count-only queries are possible with out_headers == NULL.
 */
-zr_result_t engine_debug_query(zr_engine_t* e,
-                               const zr_debug_query_t* query,
-                               zr_debug_record_header_t* out_headers,
-                               uint32_t out_headers_cap,
-                               zr_debug_query_result_t* out_result);
+zr_result_t engine_debug_query(zr_engine_t* e, const zr_debug_query_t* query, zr_debug_record_header_t* out_headers,
+                               uint32_t out_headers_cap, zr_debug_query_result_t* out_result);
 
 /*
   Fetch payload bytes for a record by record_id.
@@ -169,10 +166,7 @@ zr_result_t engine_debug_query(zr_engine_t* e,
     - ZR_OK and writes payload when found and capacity is sufficient.
     - ZR_ERR_LIMIT when record is not found or out_cap is insufficient.
 */
-zr_result_t engine_debug_get_payload(zr_engine_t* e,
-                                     uint64_t record_id,
-                                     void* out_payload,
-                                     uint32_t out_cap,
+zr_result_t engine_debug_get_payload(zr_engine_t* e, uint64_t record_id, void* out_payload, uint32_t out_cap,
                                      uint32_t* out_size);
 
 /* Return aggregate trace counters/health statistics. */

@@ -18,11 +18,11 @@ typedef int zr_result_t;
 
   Numeric values are pinned and aligned with docs/ERROR_CODES_CATALOG.md.
 */
-#define ZR_ERR_INVALID_ARGUMENT ((zr_result_t)-1)
-#define ZR_ERR_OOM ((zr_result_t)-2)
-#define ZR_ERR_LIMIT ((zr_result_t)-3)
-#define ZR_ERR_UNSUPPORTED ((zr_result_t)-4)
-#define ZR_ERR_FORMAT ((zr_result_t)-5)
-#define ZR_ERR_PLATFORM ((zr_result_t)-6)
+#define ZR_ERR_INVALID_ARGUMENT ((zr_result_t) - 1)
+#define ZR_ERR_OOM ((zr_result_t) - 2)
+#define ZR_ERR_LIMIT ((zr_result_t) - 3)
+#define ZR_ERR_UNSUPPORTED ((zr_result_t) - 4)
+#define ZR_ERR_FORMAT ((zr_result_t) - 5)
+#define ZR_ERR_PLATFORM ((zr_result_t) - 6)
 
 #endif /* ZR_ZR_RESULT_H_INCLUDED */

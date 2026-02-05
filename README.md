@@ -60,7 +60,7 @@ flowchart TD
   C[Core<br/>config, events, drawlist,<br/>framebuffer, diff, metrics]
   U[Unicode<br/>UTF-8, grapheme, width policy]
   T[Util<br/>arenas, checked math, buffers]
-  P[Platform Backends<br/>posix | win32]
+  P[Platform Backends<br/>posix / win32]
 
   W --> A
   A --> C

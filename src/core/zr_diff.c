@@ -415,6 +415,7 @@ typedef struct zr_diff_ctx_t {
   const zr_fb_t* prev;
   const zr_fb_t* next;
   const plat_caps_t* caps;
+  bool enable_span_coalescing;
   zr_sb_t sb;
   zr_term_state_t ts;
   zr_diff_stats_t stats;
@@ -458,6 +459,24 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
     return ZR_ERR_INVALID_ARGUMENT;
   }
   return ZR_OK;
+}
+
+static bool zr_diff_has_any_dirty_cell(const zr_fb_t* prev, const zr_fb_t* next) {
+  if (!prev || !next) {
+    return false;
+  }
+  if (prev->cols != next->cols || prev->rows != next->rows) {
+    return false;
+  }
+
+  for (uint32_t y = 0u; y < next->rows; y++) {
+    for (uint32_t x = 0u; x < next->cols; x++) {
+      if (zr_line_dirty_at(prev, next, x, y)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /* Compare full framebuffer rows for scroll-shift detection (full width). */
@@ -756,6 +775,31 @@ static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
 
   bool line_dirty = false;
 
+  if (!ctx->enable_span_coalescing) {
+    for (uint32_t x = 0u; x < ctx->next->cols; x++) {
+      if (!zr_line_dirty_at(ctx->prev, ctx->next, x, y)) {
+        continue;
+      }
+
+      const zr_result_t rc = zr_diff_render_span(ctx, y, x, x);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+
+      line_dirty = true;
+      ctx->stats.dirty_cells += 1u;
+
+      if (zr_sb_truncated(&ctx->sb)) {
+        return ZR_ERR_LIMIT;
+      }
+    }
+
+    if (line_dirty) {
+      ctx->stats.dirty_lines++;
+    }
+    return ZR_OK;
+  }
+
   uint32_t x = 0u;
   while (x < ctx->next->cols) {
     if (!zr_line_dirty_at(ctx->prev, ctx->next, x, y)) {
@@ -803,6 +847,9 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   *out_skip = false;
   *out_skip_top = 0u;
   *out_skip_bottom = 0u;
+  if (!zr_diff_has_any_dirty_cell(ctx->prev, ctx->next)) {
+    return ZR_OK;
+  }
 
   const zr_scroll_plan_t plan = zr_diff_detect_scroll_fullwidth(ctx->prev, ctx->next);
   if (!plan.active) {
@@ -851,16 +898,17 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
 }
 
-zr_result_t zr_diff_render(const zr_fb_t* prev,
-                           const zr_fb_t* next,
-                           const plat_caps_t* caps,
-                           const zr_term_state_t* initial_term_state,
-                           uint8_t enable_scroll_optimizations,
-                           uint8_t* out_buf,
-                           size_t out_cap,
-                           size_t* out_len,
-                           zr_term_state_t* out_final_term_state,
-                           zr_diff_stats_t* out_stats) {
+static zr_result_t zr_diff_render_internal(const zr_fb_t* prev,
+                                           const zr_fb_t* next,
+                                           const plat_caps_t* caps,
+                                           const zr_term_state_t* initial_term_state,
+                                           uint8_t enable_scroll_optimizations,
+                                           uint8_t enable_span_coalescing,
+                                           uint8_t* out_buf,
+                                           size_t out_cap,
+                                           size_t* out_len,
+                                           zr_term_state_t* out_final_term_state,
+                                           zr_diff_stats_t* out_stats) {
   /*
    * Render the difference between two framebuffers as VT/ANSI escape sequences.
    *
@@ -885,6 +933,7 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   ctx.prev = prev;
   ctx.next = next;
   ctx.caps = caps;
+  ctx.enable_span_coalescing = (enable_span_coalescing != 0u);
   zr_sb_init(&ctx.sb, out_buf, out_cap);
   ctx.ts = *initial_term_state;
 
@@ -920,4 +969,33 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
   ctx.stats.bytes_emitted = *out_len;
   *out_stats = ctx.stats;
   return ZR_OK;
+}
+
+zr_result_t zr_diff_render(const zr_fb_t* prev,
+                           const zr_fb_t* next,
+                           const plat_caps_t* caps,
+                           const zr_term_state_t* initial_term_state,
+                           uint8_t enable_scroll_optimizations,
+                           uint8_t* out_buf,
+                           size_t out_cap,
+                           size_t* out_len,
+                           zr_term_state_t* out_final_term_state,
+                           zr_diff_stats_t* out_stats) {
+  return zr_diff_render_internal(prev, next, caps, initial_term_state, enable_scroll_optimizations,
+                                 1u, out_buf, out_cap, out_len, out_final_term_state,
+                                 out_stats);
+}
+
+zr_result_t zr_diff_render_with_opts(const zr_fb_t* prev,
+                                     const zr_fb_t* next,
+                                     const plat_caps_t* caps,
+                                     const zr_term_state_t* initial_term_state,
+                                     uint8_t enable_span_coalescing,
+                           uint8_t* out_buf,
+                           size_t out_cap,
+                           size_t* out_len,
+                           zr_term_state_t* out_final_term_state,
+                           zr_diff_stats_t* out_stats) {
+  return zr_diff_render_internal(prev, next, caps, initial_term_state, 0u, enable_span_coalescing, out_buf, out_cap,
+                                 out_len, out_final_term_state, out_stats);
 }

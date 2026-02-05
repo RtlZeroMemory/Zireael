@@ -16,6 +16,8 @@
 #include "core/zr_drawlist.h"
 #include "core/zr_framebuffer.h"
 
+#include "unicode/zr_width.h"
+
 /* Fixtures defined in test_drawlist_validate.c */
 extern const uint8_t zr_test_dl_fixture1[];
 extern const size_t zr_test_dl_fixture1_len;
@@ -55,7 +57,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture1_text_written) {
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
 
   /* --- Act --- */
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, zr_width_policy_default()), ZR_OK);
 
   /* --- Assert: Correct glyphs at expected positions --- */
   const zr_cell_t* c1 = zr_fb_cell_const(&fb, 1u, 0u);
@@ -94,7 +96,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture2_clip_applies) {
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
 
   /* --- Act --- */
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, zr_width_policy_default()), ZR_OK);
 
   /* --- Assert: Cells inside clip region have filled style --- */
   const zr_cell_t* in0 = zr_fb_cell_const(&fb, 1u, 1u);
@@ -132,7 +134,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture3_text_run_segments) {
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
 
   /* --- Act --- */
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, zr_width_policy_default()), ZR_OK);
 
   /* --- Assert: Correct glyphs with segment-specific styles --- */
   const zr_cell_t* a = zr_fb_cell_const(&fb, 0u, 0u);
@@ -168,7 +170,7 @@ ZR_TEST_UNIT(drawlist_execute_clip_does_not_change_wide_cursor_advance) {
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
 
   /* --- Act --- */
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, zr_width_policy_default()), ZR_OK);
 
   /*
    * The clip only includes x==1. The drawlist places a wide glyph starting at x==0

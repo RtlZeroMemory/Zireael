@@ -12,6 +12,7 @@
 /* --- Defaults (determinism pinned) --- */
 #define ZR_CFG_DEFAULT_TAB_WIDTH  (4u)
 #define ZR_CFG_DEFAULT_TARGET_FPS (60u)
+#define ZR_CFG_MAX_TARGET_FPS     (1000u)
 
 /* Validate plat_config_t without OS dependencies (core/platform boundary). */
 static zr_result_t zr_cfg_validate_plat(const plat_config_t* cfg) {
@@ -46,8 +47,6 @@ static zr_result_t zr_cfg_validate_runtime_common(const zr_limits_t* lim, const 
                                                  uint32_t width_policy, uint32_t target_fps,
                                                  uint8_t enable_scroll_optimizations, uint8_t enable_debug_overlay,
                                                  uint8_t enable_replay_recording) {
-  (void)target_fps;
-
   /* --- Validate pointers and caps --- */
   if (!lim || !plat) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -69,6 +68,9 @@ static zr_result_t zr_cfg_validate_runtime_common(const zr_limits_t* lim, const 
   }
 
   if (width_policy != (uint32_t)ZR_WIDTH_EMOJI_NARROW && width_policy != (uint32_t)ZR_WIDTH_EMOJI_WIDE) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (target_fps == 0u || target_fps > ZR_CFG_MAX_TARGET_FPS) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 

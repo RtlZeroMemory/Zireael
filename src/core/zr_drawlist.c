@@ -749,6 +749,7 @@ static zr_result_t zr_dl_draw_text_utf8(zr_fb_painter_t* p,
                                         int32_t* inout_x,
                                         const uint8_t* bytes,
                                         size_t len,
+                                        zr_width_policy_t width_policy,
                                         const zr_style_t* style) {
   if (!p || !inout_x || !bytes || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -762,7 +763,7 @@ static zr_result_t zr_dl_draw_text_utf8(zr_fb_painter_t* p,
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
     const size_t gl = g.size;
-    const uint8_t w = zr_width_grapheme_utf8(gb, gl, zr_width_policy_default());
+    const uint8_t w = zr_width_grapheme_utf8(gb, gl, width_policy);
     if (w == 0u) {
       continue;
     }
@@ -794,7 +795,8 @@ static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, zr_fb_painter_t* p)
   return zr_fb_fill_rect(p, rr, &s);
 }
 
-static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
+static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p,
+                                        zr_width_policy_t width_policy) {
   zr_dl_cmd_draw_text_t cmd;
   zr_result_t rc = zr_dl_read_cmd_draw_text(r, &cmd);
   if (rc != ZR_OK) {
@@ -810,7 +812,7 @@ static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t*
   const uint8_t* sbytes = v->strings_bytes + sspan.off + cmd.byte_off;
   zr_style_t s = zr_style_from_dl(cmd.style);
   int32_t cx = cmd.x;
-  return zr_dl_draw_text_utf8(p, cmd.y, &cx, sbytes, (size_t)cmd.byte_len, &s);
+  return zr_dl_draw_text_utf8(p, cmd.y, &cx, sbytes, (size_t)cmd.byte_len, width_policy, &s);
 }
 
 static zr_result_t zr_dl_exec_push_clip(zr_byte_reader_t* r, zr_fb_painter_t* p) {
@@ -835,7 +837,8 @@ static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v,
                                                     zr_byte_reader_t* br,
                                                     zr_fb_painter_t* p,
                                                     int32_t y,
-                                                    int32_t* inout_x) {
+                                                    int32_t* inout_x,
+                                                    zr_width_policy_t width_policy) {
   /*
     Note: This path assumes `v` came from zr_dl_validate() (so all indices and
     spans are in-bounds). Execution is structured as a straight-line interpreter
@@ -863,10 +866,11 @@ static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v,
   const uint8_t* sbytes = v->strings_bytes + sspan.off + byte_off;
   zr_style_t s = zr_style_from_dl(style);
 
-  return zr_dl_draw_text_utf8(p, y, inout_x, sbytes, (size_t)byte_len, &s);
+  return zr_dl_draw_text_utf8(p, y, inout_x, sbytes, (size_t)byte_len, width_policy, &s);
 }
 
-static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
+static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p,
+                                            zr_width_policy_t width_policy) {
   zr_dl_cmd_draw_text_run_t cmd;
   zr_result_t rc = zr_dl_read_cmd_draw_text_run(r, &cmd);
   if (rc != ZR_OK) {
@@ -890,7 +894,7 @@ static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_vie
 
   int32_t cx = cmd.x;
   for (uint32_t si = 0u; si < seg_count; si++) {
-    rc = zr_dl_exec_draw_text_run_segment(v, &br, p, cmd.y, &cx);
+    rc = zr_dl_exec_draw_text_run_segment(v, &br, p, cmd.y, &cx, width_policy);
     if (rc != ZR_OK) {
       return rc;
     }
@@ -900,7 +904,8 @@ static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_vie
 }
 
 /* Execute a validated drawlist into the framebuffer; assumes view came from zr_dl_validate. */
-zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim) {
+zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim,
+                          zr_width_policy_t width_policy) {
   if (!v || !dst || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -944,7 +949,7 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
         break;
       }
       case ZR_DL_OP_DRAW_TEXT: {
-        rc = zr_dl_exec_draw_text(&r, v, &painter);
+        rc = zr_dl_exec_draw_text(&r, v, &painter, width_policy);
         if (rc != ZR_OK) {
           return rc;
         }
@@ -965,7 +970,7 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
         break;
       }
       case ZR_DL_OP_DRAW_TEXT_RUN: {
-        rc = zr_dl_exec_draw_text_run(&r, v, &painter);
+        rc = zr_dl_exec_draw_text_run(&r, v, &painter, width_policy);
         if (rc != ZR_OK) {
           return rc;
         }

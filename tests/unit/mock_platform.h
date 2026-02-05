@@ -22,6 +22,7 @@ void mock_plat_set_caps(plat_caps_t caps);
 void mock_plat_set_now_ms(uint64_t now_ms);
 
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len);
+void        mock_plat_force_wake(void);
 
 void     mock_plat_clear_writes(void);
 uint32_t mock_plat_write_call_count(void);
@@ -30,4 +31,3 @@ size_t   mock_plat_last_write_len(void);
 size_t   mock_plat_last_write_copy(uint8_t* out, size_t out_cap);
 
 #endif /* ZR_TESTS_UNIT_MOCK_PLATFORM_H_INCLUDED */
-

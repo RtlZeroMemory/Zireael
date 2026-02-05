@@ -10,6 +10,7 @@
 #define ZR_CORE_ZR_FRAMEBUFFER_H_INCLUDED
 
 #include "util/zr_result.h"
+#include "unicode/zr_width.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -93,12 +94,6 @@ zr_result_t zr_fb_draw_scrollbar_v(zr_fb_painter_t* p, zr_rect_t track, zr_rect_
 zr_result_t zr_fb_draw_scrollbar_h(zr_fb_painter_t* p, zr_rect_t track, zr_rect_t thumb,
                                    const zr_style_t* track_style, const zr_style_t* thumb_style);
 
-/*
-  zr_fb_draw_text_bytes:
-    - Convenience: iterates UTF-8 graphemes using the pinned width policy and
-      calls zr_fb_put_grapheme() per cluster.
-    - Never allocates; clip-aware via the painter.
-*/
 zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
                                   int32_t x,
                                   int32_t y,
@@ -106,8 +101,24 @@ zr_result_t zr_fb_draw_text_bytes(zr_fb_painter_t* p,
                                   size_t len,
                                   const zr_style_t* style);
 
-/* Deterministic UTF-8 cell count using the pinned width policy. */
 size_t zr_fb_count_cells_utf8(const uint8_t* bytes, size_t len);
+
+/*
+  zr_fb_draw_text_bytes_ex:
+    - Convenience: iterates UTF-8 graphemes with the caller-selected width policy
+      and calls zr_fb_put_grapheme() per cluster.
+    - Never allocates; clip-aware via the painter.
+*/
+zr_result_t zr_fb_draw_text_bytes_ex(zr_fb_painter_t* p,
+                                     int32_t x,
+                                     int32_t y,
+                                     const uint8_t* bytes,
+                                     size_t len,
+                                     zr_width_policy_t width_policy,
+                                     const zr_style_t* style);
+
+/* Deterministic UTF-8 cell count using a caller-selected width policy. */
+size_t zr_fb_count_cells_utf8_ex(const uint8_t* bytes, size_t len, zr_width_policy_t width_policy);
 
 /*
   zr_fb_put_grapheme:

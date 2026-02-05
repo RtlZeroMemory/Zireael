@@ -1,5 +1,5 @@
 /*
-  src/core/zr_input_parser.h — Minimal input byte parser (MVP).
+  src/core/zr_input_parser.h — Deterministic input byte parser (VT subset).
 
   Why: Converts platform-provided raw bytes into normalized events without
   relying on terminal/OS APIs, and without ever hanging on malformed inputs.
@@ -19,9 +19,21 @@
     - Always makes progress by consuming at least 1 byte per loop iteration.
     - Unknown/malformed escape sequences are handled deterministically.
 
-  Note: This is an MVP parser and does not attempt full terminal compatibility.
+  Note: This parser intentionally supports a constrained VT/xterm subset
+  (keys, UTF-8 text, SGR mouse). Unknown sequences degrade deterministically
+  as Escape/text without hangs.
 */
 void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms);
+
+/*
+  zr_input_parse_bytes_prefix:
+    - Like zr_input_parse_bytes(), but may stop before a trailing, incomplete
+      supported escape sequence (or incomplete UTF-8 sequence) so callers can
+      buffer and retry with additional bytes.
+
+  Returns: number of bytes consumed from the front of {bytes,len}.
+*/
+size_t zr_input_parse_bytes_prefix(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms);
 
 #endif /* ZR_CORE_ZR_INPUT_PARSER_H_INCLUDED */
 

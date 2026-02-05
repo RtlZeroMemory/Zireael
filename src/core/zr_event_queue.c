@@ -216,6 +216,7 @@ zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_
   q->cap = events_cap;
   q->user_bytes = user_bytes;
   q->user_bytes_cap = user_bytes_cap;
+  atomic_init(&q->count, 0u);
   atomic_flag_clear(&q->lock);
 
   return ZR_OK;

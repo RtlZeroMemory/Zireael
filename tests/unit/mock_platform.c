@@ -89,6 +89,8 @@ zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len) {
   return ZR_OK;
 }
 
+void mock_plat_force_wake(void) { g_plat.wake_pending = true; }
+
 void mock_plat_clear_writes(void) {
   g_plat.write_last_len = 0u;
   g_plat.write_total_len = 0u;

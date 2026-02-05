@@ -41,6 +41,7 @@ add_executable(zireael_unit_tests
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c
         unit/test_engine_poll_events_truncation.c
+        unit/test_engine_runtime_behavior.c
         unit/test_engine_present_single_flush.c
         unit/test_engine_submit_drawlist_no_partial_effects.c
         unit/test_engine_version_negotiation.c
@@ -59,6 +60,7 @@ add_executable(zireael_unit_tests
         unit/test_ring.c
         unit/test_string_builder.c
         unit/test_user_event_injection.c
+        unit/test_input_parser.c
         unit/test_vec.c
         unit/test_utf8_decode.c
         unit/test_grapheme_iter.c

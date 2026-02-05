@@ -1,20 +1,60 @@
 # Architecture
 
-Zireael is split into four layers:
+Zireael is organized as a layered engine with strict dependency direction and a hard platform boundary.
 
-- `src/util` — low-level containers, arenas, logging (OS-header-free)
-- `src/unicode` — UTF-8 decode, graphemes, width, wrap (OS-header-free)
-- `src/core` — engine loop, framebuffer, diff, drawlist, event pack/queue (OS-header-free)
-- `src/platform/*` — OS interaction (termios/win32 console)
+## Layering
 
-## Module map
+```text
+util    -> foundational helpers, arenas, bounds-safe primitives
+unicode -> UTF-8, grapheme, width/wrap policy
+core    -> engine loop, drawlist/event pipeline, framebuffer, diff
+platform-> OS-specific terminal backend (POSIX / Win32)
+```
 
-For the authoritative module-level specs, see:
+Dependency direction is intentionally one-way:
 
-- [Internal Specs → Index](../00_INDEX.md)
+- `util` is lowest-level
+- `unicode` depends on `util`
+- `core` depends on `unicode` + `util`
+- `platform` is selected behind platform abstraction
 
-## Next steps
+## Module Responsibilities
 
-- [Build System](build-system.md)
-- [Testing](testing.md)
+- `src/util/`: arenas, checked math, ring/vector utilities, logging
+- `src/unicode/`: decoding, segmentation, width policy, wrapping primitives
+- `src/core/`: engine lifecycle, event queue + packing, drawlist parser/executor, framebuffer/diff, metrics
+- `src/platform/*`: raw mode, terminal size/caps, input read, output write, wait/wake
 
+## Hard Boundary Rules
+
+- no OS headers in `src/core`, `src/unicode`, `src/util`
+- OS code only under `src/platform/posix` and `src/platform/win32`
+- avoid platform `#ifdef` in deterministic core paths
+
+Guardrail checks enforce this automatically.
+
+## Runtime Data Flow
+
+```text
+input bytes (platform) -> parser -> event queue -> packed batch -> wrapper
+wrapper drawlist bytes -> validate -> execute -> framebuffer -> diff -> output
+```
+
+## Memory and Ownership
+
+- engine owns internal allocations
+- caller provides data buffers for drawlist/event exchange
+- no caller-free API pointers are returned
+
+## Contract Priorities
+
+1. correctness and bounds safety
+2. deterministic behavior under caps
+3. predictable ABI and wire-format evolution
+4. low I/O overhead via diff + single flush
+
+## Authoritative Specs
+
+- [Internal docs index](../00_INDEX.md)
+- [Repo layout](../REPO_LAYOUT.md)
+- [Platform interface spec](../modules/PLATFORM_INTERFACE.md)

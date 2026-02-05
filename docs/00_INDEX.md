@@ -1,8 +1,9 @@
-# Zireael — Internal Docs Index
+# Zireael - Internal Docs Index
 
-`docs/` is the normative spec set for Zireael. If code conflicts with these docs, fix the code.
+`docs/` is the normative specification set for Zireael implementation behavior.
+If code conflicts with these docs, fix the code.
 
-Reading order (recommended):
+## Recommended Reading Order
 
 1. `docs/CODE_STANDARDS.md`
 2. `docs/SAFETY_RULESET.md`
@@ -13,13 +14,28 @@ Reading order (recommended):
 7. `docs/GOLDEN_FIXTURE_FORMAT.md`
 8. `docs/REPO_LAYOUT.md`
 9. `docs/BUILD_TOOLCHAINS_AND_CMAKE.md`
-10. `docs/modules/` (module specs)
-    - `docs/modules/DEBUG_TRACE.md` (bounded diagnostic trace buffer)
+10. `docs/modules/` (module-level implementation contracts)
 
-Testing:
+## Module Specs
 
+- `docs/modules/CONFIG_AND_ABI_VERSIONING.md`
+- `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
+- `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`
+- `docs/modules/FRAMEBUFFER_MODEL_AND_OPS.md`
+- `docs/modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md`
+- `docs/modules/PLATFORM_INTERFACE.md`
+- `docs/modules/UNICODE_TEXT.md`
 - `docs/modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md`
+- `docs/modules/DEBUG_TRACE.md`
+- `docs/modules/DIAGNOSTICS_METRICS_DEBUG_OVERLAY.md`
 
-Reference:
+## Related Wrapper-Facing Pages
 
-- `docs/ABI_REFERENCE.md` (wrapper/FFI integration notes)
+- `docs/abi/abi-policy.md`
+- `docs/abi/c-abi-reference.md`
+- `docs/abi/drawlist-format.md`
+- `docs/abi/event-batch-format.md`
+
+## Reference
+
+- Wrapper/FFI integration notes: `docs/ABI_REFERENCE.md`

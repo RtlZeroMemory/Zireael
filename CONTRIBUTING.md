@@ -1,77 +1,99 @@
 # Contributing
 
-Zireael is a C core engine with strict determinism and safety requirements.
+Zireael is a deterministic C engine with strict ABI, safety, and platform-boundary rules.
+
+This guide describes the minimum quality bar for contributions.
 
 ## Ground Rules
 
-1. **Platform boundary**: OS headers only in `src/platform/posix/` and `src/platform/win32/`
-2. **Input validation**: Treat all wrapper-provided bytes as untrusted
-3. **Error contract**: `0 = OK`, negative `ZR_ERR_*` codes, no partial effects
-4. **No heap churn**: Use arenas and caller-provided buffers on hot paths
+1. Platform boundary is strict:
+   - OS headers/code only in `src/platform/posix` and `src/platform/win32`
+   - no OS headers in `src/core`, `src/unicode`, `src/util`
+2. Treat all external bytes as untrusted.
+3. Preserve error contract (`ZR_OK == 0`, failures negative, no partial effects on failure).
+4. Avoid per-frame heap churn in hot paths.
+5. Keep wrapper-facing and internal docs synchronized when behavior changes.
 
-## Source of Truth
+## Source Of Truth
 
-Internal specs live in `docs/` (start at `docs/00_INDEX.md`). If code conflicts with internal specs, fix the code.
+- Internal normative docs: `docs/` (start: `docs/00_INDEX.md`)
+- Public API headers: `include/zr/`
 
-Wrapper-facing documentation is published via MkDocs (also sourced from `docs/`).
+If implementation and internal docs disagree, internal docs win.
 
 ## Development Setup
 
 ```bash
-# Clone
 git clone https://github.com/RtlZeroMemory/Zireael.git
 cd Zireael
 
-# Build (Linux/macOS)
 cmake --preset posix-clang-debug
 cmake --build --preset posix-clang-debug
+ctest --preset posix-clang-debug --output-on-failure
 
-# Test
-ctest --test-dir out/build/posix-clang-debug --output-on-failure
-
-# Guardrails (platform boundary + libc policy)
 bash scripts/guardrails.sh
+python3 scripts/check_version_pins.py
 ```
 
-Windows requires running `.\scripts\vsdev.ps1` first.
+Windows flow:
 
-## Code Style
+```powershell
+.\scripts\vsdev.ps1
+cmake --preset windows-clangcl-debug
+cmake --build --preset windows-clangcl-debug
+ctest --preset windows-clangcl-debug --output-on-failure
+```
 
-See `docs/CODE_STANDARDS.md`. Key points:
-
-- Every file needs a top-of-file comment explaining what/why
-- Comments explain why, not what
-- Extract magic numbers to named constants
-- Functions: 20-40 lines, max 50
-- Use `!ptr` for NULL checks
-
-## Pull Requests
-
-1. Fork and create a feature branch
-2. Write tests for new functionality
-3. Ensure all tests pass and guardrails are clean
-4. Submit PR with clear description of changes
-
-Recommended pre-flight checks:
+## Documentation Checks
 
 ```bash
-# Format (if clang-format is installed)
-bash scripts/clang_format_check.sh --all
-
-# Docs
 bash scripts/docs.sh build
 ```
 
+This runs strict MkDocs and generates Doxygen API docs when available.
+
+## Code Style and Safety
+
+Required references:
+
+- `docs/CODE_STANDARDS.md`
+- `docs/SAFETY_RULESET.md`
+- `docs/LIBC_POLICY.md`
+
+Key expectations:
+
+- top-of-file "what/why" comments on `.c`/`.h`
+- comments explain intent/constraints, not obvious syntax
+- named constants instead of unexplained magic numbers
+- bounds-safe parsing for all binary inputs
+
+## Pull Request Checklist
+
+Before opening a PR:
+
+- relevant tests pass (`ctest ...`)
+- guardrails pass
+- version pin checks pass
+- docs updated for ABI/format/behavior changes
+- changelog updated for user-visible changes
+
+In PR description, include:
+
+- what changed
+- why it changed
+- risk/compatibility notes
+- test evidence
+
 ## What We Accept
 
-- Bug fixes with regression tests
-- Performance improvements with benchmarks
-- New features aligned with the roadmap
-- Documentation improvements
+- bug fixes with regression coverage
+- deterministic performance improvements
+- ABI-safe feature additions aligned with roadmap
+- docs and tooling improvements that reduce integration risk
 
-## What We Don't Accept
+## What We Reject
 
-- Breaking ABI changes without major version bump
-- OS headers in core/unicode/util
-- Per-frame heap allocations
-- Features that compromise determinism
+- breaking ABI changes without explicit versioning policy updates
+- boundary violations (OS headers in core/unicode/util)
+- unsafe parsing or unchecked bounds arithmetic
+- behavior changes without docs/spec updates

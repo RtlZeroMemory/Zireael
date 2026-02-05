@@ -1,30 +1,58 @@
 # FAQ
 
-## Is this a UI framework?
+## Is Zireael a widget framework?
 
-No. Zireael is a **low-level engine** meant to be embedded by a higher-level framework.
+No. Zireael is a **terminal rendering engine** that wrappers/frameworks embed.
 
-## What is “binary in / binary out”?
+## What does "binary in / binary out" mean?
 
-- Wrappers submit a versioned, little-endian **drawlist** byte stream for rendering.
-- The engine returns a versioned **event batch** byte stream for input.
+- Wrappers submit a versioned, little-endian **drawlist** command stream.
+- Engine returns a versioned, packed **event batch** stream.
 
-This keeps the public API small while still allowing high throughput.
+This keeps the runtime ABI surface small while allowing high-throughput rendering and input transport.
 
-## Does the engine allocate memory?
+## Who owns memory?
 
-Yes — but the **engine owns its allocations**. Callers never free engine memory. Callers provide input/output buffers (drawlist bytes in, event batch bytes out).
+- Engine owns memory it allocates.
+- Caller never frees engine-owned memory.
+- Caller provides I/O buffers:
+  - drawlist bytes input (`engine_submit_drawlist`)
+  - event output buffer (`engine_poll_events`)
+
+## Is the API thread-safe?
+
+Engine calls are single-threaded except:
+
+- `engine_post_user_event()` is intended to be thread-safe and used to wake blocked polling.
+
+## How should wrappers handle unknown event types?
+
+Skip them by `zr_ev_record_header_t.size` (4-byte aligned). Unknown types are part of forward-compatibility behavior.
+
+## Why does `engine_poll_events()` sometimes return 0?
+
+`0` means no events were available before `timeout_ms`. This is not an error.
+
+## What does truncation mean in event batches?
+
+If output capacity is insufficient for all events:
+
+- call succeeds
+- only complete records are written
+- `ZR_EV_BATCH_TRUNCATED` flag is set in batch header
+
+Increase wrapper event buffer if truncation is frequent.
 
 ## Where is the authoritative specification?
 
-The implementation-ready specs live in `docs/` (see **Internal Specs** in the navigation). For FFI integration, start with:
+Internal normative docs in `docs/` are authoritative for implementation behavior:
 
-- [ABI → ABI Policy](../abi/abi-policy.md)
-- [ABI → C ABI Reference](../abi/c-abi-reference.md)
+- start at `docs/00_INDEX.md`
+- wrapper-facing ABI pages live under `docs/abi/`
 
-## Next steps
+## Next Steps
 
-- [User Guide → Concepts](../user-guide/concepts.md)
-- [ABI → Drawlist Format](../abi/drawlist-format.md)
-- [ABI → Event Batch Format](../abi/event-batch-format.md)
-
+- [User Guide -> Concepts](../user-guide/concepts.md)
+- [ABI -> Drawlist Format](../abi/drawlist-format.md)
+- [ABI -> Event Batch Format](../abi/event-batch-format.md)
+- [C ABI Reference](../abi/c-abi-reference.md)

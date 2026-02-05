@@ -1,56 +1,71 @@
-# ABI policy
+# ABI Policy
 
-This document defines what “ABI stable” means in this repository and how to evolve the C ABI and binary formats safely.
+This document defines what ABI stability means for Zireael and how to evolve public surfaces safely.
 
-## Stability contract
+## Public Stability Surface
 
-Zireael’s public surface consists of:
+Zireael's compatibility contract includes all three:
 
-1. The **C ABI** (public headers under `include/zr/`)
-2. The **drawlist** binary format (wrapper → engine)
-3. The **event batch** binary format (engine → wrapper)
+1. public C ABI headers under `include/zr/`
+2. drawlist binary format (wrapper -> engine)
+3. event batch binary format (engine -> wrapper)
 
-All three are versioned independently and negotiated at `engine_create()` via `zr_engine_config_t`.
+All three are versioned and negotiated at `engine_create()`.
 
-## What counts as an ABI break?
+## Core Stability Rules
 
-Examples of breaking changes:
+- No silent behavior changes to existing public contracts.
+- No in-place wire layout changes for existing versions.
+- Reserved fields remain reserved until version-gated evolution.
+- Unknown future records/opcodes must be rejectable or skippable safely.
 
-- Changing a public function signature or behavior contract.
-- Changing the meaning of a field in a public struct without version gating.
-- Changing packing/alignment expectations of any on-wire format.
+## What Counts As A Breaking Change
 
-Examples of non-breaking changes (when done correctly):
+Examples:
 
-- Adding a **new** function (C ABI minor bump).
-- Adding new drawlist opcode(s) to a **new drawlist format version**.
-- Adding new event record types that are **skippable by size**.
+- changing existing function signature or return contract
+- changing size/alignment/meaning of existing ABI struct fields
+- changing record framing rules in place for current format version
 
-## Format evolution rules
+## What Can Be Non-Breaking
 
-On-wire formats are:
+When versioned correctly:
 
-- little-endian
-- bounds-checked
-- forward-compatible via `{type, size, payload}` records
+- adding new public functions
+- appending fields to append-only snapshot structs (with prefix-copy compatibility)
+- introducing new drawlist/event versions while preserving old ones
 
-Unknown record types/opcodes must be safely skippable when the size is known.
+## Wire Format Evolution Rules
 
-## Deprecation
+- little-endian only
+- explicit size framing for records
+- bounds-checked parsing before pointer derivation
+- no partial effects on malformed input
 
-Zireael does not rely on “soft” deprecation for safety-critical behavior. If a contract must change, it must be gated by a version bump.
+## Deprecation Policy
 
-## Wrapper compatibility checklist
+Safety-critical behavior is not "soft-deprecated" in place.
+If contracts must change, they change behind explicit version bumps.
 
-When shipping a wrapper:
+## Wrapper Compatibility Checklist
 
-- Pin the requested engine ABI and format versions explicitly.
-- Reject unknown versions (do not “guess” layouts).
-- Treat event/drawlist bytes as untrusted; validate sizes before reading.
-- Preserve little-endian encoding (even on big-endian hosts).
+- pin requested versions explicitly
+- reject unsupported versions
+- validate every size/offset before reading payloads
+- skip unknown event types by `size` where forward-compatible
+- zero reserved fields in produced binary payloads
 
-## Next steps
+## Release Checklist For ABI Changes
+
+- update `include/zr/zr_version.h`
+- update `docs/VERSION_PINS.md`
+- update `docs/abi/versioning.md`
+- update relevant format pages (`drawlist-format`, `event-batch-format`)
+- update `CHANGELOG.md`
+- ensure parser tests/fuzz/goldens cover new behavior
+
+## Next Steps
 
 - [Versioning](versioning.md)
 - [C ABI Reference](c-abi-reference.md)
-
+- [Internal ABI Notes](../ABI_REFERENCE.md)

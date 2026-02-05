@@ -1,29 +1,188 @@
-# C ABI reference
+# C ABI Reference
 
-This is a wrapper-facing index of the public headers under `include/zr/`.
+This page is the wrapper-facing reference for the public C headers under `include/zr/`.
 
-For the most detailed API reference (including doc comments), see: **[API reference (Doxygen)](../api.md)**.
+For generated symbol docs, see [API reference (Doxygen)](../api.md).
 
-## Key entrypoints
+## Public Headers
 
-Most wrappers only need:
+Primary wrapper surface:
 
-- `engine_create()` / `engine_destroy()`
-- `engine_poll_events()` (packs event batches into a caller buffer)
-- `engine_submit_drawlist()` (validates + executes drawlist bytes)
-- `engine_present()` (diff + single flush)
+- `zr_engine.h` - lifecycle, poll/submit/present, metrics, caps, runtime config, debug APIs
+- `zr_config.h` - create/runtime config structs and validation
+- `zr_result.h` - result/error model
+- `zr_version.h` - pinned versions for negotiation
 
-## Ownership (reminder)
+Binary format headers:
 
-- The engine owns its allocations.
-- Callers provide drawlist bytes and event output buffers.
+- `zr_drawlist.h` - drawlist structs/opcodes
+- `zr_event.h` - packed event batch structs/types
 
-## Errors
+## Result Model
 
-Most functions return `zr_result_t` (`0 = OK`, negative failures). `engine_poll_events()` returns bytes written (>= 0) on success.
+- `ZR_OK` is `0`
+- failures are negative `ZR_ERR_*`
 
-## Next steps
+Special case:
+
+- `engine_poll_events()` returns:
+  - `> 0` bytes written (success)
+  - `0` timeout/no queued events (success)
+  - `< 0` failure (`ZR_ERR_*`)
+
+## Ownership and Lifetimes
+
+- Engine owns all engine allocations.
+- Caller never frees engine memory.
+- Engine does not retain drawlist/event output buffer pointers across calls.
+- Caller provides buffers for:
+  - drawlist input bytes
+  - event batch output bytes
+  - optional debug export/query payload buffers
+
+## Threading Contract
+
+- Engine is single-threaded by default.
+- Call engine APIs from one engine thread.
+- `engine_post_user_event()` is intended for cross-thread wake/event injection.
+
+## Lifecycle
+
+Typical sequence:
+
+1. `zr_engine_config_default()`
+2. set requested versions from `zr_version.h`
+3. `engine_create()`
+4. loop: `engine_poll_events()` -> build drawlist -> `engine_submit_drawlist()` -> `engine_present()`
+5. optional telemetry via `engine_get_metrics()` / `engine_get_caps()`
+6. `engine_destroy()`
+
+## Core API Contracts
+
+### `engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cfg)`
+
+- Validates config and version negotiation.
+- Creates platform backend and enters raw mode.
+- Initializes framebuffers, event queue, output/damage buffers, arenas.
+- Enqueues an initial `ZR_EV_RESIZE` event.
+- On failure: returns error and leaves `*out_engine == NULL`.
+
+Common failures:
+
+- `ZR_ERR_INVALID_ARGUMENT`
+- `ZR_ERR_UNSUPPORTED` (version/config mismatch)
+- `ZR_ERR_OOM`
+- `ZR_ERR_PLATFORM`
+
+### `void engine_destroy(zr_engine_t* e)`
+
+- Safe with `NULL`.
+- Leaves raw mode best-effort, destroys platform state, releases all engine-owned memory.
+
+### `int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out_cap)`
+
+- Waits for input (bounded by `timeout_ms`) and packs queued events into `out_buf`.
+- Uses packed event-batch format (`zr_event.h`).
+- Returns bytes written, `0` on timeout/no events, or negative error.
+
+Validation rules:
+
+- `timeout_ms < 0` -> `ZR_ERR_INVALID_ARGUMENT`
+- `out_cap < 0` -> `ZR_ERR_INVALID_ARGUMENT`
+- `out_cap > 0` with `out_buf == NULL` -> `ZR_ERR_INVALID_ARGUMENT`
+
+Behavior notes:
+
+- If queue already has events, polling does not block.
+- Tick events may be injected based on configured frame cadence.
+- Truncation is success-mode (`ZR_EV_BATCH_TRUNCATED`) when full batch does not fit.
+
+### `zr_result_t engine_post_user_event(zr_engine_t* e, uint32_t tag, const uint8_t* payload, int payload_len)`
+
+- Appends a wrapper-defined user event (`ZR_EV_USER`) to the queue.
+- Best-effort wakes blocked platform wait.
+- Payload is copied during call.
+
+### `zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int bytes_len)`
+
+- Validates drawlist bytes against caps and wire-format rules.
+- Executes into staging framebuffer first.
+- Commits to next framebuffer only on success (no partial effects).
+
+### `zr_result_t engine_present(zr_engine_t* e)`
+
+- Diffs previous and next framebuffers.
+- Emits terminal bytes into internal output buffer.
+- Performs a single platform write on success.
+- Commits frame/metrics only after successful write.
+
+### `zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics)`
+
+- Prefix-copy semantics: caller sets `out_metrics->struct_size` to receive compatible prefix.
+- Engine writes current struct size into copied snapshot field.
+
+### `zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps)`
+
+- Returns capability snapshot detected from active backend.
+- Struct is fixed-width POD (ABI-safe for wrappers).
+
+### `zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg)`
+
+- Validates runtime config.
+- Applies updates with "no partial effects" allocation/commit behavior.
+- Platform sub-config changes are rejected with `ZR_ERR_UNSUPPORTED`.
+
+## Debug Trace API
+
+Debug APIs are optional diagnostics hooks:
+
+- `engine_debug_enable` / `engine_debug_disable`
+- `engine_debug_query`
+- `engine_debug_get_payload`
+- `engine_debug_get_stats`
+- `engine_debug_export`
+- `engine_debug_reset`
+
+Notes:
+
+- Disabled trace behaves as empty trace.
+- `engine_debug_export()` returns `0` when tracing is disabled or empty.
+- Query can be used in count-only mode by passing `out_headers = NULL`.
+
+## Config Negotiation Essentials
+
+From `zr_engine_config_t` at create time:
+
+- `requested_engine_abi_*` must match pinned ABI macros.
+- `requested_drawlist_version` must be supported (`v1` or `v2`).
+- `requested_event_batch_version` must match pinned event version.
+
+Use values directly from `zr_version.h`; do not hardcode copies in wrappers.
+
+## Wrapper Integration Skeleton
+
+```c
+zr_engine_config_t cfg = zr_engine_config_default();
+cfg.requested_engine_abi_major = ZR_ENGINE_ABI_MAJOR;
+cfg.requested_engine_abi_minor = ZR_ENGINE_ABI_MINOR;
+cfg.requested_engine_abi_patch = ZR_ENGINE_ABI_PATCH;
+cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
+cfg.requested_event_batch_version = ZR_EVENT_BATCH_VERSION_V1;
+
+zr_engine_t* e = NULL;
+zr_result_t rc = engine_create(&e, &cfg);
+if (rc != ZR_OK) {
+  /* fail early */
+}
+
+/* frame loop... */
+
+engine_destroy(e);
+```
+
+## Next Steps
 
 - [ABI Policy](abi-policy.md)
+- [Versioning](versioning.md)
 - [Drawlist Format](drawlist-format.md)
 - [Event Batch Format](event-batch-format.md)

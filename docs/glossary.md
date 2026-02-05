@@ -1,8 +1,12 @@
 # Glossary
 
-- **Drawlist**: a versioned, little-endian byte stream of render commands submitted by the wrapper.
-- **Event batch**: a versioned, little-endian byte stream of input events produced by the engine.
-- **Framebuffer**: the engine’s logical grid of cells (text + style) used to compute diffs.
-- **Diff renderer**: compares previous and next framebuffers and emits terminal escape sequences.
-- **Caps / limits**: explicit bounds on bytes, counts, and per-frame output to ensure predictable work.
-
+- **ABI (Application Binary Interface)**: stable binary contract between wrappers and engine C surface.
+- **Drawlist**: versioned, little-endian command stream sent by wrapper to engine.
+- **Event batch**: packed, little-endian event stream produced by engine for wrapper consumption.
+- **Framebuffer**: logical cell grid representing rendered content before terminal diff emission.
+- **Diff renderer**: compares previous and next framebuffer and emits minimal terminal output.
+- **Damage rectangles**: tracked changed regions used to reduce work/output.
+- **Caps / limits**: explicit deterministic bounds that constrain memory/work per frame.
+- **Reserved field**: currently-unused ABI field that must be zero for forward compatibility.
+- **No partial effects**: failure path guarantee that avoids committing half-applied state changes.
+- **Single flush**: one backend write per successful `engine_present()` call.

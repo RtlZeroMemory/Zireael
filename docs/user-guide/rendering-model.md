@@ -1,31 +1,55 @@
-# Rendering model
+# Rendering Model
 
-Zireael maintains a logical framebuffer, diffs frames, and emits terminal escape sequences.
+Zireael renders by executing drawlist commands into an internal framebuffer, diffing against the previous frame, then emitting minimal terminal bytes.
 
-## Framebuffers and diff
+## Pipeline
 
-At a high level:
+1. Wrapper submits drawlist bytes.
+2. Engine validates drawlist format and limits.
+3. Drawlist executes into a staging framebuffer.
+4. On success, staging framebuffer becomes next framebuffer.
+5. `engine_present()` diffs previous vs next framebuffer.
+6. Engine emits output bytes and performs one platform write.
+7. Framebuffers swap; metrics advance.
 
-1. Drawlist executes into a “next” framebuffer.
-2. `engine_present()` diffs “prev” vs “next”.
-3. The diff renderer emits output and flushes once.
-4. Buffers swap.
+## No-Partial-Effects Contract
 
-## Partial redraw and damage
+- Invalid drawlist input fails before committed frame state changes.
+- Failed present/write does not advance presented-frame metrics/state.
 
-To keep terminal I/O low, the diff renderer tracks damage and may:
+This makes wrapper retry and error handling deterministic.
 
-- skip unchanged regions
-- coalesce damage rectangles
-- use scroll-region optimizations when supported
+## Diff and Damage
 
-## Output coalescing
+Diff output minimizes terminal I/O using:
 
-The engine buffers all output for a present into an internal output buffer and performs a **single write**.
+- changed-cell detection between prev/next framebuffers
+- damage rectangle tracking/coalescing
+- scroll-region optimization when backend capabilities allow
 
-## Next steps
+Result metrics include dirty/damage counts for the last frame.
 
-- [ABI → Drawlist Format](../abi/drawlist-format.md)
-- [Internal Specs → Diff + Output](../modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md)
-- [Examples → Minimal Render Loop](../examples/minimal-render-loop.md)
+## Cursor Behavior
 
+Drawlist v2 supports explicit cursor control (`ZR_DL_OP_SET_CURSOR`).
+
+- cursor state is part of terminal emission behavior
+- it does not mutate glyph content in framebuffer cells
+
+## Output Buffering and Flush
+
+- Output is assembled into an internal bounded buffer.
+- Successful present performs a single platform write.
+- Optional sync-update wrapping can be applied when capability is detected.
+
+## Performance Guidance For Wrappers
+
+- avoid sending full-frame redraw drawlists when not needed
+- keep drawlist payloads compact (strings/blobs reused where possible)
+- monitor metrics (`bytes_emitted_last_frame`, damage fields)
+
+## Related Specs
+
+- [ABI -> Drawlist Format](../abi/drawlist-format.md)
+- [Internal -> Diff + Output](../modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md)
+- [Internal -> Framebuffer](../modules/FRAMEBUFFER_MODEL_AND_OPS.md)

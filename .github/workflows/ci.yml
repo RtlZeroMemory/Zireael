@@ -31,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install toolchain
         run: sudo apt-get update && sudo apt-get install -y clang-format
       - name: Check formatting
@@ -44,10 +46,17 @@ jobs:
             head="${{ github.event.pull_request.head.sha }}"
           fi
           if [[ -z "${base}" || "${base}" == "0000000000000000000000000000000000000000" ]]; then
-            bash scripts/clang_format_check.sh --all
-          else
-            bash scripts/clang_format_check.sh --diff "${base}" "${head}"
+            # First push events may not provide a usable `before` SHA. Prefer
+            # a local parent-commit diff before falling back to --all.
+            if git rev-parse --verify "${head}^" >/dev/null 2>&1; then
+              base="$(git rev-parse "${head}^")"
+            fi
           fi
+          if [[ -z "${base}" || "${base}" == "0000000000000000000000000000000000000000" ]]; then
+            bash scripts/clang_format_check.sh --all
+            exit 0
+          fi
+          bash scripts/clang_format_check.sh --diff "${base}" "${head}"
 
   clang-tidy:
     name: linux / clang-tidy

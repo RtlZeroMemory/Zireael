@@ -1,17 +1,42 @@
-# API reference (Doxygen)
+# API Reference (Doxygen)
 
-The public C headers live under `include/zr/`.
+Public API headers are in `include/zr/`.
 
-The published site includes a Doxygen-generated API reference under:
+Published docs include a generated Doxygen section at:
 
-- `.../api/` (built in CI and deployed to GitHub Pages)
+- `.../api/` on the docs site
 
-If you are reading this page locally:
+## Build Locally
 
-- run the docs build (it generates the `api/` directory during the build), then open the site.
+```bash
+bash scripts/docs.sh build
+```
 
-## Next steps
+This performs:
 
-- [ABI → C ABI Reference](abi/c-abi-reference.md)
-- [Internal Specs → Header Layering](HEADER_LAYERING.md)
+- strict MkDocs build (`mkdocs build --strict`)
+- Doxygen generation when `doxygen` is available
+- copy of generated API HTML to `out/site/api/`
 
+## Header Scope
+
+Doxygen input is configured to include public headers under `include/zr/`.
+
+Primary entrypoints:
+
+- `zr_engine.h`
+- `zr_config.h`
+- `zr_result.h`
+- `zr_drawlist.h`
+- `zr_event.h`
+- `zr_debug.h`
+
+## Troubleshooting
+
+- If API section is missing locally, verify `doxygen` is installed.
+- If symbols are present but underspecified, improve comments in public headers.
+
+## Next Steps
+
+- [ABI -> C ABI Reference](abi/c-abi-reference.md)
+- [Header layering spec](HEADER_LAYERING.md)

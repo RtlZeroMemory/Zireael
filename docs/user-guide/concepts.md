@@ -1,46 +1,82 @@
 # Concepts
 
-This section describes Zireael’s wrapper-facing model: frame loop, ownership, determinism, and caps.
+This section describes Zireael's wrapper-facing execution model: frame loop ownership, deterministic caps, and error handling expectations.
 
-## Frame loop
+## Core Mental Model
 
-Wrappers control the frame cadence. The engine provides:
+Zireael is a rendering/input transport engine, not a widget system.
 
-- `engine_poll_events()` → packs input events into caller-provided bytes
-- `engine_submit_drawlist()` → validates and executes rendering commands
-- `engine_present()` → diffs and emits terminal output (single flush)
+Wrapper responsibilities:
+
+- own app state and layout logic
+- build drawlist bytes each frame
+- parse event batch bytes and dispatch to app logic
+
+Engine responsibilities:
+
+- validate drawlist bytes
+- mutate framebuffer state
+- emit minimal terminal diff output
+- normalize terminal input into packed event records
+
+## Frame Loop
 
 ```mermaid
 flowchart LR
-  A[engine_poll_events] --> B[build drawlist bytes]
-  B --> C[engine_submit_drawlist]
-  C --> D[engine_present]
-  D --> A
+  A[engine_poll_events] --> B[wrapper updates state]
+  B --> C[wrapper builds drawlist bytes]
+  C --> D[engine_submit_drawlist]
+  D --> E[engine_present]
+  E --> A
 ```
 
-## Ownership model (locked)
+Operational notes:
 
-- The engine owns all memory it allocates.
-- The caller provides buffers for drawlists (input) and event batches (output).
-- The engine does not return heap pointers that the caller must free.
+- `engine_poll_events()` may return `0` (timeout) even in healthy loops.
+- `engine_submit_drawlist()` and `engine_present()` are separate by design.
+- `engine_present()` performs one flush on success.
 
-## Determinism
+## Ownership Model (Locked)
 
-Zireael pins determinism-critical policies:
+- Engine owns all engine allocations.
+- Callers never free engine memory.
+- Caller provides drawlist input bytes and event output buffers.
+- Engine does not expose heap pointers requiring caller free.
 
-- Unicode version and width policy
-- ABI/format version pins
-- libc policy restrictions for core code
+## Determinism Model
 
-See: [Internal Specs → Version Pins](../VERSION_PINS.md).
+Determinism is enforced through:
 
-## Caps and limits
+- pinned public versions
+- pinned Unicode/text policy
+- explicit limits/caps (`zr_limits_t`)
+- strict parser/validation behavior
 
-Limits are explicit (example: max drawlist bytes, max commands, max output bytes per frame). These prevent unbounded work and make wrappers predictable under load.
+The same pinned ABI/format requests should produce consistent behavior for equal inputs.
 
-## Next steps
+## Error Contract
+
+- `0` means success (`ZR_OK`).
+- negative values are failures.
+- malformed input failures do not produce partial side effects.
+
+Special case:
+
+- `engine_poll_events()` uses integer return semantics (`bytes`, `0`, or negative error)
+
+## Caps and Bounded Work
+
+`zr_limits_t` constrains key resources:
+
+- drawlist bytes/commands/tables
+- per-frame output byte budget
+- damage rectangle budget
+- arena budgets
+
+These caps keep runtime behavior predictable under load.
+
+## Next Steps
 
 - [Rendering Model](rendering-model.md)
 - [Input Model](input-model.md)
-- [ABI → Versioning](../abi/versioning.md)
-
+- [ABI -> Versioning](../abi/versioning.md)

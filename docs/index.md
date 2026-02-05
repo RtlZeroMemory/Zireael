@@ -1,40 +1,47 @@
 # Zireael
 
-A deterministic terminal rendering engine in C for embedding in higher-level TUI frameworks.
+Zireael is a deterministic terminal rendering engine in C for embedding in higher-level TUI frameworks.
 
-Zireael exposes a **small, stable C ABI**. Wrappers submit a versioned, binary **drawlist** (render commands) and receive a packed **event batch** (input events) — **binary in / binary out**.
+It exposes a **small public C ABI** and two versioned binary protocols:
+
+- **Drawlist** (wrapper -> engine): render commands in a little-endian byte stream
+- **Event batch** (engine -> wrapper): packed input events in a little-endian byte stream
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│  Your wrapper (Rust, Go, Python, …)                           │
-├──────────────────────────────────────────────────────────────┤
-│                        FFI Boundary                           │
-├──────────────────────────────────────────────────────────────┤
-│  Zireael Engine                                               │
-│  ┌───────────┐  ┌────────────┐  ┌────────┐  ┌──────────────┐ │
-│  │ Drawlist  │→ │ Framebuffer│→ │  Diff  │→ │  Platform     │ │
-│  │  Parser   │  │            │  │Renderer│  │ (Win/POSIX)   │ │
-│  └───────────┘  └────────────┘  └────────┘  └──────────────┘ │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+| Wrapper / Host (Rust, Go, Python, C#, etc.)                 |
++--------------------------------------------------------------+
+|                    FFI boundary (C ABI)                      |
++--------------------------------------------------------------+
+| Zireael Engine                                               |
+| drawlist parser -> framebuffer -> diff renderer -> platform  |
++--------------------------------------------------------------+
 ```
 
-## Start here
+## Start Here By Goal
 
-- If you want to integrate quickly: **[Getting Started → Quickstart](getting-started/quickstart.md)**
-- If you are writing FFI bindings: **[ABI → ABI Policy](abi/abi-policy.md)** and **[ABI → C ABI Reference](abi/c-abi-reference.md)**
-- If you want the exact on-wire formats: **[ABI → Drawlist Format](abi/drawlist-format.md)** and **[ABI → Event Batch Format](abi/event-batch-format.md)**
+- Integrate quickly: [Getting Started -> Quickstart](getting-started/quickstart.md)
+- Build from source: [Getting Started -> Install & Build](getting-started/install-build.md)
+- Build bindings/wrappers: [ABI -> ABI Policy](abi/abi-policy.md) and [ABI -> C ABI Reference](abi/c-abi-reference.md)
+- Parse binary formats directly: [ABI -> Drawlist Format](abi/drawlist-format.md) and [ABI -> Event Batch Format](abi/event-batch-format.md)
+- Understand internal implementation contracts: [Internal Specs -> Index](00_INDEX.md)
 
-## Design constraints (non-negotiable)
+## Non-Negotiable Contracts
 
-- **Stable ABI:** plain C entrypoints; versioned binary formats (drawlist/event batch).
-- **Ownership:** the engine owns its allocations; callers never free engine memory; callers provide I/O buffers.
-- **Determinism:** pinned versions, pinned Unicode policy; no locale dependencies.
-- **Platform boundary:** OS code lives in `src/platform/*`; core/unicode/util remain OS-header-free.
-- **Single flush:** one terminal write per `engine_present()`, bounded by caps.
+- Stable public ABI surface under `include/zr/`
+- Ownership model: engine owns engine allocations; caller never frees engine memory
+- Platform boundary: OS code in `src/platform/*` only
+- Deterministic limits and version pins
+- Single platform flush per successful `engine_present()`
 
-## Next steps
+## Audience Map
 
-- [Getting Started → Install & Build](getting-started/install-build.md)
-- [User Guide → Concepts](user-guide/concepts.md)
-- [Examples → Overview](examples/index.md)
+- Wrapper authors: `docs/abi/*`, `docs/getting-started/*`, `docs/examples/*`
+- Engine contributors: `docs/dev/*`, `docs/CODE_STANDARDS.md`, `docs/SAFETY_RULESET.md`
+- Maintainers/releasers: `docs/maintainers.md`, `docs/VERSION_PINS.md`, `CHANGELOG.md`
 
+## Next Steps
+
+- [Quickstart](getting-started/quickstart.md)
+- [Concepts](user-guide/concepts.md)
+- [C ABI Reference](abi/c-abi-reference.md)

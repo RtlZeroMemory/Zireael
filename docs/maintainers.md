@@ -1,29 +1,45 @@
-# Maintainers: keeping docs healthy
+# Maintainers: Keeping Docs Healthy
 
-Zireael keeps both wrapper-facing docs (this site) and implementation-ready internal specs under `docs/`.
+Zireael publishes wrapper-facing docs and keeps implementation-ready internal specs in the same repository.
 
-## Rules of the road
+## Source-Of-Truth Rule
 
-- If wrapper-facing docs and internal specs disagree, treat internal specs as authoritative and fix the wrapper-facing page.
-- Prefer linking to internal specs for low-level details rather than duplicating byte layouts in multiple places.
-- Keep all version pins consistent with `include/zr/zr_version.h`.
-- Ensure example code uses **only** public headers (`include/zr/...`) and matches the documented versions.
+If wrapper-facing docs disagree with internal specs under `docs/`, internal specs are authoritative.
 
-## Review checklist
+## Required Consistency Checks
 
-- `mkdocs build --strict` passes.
-- No broken links in nav.
-- Any new ABI/format version bump updates:
-  - `include/zr/zr_version.h`
-  - `docs/VERSION_PINS.md`
-  - `docs/abi/versioning.md`
-  - `CHANGELOG.md`
+- version pins in `include/zr/zr_version.h` match docs/changelog references
+- wrapper-facing API docs match current public headers under `include/zr/`
+- examples compile and reflect current supported versions
+- navigation has no dead links
 
-## CI hooks
+## Release-Time Docs Checklist
 
-CI should treat these as required:
+When ABI or format behavior changes:
 
-- guardrails
-- docs build
-- version drift check (pins vs docs)
+- update `include/zr/zr_version.h`
+- update `docs/VERSION_PINS.md`
+- update `docs/abi/versioning.md`
+- update affected ABI pages (`c-abi-reference`, format pages)
+- update `CHANGELOG.md`
+- run strict docs build
 
+## Recommended CI Gates
+
+- `bash scripts/guardrails.sh`
+- `python3 scripts/check_version_pins.py`
+- `bash scripts/docs.sh build`
+- relevant CTest preset(s)
+
+## Documentation Quality Checklist
+
+- pages explain contracts and failure modes, not just happy paths
+- examples include realistic wrapper guidance
+- public API docs include ownership/threading/return semantics
+- internal references are linked rather than duplicated inconsistently
+
+## Related Docs
+
+- [Internal docs index](00_INDEX.md)
+- [ABI policy](abi/abi-policy.md)
+- [Contributing](https://github.com/RtlZeroMemory/Zireael/blob/main/CONTRIBUTING.md)

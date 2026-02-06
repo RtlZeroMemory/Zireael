@@ -45,6 +45,7 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
 
   Contract:
     - Safe with NULL.
+    - Must be called after external post threads are quiesced.
     - Releases engine-owned resources.
     - Restores platform state best-effort (e.g. leave raw mode).
 */
@@ -77,6 +78,7 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
   Contract:
     - Intended to be callable cross-thread to wake blocked polling.
     - Payload bytes are copied during the call.
+    - Returns ZR_ERR_INVALID_ARGUMENT when teardown has started.
 
   Args:
     - tag: wrapper-defined event discriminator.

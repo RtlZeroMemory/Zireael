@@ -12,6 +12,14 @@ cmake --build --preset posix-clang-debug
 ctest --test-dir out/build/posix-clang-debug --output-on-failure
 ```
 
+Optional POSIX ThreadSanitizer build:
+
+```text
+cmake --preset posix-clang-tsan
+cmake --build --preset posix-clang-tsan
+ctest --test-dir out/build/posix-clang-tsan --output-on-failure
+```
+
 Typical Windows debug build (clang-cl):
 
 ```text

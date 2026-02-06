@@ -5,17 +5,42 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.2.1 — 2026-02-06
+
+### Added
+
+- Integration coverage for cross-thread `engine_post_user_event()` wake behavior on POSIX PTY and Win32 ConPTY paths.
+- Optional ThreadSanitizer support in build/CI (`ZIREAEL_SANITIZE_THREAD`, `posix-clang-tsan` presets, and Linux TSan workflow job).
+
+### Changed
+
+- Clarified teardown/threading contract docs for `engine_destroy()` and `engine_post_user_event()` across ABI reference and FAQ pages.
+- Logger sink installation/write path now snapshots sink state under internal synchronization before calling callbacks.
+
+### Fixed
+
+- core: closed `engine_destroy()` vs `engine_post_user_event()` lifetime race by gating new post calls during teardown and draining in-flight post calls before free.
+- posix: removed cross-thread data races in SIGWINCH/self-pipe global state (`wake_write_fd`, pending flag) using C11 atomics.
+- integration tests: stabilized posted-user-event detection under unrelated resize/tick noise for deterministic CI behavior.
+
 ## 1.2.0 — 2026-02-06
+
+### Added
+
+- Release automation SemVer/tag guard script and workflow validation to enforce tag/version/changelog consistency before publish.
 
 ### Changed
 
 - Documented project lifecycle status as **alpha** in wrapper-facing docs and release guidance.
+- Hardened fuzz smoke corpus coverage and warning-as-error parity across Linux and Windows CI toolchains.
 
 ### Fixed
 
 - posix: signal-safety UB in SIGWINCH handler — previous-handler chaining now uses only `sig_atomic_t` and async-signal-safe state.
 - core: `engine_create()` now rejects `wait_for_output_drain=1` early when the backend lacks `supports_output_wait_writable`, instead of failing every `engine_present()` call.
+- core: `engine_set_config()` now also rejects enabling `wait_for_output_drain` on unsupported backends, preserving no-partial-effects runtime behavior.
 - win32: mouse tracking now enables drag (`?1002h`) and any-motion (`?1003h`) modes for parity with POSIX backend.
+- debug trace: hardened counter overflow handling and expanded tests/docs for trace record query behavior.
 
 ## 1.2.0-rc5 — 2026-02-03
 

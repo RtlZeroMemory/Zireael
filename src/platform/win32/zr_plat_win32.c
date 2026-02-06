@@ -767,6 +767,172 @@ zr_result_t plat_get_caps(plat_t* plat, plat_caps_t* out_caps) {
   return ZR_OK;
 }
 
+static int32_t zr_win32_read_input_pipe(plat_t* plat) {
+  if (!plat) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+  DWORD avail = 0u;
+  BOOL ok = PeekNamedPipe(plat->h_in, NULL, 0u, NULL, &avail, NULL);
+  if (!ok) {
+    return (int32_t)ZR_ERR_PLATFORM;
+  }
+  return (avail == 0u) ? 0 : 1;
+}
+
+static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* plat, uint8_t* out_buf, size_t out_cap,
+                                           size_t* out_len) {
+  if (!k || !plat || !out_buf || !out_len || !k->bKeyDown) {
+    return;
+  }
+
+  const WORD vk = k->wVirtualKeyCode;
+  const WCHAR ch = k->uChar.UnicodeChar;
+  const WORD repeat = k->wRepeatCount;
+  const uint32_t mods = zr_win32_mod_bits_from_control_state(k->dwControlKeyState);
+  const bool has_alt = (mods & ZR_WIN32_MOD_ALT_BIT) != 0u;
+
+  uint8_t csi_final = 0u;
+  if (zr_win32_vk_to_csi_final(vk, &csi_final)) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    zr_win32_emit_csi_final_repeat(out_buf, out_cap, out_len, csi_final, mods, repeat);
+    return;
+  }
+
+  uint32_t csi_tilde_first = 0u;
+  if (zr_win32_vk_to_csi_tilde(vk, &csi_tilde_first)) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    zr_win32_emit_csi_tilde_repeat(out_buf, out_cap, out_len, csi_tilde_first, mods, repeat);
+    return;
+  }
+
+  uint8_t ss3_final = 0u;
+  if (zr_win32_vk_to_ss3(vk, &ss3_final)) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    zr_win32_emit_ss3_final_repeat(out_buf, out_cap, out_len, ss3_final, repeat);
+    return;
+  }
+
+  if (vk == VK_RETURN) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    const uint8_t seq[] = {(uint8_t)'\r'};
+    zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
+    return;
+  }
+  if (vk == VK_ESCAPE) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    const uint8_t seq[] = {0x1Bu};
+    zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
+    return;
+  }
+  if (vk == VK_TAB) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    if ((mods & ZR_WIN32_MOD_SHIFT_BIT) != 0u) {
+      if (mods != ZR_WIN32_MOD_SHIFT_BIT) {
+        zr_win32_emit_csi_final_repeat(out_buf, out_cap, out_len, (uint8_t)'Z', mods, repeat);
+        return;
+      }
+      const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'Z'};
+      zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
+      return;
+    }
+    const uint8_t seq[] = {(uint8_t)'\t'};
+    zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
+    return;
+  }
+  if (vk == VK_BACK) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    const uint8_t seq[] = {0x7Fu};
+    zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
+    return;
+  }
+
+  if (ch == 0) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    return;
+  }
+
+  if (zr_win32_is_high_surrogate((uint32_t)ch)) {
+    zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+    plat->has_pending_high_surrogate = true;
+    plat->pending_high_surrogate = (uint16_t)ch;
+    return;
+  }
+  if (zr_win32_is_low_surrogate((uint32_t)ch)) {
+    if (plat->has_pending_high_surrogate) {
+      const uint32_t scalar = zr_win32_decode_surrogate_pair((uint32_t)plat->pending_high_surrogate, (uint32_t)ch);
+      plat->has_pending_high_surrogate = false;
+      plat->pending_high_surrogate = 0u;
+      zr_win32_emit_text_scalar_repeat(out_buf, out_cap, out_len, scalar, repeat, has_alt);
+      return;
+    }
+    zr_win32_emit_text_scalar_repeat(out_buf, out_cap, out_len, 0xFFFDu, repeat, has_alt);
+    return;
+  }
+
+  zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
+  zr_win32_emit_text_scalar_repeat(out_buf, out_cap, out_len, (uint32_t)ch, repeat, has_alt);
+}
+
+static int32_t zr_win32_read_input_console(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
+  if (!plat || !out_buf || out_cap < 0) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  DWORD n_events = 0u;
+  if (!GetNumberOfConsoleInputEvents(plat->h_in, &n_events)) {
+    return (int32_t)ZR_ERR_PLATFORM;
+  }
+  if (n_events == 0u) {
+    return 0;
+  }
+
+  INPUT_RECORD recs[32];
+  DWORD read = 0u;
+  DWORD want = n_events;
+  if (want > (DWORD)(sizeof(recs) / sizeof(recs[0]))) {
+    want = (DWORD)(sizeof(recs) / sizeof(recs[0]));
+  }
+  if (!ReadConsoleInputW(plat->h_in, recs, want, &read)) {
+    return (int32_t)ZR_ERR_PLATFORM;
+  }
+
+  size_t out_len = 0u;
+  const size_t out_cap_z = (size_t)out_cap;
+  for (DWORD i = 0u; i < read; i++) {
+    const INPUT_RECORD* r = &recs[i];
+    if (r->EventType != KEY_EVENT) {
+      continue;
+    }
+    zr_win32_translate_console_key(&r->Event.KeyEvent, plat, out_buf, out_cap_z, &out_len);
+  }
+
+  if (out_len > (size_t)INT32_MAX) {
+    return (int32_t)ZR_ERR_PLATFORM;
+  }
+  return (int32_t)out_len;
+}
+
+static int32_t zr_win32_read_input_waitable(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
+  if (!plat || !out_buf || out_cap < 0) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  DWORD wait_rc = WaitForSingleObject(plat->h_in, 0u);
+  if (wait_rc == WAIT_TIMEOUT) {
+    return 0;
+  }
+  if (wait_rc != WAIT_OBJECT_0) {
+    return (int32_t)ZR_ERR_PLATFORM;
+  }
+
+  DWORD n = 0u;
+  BOOL ok = ReadFile(plat->h_in, out_buf, (DWORD)out_cap, &n, NULL);
+  if (!ok || n > (DWORD)INT32_MAX) {
+    return (int32_t)ZR_ERR_PLATFORM;
+  }
+  return (int32_t)n;
+}
+
 /* Non-blocking read from console input; returns bytes read, 0 if none available, or error. */
 int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
   if (!plat) {
@@ -793,169 +959,14 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
   */
   const DWORD ft = GetFileType(plat->h_in);
   if (ft == FILE_TYPE_PIPE) {
-    DWORD avail = 0u;
-    BOOL ok = PeekNamedPipe(plat->h_in, NULL, 0u, NULL, &avail, NULL);
-    if (!ok) {
-      return (int32_t)ZR_ERR_PLATFORM;
-    }
-    if (avail == 0u) {
-      return 0;
+    const int32_t ready = zr_win32_read_input_pipe(plat);
+    if (ready <= 0) {
+      return ready;
     }
   } else if (ft == FILE_TYPE_CHAR) {
-    /*
-      Avoid ReadFile() on console input handles: it can still block when the
-      handle is signaled due to non-key input records (mouse/focus/resize).
-
-      Instead, consume INPUT_RECORDs and translate only key-down events into
-      the minimal byte stream our core parser understands.
-    */
-    DWORD n_events = 0u;
-    if (!GetNumberOfConsoleInputEvents(plat->h_in, &n_events)) {
-      return (int32_t)ZR_ERR_PLATFORM;
-    }
-    if (n_events == 0u) {
-      return 0;
-    }
-
-    INPUT_RECORD recs[32];
-    DWORD read = 0u;
-    DWORD want = n_events;
-    if (want > (DWORD)(sizeof(recs) / sizeof(recs[0]))) {
-      want = (DWORD)(sizeof(recs) / sizeof(recs[0]));
-    }
-    if (!ReadConsoleInputW(plat->h_in, recs, want, &read)) {
-      return (int32_t)ZR_ERR_PLATFORM;
-    }
-
-    size_t out_len = 0u;
-    const size_t out_cap_z = (size_t)out_cap;
-    for (DWORD i = 0u; i < read; i++) {
-      const INPUT_RECORD* r = &recs[i];
-      if (r->EventType != KEY_EVENT) {
-        continue;
-      }
-
-      const KEY_EVENT_RECORD* k = &r->Event.KeyEvent;
-      if (!k->bKeyDown) {
-        continue;
-      }
-
-      const WORD vk = k->wVirtualKeyCode;
-      const WCHAR ch = k->uChar.UnicodeChar;
-      const WORD repeat = k->wRepeatCount;
-      const uint32_t mods = zr_win32_mod_bits_from_control_state(k->dwControlKeyState);
-      const bool has_alt = (mods & ZR_WIN32_MOD_ALT_BIT) != 0u;
-
-      uint8_t csi_final = 0u;
-      if (zr_win32_vk_to_csi_final(vk, &csi_final)) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        zr_win32_emit_csi_final_repeat(out_buf, out_cap_z, &out_len, csi_final, mods, repeat);
-        continue;
-      }
-
-      uint32_t csi_tilde_first = 0u;
-      if (zr_win32_vk_to_csi_tilde(vk, &csi_tilde_first)) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        zr_win32_emit_csi_tilde_repeat(out_buf, out_cap_z, &out_len, csi_tilde_first, mods, repeat);
-        continue;
-      }
-
-      uint8_t ss3_final = 0u;
-      if (zr_win32_vk_to_ss3(vk, &ss3_final)) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        zr_win32_emit_ss3_final_repeat(out_buf, out_cap_z, &out_len, ss3_final, repeat);
-        continue;
-      }
-
-      if (vk == VK_RETURN) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        const uint8_t seq[] = {(uint8_t)'\r'};
-        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
-        continue;
-      }
-      if (vk == VK_ESCAPE) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        const uint8_t seq[] = {0x1Bu};
-        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
-        continue;
-      }
-      if (vk == VK_TAB) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        if ((mods & ZR_WIN32_MOD_SHIFT_BIT) != 0u) {
-          /*
-            Keep historical Shift-Tab form for shift-only, but preserve full
-            modifier state for shifted variants (e.g. Shift+Ctrl+Tab).
-          */
-          if (mods != ZR_WIN32_MOD_SHIFT_BIT) {
-            zr_win32_emit_csi_final_repeat(out_buf, out_cap_z, &out_len, (uint8_t)'Z', mods, repeat);
-            continue;
-          }
-          const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'Z'};
-          zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
-        } else {
-          const uint8_t seq[] = {(uint8_t)'\t'};
-          zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
-        }
-        continue;
-      }
-      if (vk == VK_BACK) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        const uint8_t seq[] = {0x7Fu};
-        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
-        continue;
-      }
-
-      if (ch == 0) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        continue;
-      }
-
-      if (zr_win32_is_high_surrogate((uint32_t)ch)) {
-        zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        plat->has_pending_high_surrogate = true;
-        plat->pending_high_surrogate = (uint16_t)ch;
-        continue;
-      }
-
-      if (zr_win32_is_low_surrogate((uint32_t)ch)) {
-        if (plat->has_pending_high_surrogate) {
-          const uint32_t scalar = zr_win32_decode_surrogate_pair((uint32_t)plat->pending_high_surrogate, (uint32_t)ch);
-          plat->has_pending_high_surrogate = false;
-          plat->pending_high_surrogate = 0u;
-          zr_win32_emit_text_scalar_repeat(out_buf, out_cap_z, &out_len, scalar, repeat, has_alt);
-          continue;
-        }
-        zr_win32_emit_text_scalar_repeat(out_buf, out_cap_z, &out_len, 0xFFFDu, repeat, has_alt);
-        continue;
-      }
-
-      zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-      zr_win32_emit_text_scalar_repeat(out_buf, out_cap_z, &out_len, (uint32_t)ch, repeat, has_alt);
-    }
-
-    if (out_len > (size_t)INT32_MAX) {
-      return (int32_t)ZR_ERR_PLATFORM;
-    }
-    return (int32_t)out_len;
-  } else {
-    DWORD wait_rc = WaitForSingleObject(plat->h_in, 0u);
-    if (wait_rc == WAIT_TIMEOUT) {
-      return 0;
-    }
-    if (wait_rc != WAIT_OBJECT_0) {
-      return (int32_t)ZR_ERR_PLATFORM;
-    }
+    return zr_win32_read_input_console(plat, out_buf, out_cap);
   }
-
-  DWORD n = 0u;
-  BOOL ok = ReadFile(plat->h_in, out_buf, (DWORD)out_cap, &n, NULL);
-  if (!ok) {
-    return (int32_t)ZR_ERR_PLATFORM;
-  }
-  if (n > (DWORD)INT32_MAX) {
-    return (int32_t)ZR_ERR_PLATFORM;
-  }
-  return (int32_t)n;
+  return zr_win32_read_input_waitable(plat, out_buf, out_cap);
 }
 
 zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {

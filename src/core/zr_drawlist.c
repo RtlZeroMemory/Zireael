@@ -463,15 +463,172 @@ static void zr_dl_view_init(zr_dl_view_t* view, const zr_dl_header_t* hdr, const
   view->blobs_bytes_len = (size_t)hdr->blobs_bytes_len;
 }
 
-/* Walk and validate every command in the command stream (framing, opcodes, indices). */
-static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const zr_limits_t* lim) {
+static zr_result_t zr_dl_validate_cmd_clear(const zr_dl_cmd_header_t* ch) {
+  if (!ch) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_cmd_fill_rect(const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r) {
+  if (!ch || !r) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_fill_rect_t))) {
+    return ZR_ERR_FORMAT;
+  }
+  zr_dl_cmd_fill_rect_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_fill_rect(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (cmd.style.reserved0 != 0u) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_cmd_draw_text(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r) {
+  if (!view || !ch || !r) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_t))) {
+    return ZR_ERR_FORMAT;
+  }
+
+  zr_dl_cmd_draw_text_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_draw_text(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (cmd.style.reserved0 != 0u || cmd.reserved0 != 0u || cmd.string_index >= view->hdr.strings_count) {
+    return ZR_ERR_FORMAT;
+  }
+
+  const size_t span_off = (size_t)cmd.string_index * sizeof(zr_dl_span_t);
+  zr_dl_span_t span;
+  if (zr_dl_span_read_host(view->strings_span_bytes + span_off, &span) != ZR_OK) {
+    return ZR_ERR_FORMAT;
+  }
+
+  uint32_t slice_end = 0u;
+  if (!zr_checked_add_u32(cmd.byte_off, cmd.byte_len, &slice_end)) {
+    return ZR_ERR_FORMAT;
+  }
+  if (slice_end > span.len) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_cmd_push_clip(const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r, const zr_limits_t* lim,
+                                                uint32_t* clip_depth) {
+  if (!ch || !r || !lim || !clip_depth) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_push_clip_t))) {
+    return ZR_ERR_FORMAT;
+  }
+  zr_dl_cmd_push_clip_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_push_clip(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  (void)cmd;
+  (*clip_depth)++;
+  if (*clip_depth > lim->dl_max_clip_depth) {
+    return ZR_ERR_LIMIT;
+  }
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_cmd_pop_clip(const zr_dl_cmd_header_t* ch, uint32_t* clip_depth) {
+  if (!ch || !clip_depth) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)sizeof(zr_dl_cmd_header_t) || *clip_depth == 0u) {
+    return ZR_ERR_FORMAT;
+  }
+  (*clip_depth)--;
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_cmd_draw_text_run(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch,
+                                                    zr_byte_reader_t* r, const zr_limits_t* lim) {
+  if (!view || !ch || !r || !lim) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_run_t))) {
+    return ZR_ERR_FORMAT;
+  }
+  zr_dl_cmd_draw_text_run_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_draw_text_run(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (cmd.reserved0 != 0u) {
+    return ZR_ERR_FORMAT;
+  }
+  return zr_dl_validate_text_run_blob(view, cmd.blob_index, lim);
+}
+
+static zr_result_t zr_dl_validate_cmd_set_cursor(const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r) {
+  if (!ch || !r) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_set_cursor_t))) {
+    return ZR_ERR_FORMAT;
+  }
+  zr_dl_cmd_set_cursor_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_set_cursor(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (cmd.reserved0 != 0u || cmd.x < -1 || cmd.y < -1) {
+    return ZR_ERR_FORMAT;
+  }
+  if (cmd.shape > ZR_CURSOR_SHAPE_BAR || cmd.visible > 1u || cmd.blink > 1u) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_cmd_payload(const zr_dl_view_t* view, const zr_limits_t* lim, zr_byte_reader_t* r,
+                                              const zr_dl_cmd_header_t* ch, uint32_t* clip_depth, bool allow_cursor) {
+  if (!view || !lim || !r || !ch || !clip_depth) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  switch ((zr_dl_opcode_t)ch->opcode) {
+  case ZR_DL_OP_CLEAR:
+    return zr_dl_validate_cmd_clear(ch);
+  case ZR_DL_OP_FILL_RECT:
+    return zr_dl_validate_cmd_fill_rect(ch, r);
+  case ZR_DL_OP_DRAW_TEXT:
+    return zr_dl_validate_cmd_draw_text(view, ch, r);
+  case ZR_DL_OP_PUSH_CLIP:
+    return zr_dl_validate_cmd_push_clip(ch, r, lim, clip_depth);
+  case ZR_DL_OP_POP_CLIP:
+    return zr_dl_validate_cmd_pop_clip(ch, clip_depth);
+  case ZR_DL_OP_DRAW_TEXT_RUN:
+    return zr_dl_validate_cmd_draw_text_run(view, ch, r, lim);
+  case ZR_DL_OP_SET_CURSOR:
+    return allow_cursor ? zr_dl_validate_cmd_set_cursor(ch, r) : ZR_ERR_UNSUPPORTED;
+  default:
+    return ZR_ERR_UNSUPPORTED;
+  }
+}
+
+static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim, bool allow_cursor) {
   if (!view || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
   zr_byte_reader_t r;
   zr_byte_reader_init(&r, view->cmd_bytes, view->cmd_bytes_len);
-
   uint32_t clip_depth = 0u;
 
   for (uint32_t ci = 0u; ci < view->hdr.cmd_count; ci++) {
@@ -480,10 +637,7 @@ static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const 
     if (rc != ZR_OK) {
       return rc;
     }
-    if (ch.flags != 0u) {
-      return ZR_ERR_FORMAT;
-    }
-    if (ch.size < (uint32_t)sizeof(zr_dl_cmd_header_t) || (ch.size & 3u) != 0u) {
+    if (ch.flags != 0u || ch.size < (uint32_t)sizeof(zr_dl_cmd_header_t) || (ch.size & 3u) != 0u) {
       return ZR_ERR_FORMAT;
     }
     const size_t payload = (size_t)ch.size - sizeof(zr_dl_cmd_header_t);
@@ -491,267 +645,26 @@ static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const 
       return ZR_ERR_FORMAT;
     }
 
-    switch ((zr_dl_opcode_t)ch.opcode) {
-    case ZR_DL_OP_CLEAR: {
-      if (ch.size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    case ZR_DL_OP_FILL_RECT: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_fill_rect_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_fill_rect_t cmd;
-      rc = zr_dl_read_cmd_fill_rect(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.style.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    case ZR_DL_OP_DRAW_TEXT: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_draw_text_t cmd;
-      rc = zr_dl_read_cmd_draw_text(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.style.reserved0 != 0u || cmd.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      if (cmd.string_index >= view->hdr.strings_count) {
-        return ZR_ERR_FORMAT;
-      }
-      const size_t span_off = (size_t)cmd.string_index * sizeof(zr_dl_span_t);
-      zr_dl_span_t span;
-      if (zr_dl_span_read_host(view->strings_span_bytes + span_off, &span) != ZR_OK) {
-        return ZR_ERR_FORMAT;
-      }
-      uint32_t slice_end = 0u;
-      if (!zr_checked_add_u32(cmd.byte_off, cmd.byte_len, &slice_end)) {
-        return ZR_ERR_FORMAT;
-      }
-      if (slice_end > span.len) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    case ZR_DL_OP_PUSH_CLIP: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_push_clip_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_push_clip_t cmd;
-      rc = zr_dl_read_cmd_push_clip(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      clip_depth++;
-      if (clip_depth > lim->dl_max_clip_depth) {
-        return ZR_ERR_LIMIT;
-      }
-      break;
-    }
-    case ZR_DL_OP_POP_CLIP: {
-      if (ch.size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
-        return ZR_ERR_FORMAT;
-      }
-      if (clip_depth == 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      clip_depth--;
-      break;
-    }
-    case ZR_DL_OP_DRAW_TEXT_RUN: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_run_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_draw_text_run_t cmd;
-      rc = zr_dl_read_cmd_draw_text_run(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      rc = zr_dl_validate_text_run_blob(view, cmd.blob_index, lim);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      break;
-    }
-    default: {
-      return ZR_ERR_UNSUPPORTED;
-    }
+    rc = zr_dl_validate_cmd_payload(view, lim, &r, &ch, &clip_depth, allow_cursor);
+    if (rc != ZR_OK) {
+      return rc;
     }
   }
 
   if (zr_byte_reader_remaining(&r) != 0u) {
     return ZR_ERR_FORMAT;
   }
-
   return ZR_OK;
+}
+
+/* Walk and validate every command in the command stream (framing, opcodes, indices). */
+static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const zr_limits_t* lim) {
+  return zr_dl_validate_cmd_stream_common(view, lim, false);
 }
 
 /* Walk and validate every command in the command stream (v2: includes cursor op). */
 static zr_result_t zr_dl_validate_cmd_stream_v2(const zr_dl_view_t* view, const zr_limits_t* lim) {
-  if (!view || !lim) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  zr_byte_reader_t r;
-  zr_byte_reader_init(&r, view->cmd_bytes, view->cmd_bytes_len);
-
-  uint32_t clip_depth = 0u;
-
-  for (uint32_t ci = 0u; ci < view->hdr.cmd_count; ci++) {
-    zr_dl_cmd_header_t ch;
-    zr_result_t rc = zr_dl_read_cmd_header(&r, &ch);
-    if (rc != ZR_OK) {
-      return rc;
-    }
-    if (ch.flags != 0u) {
-      return ZR_ERR_FORMAT;
-    }
-    if (ch.size < (uint32_t)sizeof(zr_dl_cmd_header_t) || (ch.size & 3u) != 0u) {
-      return ZR_ERR_FORMAT;
-    }
-    const size_t payload = (size_t)ch.size - sizeof(zr_dl_cmd_header_t);
-    if (zr_byte_reader_remaining(&r) < payload) {
-      return ZR_ERR_FORMAT;
-    }
-
-    switch ((zr_dl_opcode_t)ch.opcode) {
-    case ZR_DL_OP_CLEAR: {
-      if (ch.size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    case ZR_DL_OP_FILL_RECT: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_fill_rect_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_fill_rect_t cmd;
-      rc = zr_dl_read_cmd_fill_rect(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.style.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    case ZR_DL_OP_DRAW_TEXT: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_draw_text_t cmd;
-      rc = zr_dl_read_cmd_draw_text(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.style.reserved0 != 0u || cmd.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      if (cmd.string_index >= view->hdr.strings_count) {
-        return ZR_ERR_FORMAT;
-      }
-      const size_t span_off = (size_t)cmd.string_index * sizeof(zr_dl_span_t);
-      zr_dl_span_t span;
-      if (zr_dl_span_read_host(view->strings_span_bytes + span_off, &span) != ZR_OK) {
-        return ZR_ERR_FORMAT;
-      }
-      uint32_t slice_end = 0u;
-      if (!zr_checked_add_u32(cmd.byte_off, cmd.byte_len, &slice_end)) {
-        return ZR_ERR_FORMAT;
-      }
-      if (slice_end > span.len) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    case ZR_DL_OP_PUSH_CLIP: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_push_clip_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_push_clip_t cmd;
-      rc = zr_dl_read_cmd_push_clip(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      clip_depth++;
-      if (clip_depth > lim->dl_max_clip_depth) {
-        return ZR_ERR_LIMIT;
-      }
-      break;
-    }
-    case ZR_DL_OP_POP_CLIP: {
-      if (ch.size != (uint32_t)sizeof(zr_dl_cmd_header_t)) {
-        return ZR_ERR_FORMAT;
-      }
-      if (clip_depth == 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      clip_depth--;
-      break;
-    }
-    case ZR_DL_OP_DRAW_TEXT_RUN: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_run_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_draw_text_run_t cmd;
-      rc = zr_dl_read_cmd_draw_text_run(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      rc = zr_dl_validate_text_run_blob(view, cmd.blob_index, lim);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      break;
-    }
-    case ZR_DL_OP_SET_CURSOR: {
-      if (ch.size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_set_cursor_t))) {
-        return ZR_ERR_FORMAT;
-      }
-      zr_dl_cmd_set_cursor_t cmd;
-      rc = zr_dl_read_cmd_set_cursor(&r, &cmd);
-      if (rc != ZR_OK) {
-        return rc;
-      }
-      if (cmd.reserved0 != 0u) {
-        return ZR_ERR_FORMAT;
-      }
-      if (cmd.x < -1 || cmd.y < -1) {
-        return ZR_ERR_FORMAT;
-      }
-      if (cmd.shape > ZR_CURSOR_SHAPE_BAR) {
-        return ZR_ERR_FORMAT;
-      }
-      if (cmd.visible > 1u || cmd.blink > 1u) {
-        return ZR_ERR_FORMAT;
-      }
-      break;
-    }
-    default: {
-      return ZR_ERR_UNSUPPORTED;
-    }
-    }
-  }
-
-  if (zr_byte_reader_remaining(&r) != 0u) {
-    return ZR_ERR_FORMAT;
-  }
-
-  return ZR_OK;
+  return zr_dl_validate_cmd_stream_common(view, lim, true);
 }
 
 /* Validate a text run blob: segment count, alignment, and all string references. */

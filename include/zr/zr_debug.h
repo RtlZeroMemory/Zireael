@@ -52,7 +52,7 @@ typedef enum zr_debug_severity_t {
 */
 typedef struct zr_debug_record_header_t {
   uint64_t record_id;           /* Monotonic record counter */
-  uint64_t timestamp_us;        /* Microseconds since engine creation */
+  uint64_t timestamp_us;        /* Microseconds since engine_debug_enable() */
   uint64_t frame_id;            /* Associated frame (0 if not applicable) */
   uint32_t category;            /* zr_debug_category_t */
   uint32_t severity;            /* zr_debug_severity_t */

@@ -57,8 +57,8 @@ struct plat_t {
   bool sigwinch_installed;
 };
 
-static volatile sig_atomic_t g_posix_sigwinch_pending = 0;
-static volatile sig_atomic_t g_posix_wake_write_fd = -1;
+static _Atomic int g_posix_sigwinch_pending = 0;
+static _Atomic int g_posix_wake_write_fd = -1;
 typedef void (*zr_posix_sa_handler_fn)(int);
 typedef void (*zr_posix_sa_sigaction_fn)(int, siginfo_t*, void*);
 
@@ -83,6 +83,31 @@ static _Atomic(zr_posix_sa_handler_fn) g_posix_prev_sa_handler = NULL;
 static _Atomic(zr_posix_sa_sigaction_fn) g_posix_prev_sa_sigaction = NULL;
 
 static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext);
+
+/* --- Process-global signal/wake atomics --- */
+static int zr_posix_wake_fd_load(void) {
+  return atomic_load_explicit(&g_posix_wake_write_fd, memory_order_acquire);
+}
+
+static bool zr_posix_wake_fd_claim(int wake_fd) {
+  int expected = -1;
+  return atomic_compare_exchange_strong_explicit(&g_posix_wake_write_fd, &expected, wake_fd, memory_order_acq_rel,
+                                                 memory_order_acquire);
+}
+
+static void zr_posix_wake_fd_release_if_owned(int wake_fd) {
+  int expected = wake_fd;
+  (void)atomic_compare_exchange_strong_explicit(&g_posix_wake_write_fd, &expected, -1, memory_order_acq_rel,
+                                                memory_order_acquire);
+}
+
+static void zr_posix_sigwinch_mark_pending(void) {
+  atomic_store_explicit(&g_posix_sigwinch_pending, 1, memory_order_relaxed);
+}
+
+static bool zr_posix_sigwinch_take_pending(void) {
+  return atomic_exchange_explicit(&g_posix_sigwinch_pending, 0, memory_order_acq_rel) != 0;
+}
 
 static const char* zr_posix_getenv_nonempty(const char* key) {
   if (!key) {
@@ -171,8 +196,8 @@ static void zr_posix_sigwinch_chain_previous(int signo, siginfo_t* info, void* u
 
 static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext) {
   int saved_errno = errno;
-  g_posix_sigwinch_pending = 1;
-  const int wake_fd = (int)g_posix_wake_write_fd;
+  zr_posix_sigwinch_mark_pending();
+  const int wake_fd = zr_posix_wake_fd_load();
   if (wake_fd >= 0) {
     const uint8_t b = 0u;
     (void)write(wake_fd, &b, 1u);
@@ -438,56 +463,10 @@ static void zr_posix_emit_leave_sequences(plat_t* plat) {
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1049l");
 }
 
-/* Create POSIX platform handle with self-pipe wake and SIGWINCH handler. */
-zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
-  if (!out_plat || !cfg) {
-    return ZR_ERR_INVALID_ARGUMENT;
+static void zr_posix_set_caps_from_cfg(plat_t* plat, const plat_config_t* cfg) {
+  if (!plat || !cfg) {
+    return;
   }
-  *out_plat = NULL;
-
-  /*
-    SIGWINCH wake is handled via a process-global signal handler, which needs a
-    single global self-pipe write fd. Disallow multiple concurrent plat
-    instances to avoid clobbering this global.
-  */
-  if (g_posix_wake_write_fd >= 0) {
-    return ZR_ERR_PLATFORM;
-  }
-
-  plat_t* plat = (plat_t*)calloc(1u, sizeof(*plat));
-  if (!plat) {
-    return ZR_ERR_OOM;
-  }
-
-  zr_result_t r = ZR_ERR_PLATFORM;
-
-  plat->cfg = *cfg;
-  plat->stdin_fd = STDIN_FILENO;
-  plat->stdout_fd = STDOUT_FILENO;
-  plat->tty_fd_owned = -1;
-  plat->wake_read_fd = -1;
-  plat->wake_write_fd = -1;
-
-  /*
-    Some launchers (certain npm/WSL setups, IDE tasks, etc.) start Node with
-    stdin/stdout not attached to the controlling terminal even though a TTY
-    exists for interactive use. Raw mode requires a TTY for termios/ioctl.
-
-    If either standard stream is not a TTY, fall back to /dev/tty so the
-    engine can still render/interact with the controlling terminal.
-  */
-  if (isatty(plat->stdin_fd) == 0 || isatty(plat->stdout_fd) == 0) {
-    int fd = open("/dev/tty", O_RDWR | O_NOCTTY);
-    if (fd < 0) {
-      r = ZR_ERR_PLATFORM;
-      goto cleanup;
-    }
-    (void)zr_posix_set_fd_cloexec(fd);
-    plat->tty_fd_owned = fd;
-    plat->stdin_fd = fd;
-    plat->stdout_fd = fd;
-  }
-
   plat->caps.color_mode = cfg->requested_color_mode;
   plat->caps.supports_mouse = 1u;
   plat->caps.supports_bracketed_paste = 1u;
@@ -502,75 +481,14 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps._pad0[1] = 0u;
   plat->caps._pad0[2] = 0u;
   plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
+}
 
-  r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);
-  if (r != ZR_OK) {
-    goto cleanup;
+static void zr_posix_create_cleanup(plat_t* plat) {
+  if (!plat) {
+    return;
   }
 
-  /*
-    Store wake fd in sig_atomic_t for signal-handler reads.
-    Defensive range guard avoids implementation-defined narrowing.
-  */
-  if (plat->wake_write_fd > (int)SIG_ATOMIC_MAX) {
-    r = ZR_ERR_PLATFORM;
-    goto cleanup;
-  }
-  g_posix_wake_write_fd = (sig_atomic_t)plat->wake_write_fd;
-
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_sigaction = zr_posix_sigwinch_handler;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_SIGINFO;
-  if (sigaction(SIGWINCH, &sa, &plat->sigwinch_prev) != 0) {
-    r = ZR_ERR_PLATFORM;
-    goto cleanup;
-  }
-
-  /*
-    Snapshot previous handler into atomic globals.
-
-    Order matters:
-      - write pointer slots first
-      - publish kind with release-store
-    The handler acquires kind before reading handler pointers.
-  */
-  {
-    const struct sigaction* prev = &plat->sigwinch_prev;
-    atomic_store_explicit(&g_posix_prev_sa_handler, NULL, memory_order_relaxed);
-    atomic_store_explicit(&g_posix_prev_sa_sigaction, NULL, memory_order_relaxed);
-    atomic_store_explicit(&g_posix_prev_handler_kind, 0, memory_order_relaxed);
-    if ((prev->sa_flags & SA_SIGINFO) != 0) {
-      /*
-        SA_SIGINFO set: the kernel dispatches via sa_sigaction. Guard against
-        SIG_DFL/SIG_IGN stored as sa_handler in the union (POSIX allows
-        implementations to alias the two members).
-      */
-      if (prev->sa_handler != SIG_IGN && prev->sa_handler != SIG_DFL) {
-        void (*fn)(int, siginfo_t*, void*) = prev->sa_sigaction;
-        if (fn && fn != zr_posix_sigwinch_handler) {
-          atomic_store_explicit(&g_posix_prev_sa_sigaction, fn, memory_order_relaxed);
-          atomic_store_explicit(&g_posix_prev_handler_kind, 2, memory_order_release);
-        }
-      }
-    } else {
-      void (*fn)(int) = prev->sa_handler;
-      if (fn && fn != SIG_IGN && fn != SIG_DFL) {
-        atomic_store_explicit(&g_posix_prev_sa_handler, fn, memory_order_relaxed);
-        atomic_store_explicit(&g_posix_prev_handler_kind, 1, memory_order_release);
-      }
-    }
-  }
-  plat->sigwinch_installed = true;
-
-  *out_plat = plat;
-  return ZR_OK;
-
-cleanup:
-  if (g_posix_wake_write_fd == (sig_atomic_t)plat->wake_write_fd) {
-    g_posix_wake_write_fd = -1;
-  }
+  zr_posix_wake_fd_release_if_owned(plat->wake_write_fd);
 
   if (plat->wake_read_fd >= 0) {
     (void)close(plat->wake_read_fd);
@@ -580,14 +498,134 @@ cleanup:
     (void)close(plat->wake_write_fd);
     plat->wake_write_fd = -1;
   }
-
   if (plat->tty_fd_owned >= 0) {
     (void)close(plat->tty_fd_owned);
     plat->tty_fd_owned = -1;
   }
+}
 
-  free(plat);
-  return r;
+static zr_result_t zr_posix_create_bind_stdio_or_tty(plat_t* plat) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  if (isatty(plat->stdin_fd) != 0 && isatty(plat->stdout_fd) != 0) {
+    return ZR_OK;
+  }
+
+  /*
+    Some launchers start with stdio detached from the controlling terminal.
+    Fall back to /dev/tty so termios/ioctl still target the active tty.
+  */
+  int fd = open("/dev/tty", O_RDWR | O_NOCTTY);
+  if (fd < 0) {
+    return ZR_ERR_PLATFORM;
+  }
+  (void)zr_posix_set_fd_cloexec(fd);
+  plat->tty_fd_owned = fd;
+  plat->stdin_fd = fd;
+  plat->stdout_fd = fd;
+  return ZR_OK;
+}
+
+static zr_result_t zr_posix_install_sigwinch(plat_t* plat) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  if (!zr_posix_wake_fd_claim(plat->wake_write_fd)) {
+    return ZR_ERR_PLATFORM;
+  }
+
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_sigaction = zr_posix_sigwinch_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_SIGINFO;
+  if (sigaction(SIGWINCH, &sa, &plat->sigwinch_prev) != 0) {
+    zr_posix_wake_fd_release_if_owned(plat->wake_write_fd);
+    return ZR_ERR_PLATFORM;
+  }
+
+  /*
+    Snapshot previous handler into atomics.
+    Publish pointer slots before the handler-kind release store.
+  */
+  const struct sigaction* prev = &plat->sigwinch_prev;
+  atomic_store_explicit(&g_posix_prev_sa_handler, NULL, memory_order_relaxed);
+  atomic_store_explicit(&g_posix_prev_sa_sigaction, NULL, memory_order_relaxed);
+  atomic_store_explicit(&g_posix_prev_handler_kind, 0, memory_order_relaxed);
+  if ((prev->sa_flags & SA_SIGINFO) != 0) {
+    if (prev->sa_handler != SIG_IGN && prev->sa_handler != SIG_DFL) {
+      void (*fn)(int, siginfo_t*, void*) = prev->sa_sigaction;
+      if (fn && fn != zr_posix_sigwinch_handler) {
+        atomic_store_explicit(&g_posix_prev_sa_sigaction, fn, memory_order_relaxed);
+        atomic_store_explicit(&g_posix_prev_handler_kind, 2, memory_order_release);
+      }
+    }
+  } else {
+    void (*fn)(int) = prev->sa_handler;
+    if (fn && fn != SIG_IGN && fn != SIG_DFL) {
+      atomic_store_explicit(&g_posix_prev_sa_handler, fn, memory_order_relaxed);
+      atomic_store_explicit(&g_posix_prev_handler_kind, 1, memory_order_release);
+    }
+  }
+  plat->sigwinch_installed = true;
+  return ZR_OK;
+}
+
+/* Create POSIX platform handle with self-pipe wake and SIGWINCH handler. */
+zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
+  if (!out_plat || !cfg) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  *out_plat = NULL;
+
+  /*
+    SIGWINCH wake is handled via a process-global signal handler, which needs a
+    single global self-pipe write fd. Disallow multiple concurrent plat
+    instances to avoid clobbering this global.
+  */
+  if (zr_posix_wake_fd_load() >= 0) {
+    return ZR_ERR_PLATFORM;
+  }
+
+  plat_t* plat = (plat_t*)calloc(1u, sizeof(*plat));
+  if (!plat) {
+    return ZR_ERR_OOM;
+  }
+
+  plat->cfg = *cfg;
+  plat->stdin_fd = STDIN_FILENO;
+  plat->stdout_fd = STDOUT_FILENO;
+  plat->tty_fd_owned = -1;
+  plat->wake_read_fd = -1;
+  plat->wake_write_fd = -1;
+
+  zr_result_t r = zr_posix_create_bind_stdio_or_tty(plat);
+  if (r != ZR_OK) {
+    zr_posix_create_cleanup(plat);
+    free(plat);
+    return r;
+  }
+
+  zr_posix_set_caps_from_cfg(plat, cfg);
+
+  r = zr_posix_make_self_pipe(&plat->wake_read_fd, &plat->wake_write_fd);
+  if (r != ZR_OK) {
+    zr_posix_create_cleanup(plat);
+    free(plat);
+    return r;
+  }
+  r = zr_posix_install_sigwinch(plat);
+  if (r != ZR_OK) {
+    zr_posix_create_cleanup(plat);
+    free(plat);
+    return r;
+  }
+
+  *out_plat = plat;
+  return ZR_OK;
 }
 
 void plat_destroy(plat_t* plat) {
@@ -602,10 +640,9 @@ void plat_destroy(plat_t* plat) {
       With the singleton create guard, we should always own the global wake fd
       while SIGWINCH is installed.
     */
-    ZR_ASSERT(g_posix_wake_write_fd == -1 || g_posix_wake_write_fd == (sig_atomic_t)plat->wake_write_fd);
-    if (g_posix_wake_write_fd == (sig_atomic_t)plat->wake_write_fd) {
-      g_posix_wake_write_fd = -1;
-    }
+    const int wake_fd = zr_posix_wake_fd_load();
+    ZR_ASSERT(wake_fd == -1 || wake_fd == plat->wake_write_fd);
+    zr_posix_wake_fd_release_if_owned(plat->wake_write_fd);
     (void)sigaction(SIGWINCH, &plat->sigwinch_prev, NULL);
     atomic_store_explicit(&g_posix_prev_handler_kind, 0, memory_order_release);
     atomic_store_explicit(&g_posix_prev_sa_handler, NULL, memory_order_relaxed);
@@ -794,8 +831,7 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
   fds[1].revents = 0;
 
   for (;;) {
-    if (g_posix_sigwinch_pending) {
-      g_posix_sigwinch_pending = 0;
+    if (zr_posix_sigwinch_take_pending()) {
       zr_posix_drain_fd_best_effort(plat->wake_read_fd);
       return 1;
     }

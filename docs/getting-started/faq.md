@@ -24,6 +24,7 @@ This keeps the runtime ABI surface small while allowing high-throughput renderin
 Engine calls are single-threaded except:
 
 - `engine_post_user_event()` is intended to be thread-safe and used to wake blocked polling.
+- During teardown, `engine_post_user_event()` may return `ZR_ERR_INVALID_ARGUMENT`; stop post threads before `engine_destroy()`.
 
 ## How should wrappers handle unknown event types?
 

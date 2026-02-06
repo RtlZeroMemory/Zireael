@@ -5,9 +5,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.2.0 — 2026-02-06
+
 ### Changed
 
 - Documented project lifecycle status as **alpha** in wrapper-facing docs and release guidance.
+
+### Fixed
+
+- posix: signal-safety UB in SIGWINCH handler — previous-handler chaining now uses only `sig_atomic_t` and async-signal-safe state.
+- core: `engine_create()` now rejects `wait_for_output_drain=1` early when the backend lacks `supports_output_wait_writable`, instead of failing every `engine_present()` call.
+- win32: mouse tracking now enables drag (`?1002h`) and any-motion (`?1003h`) modes for parity with POSIX backend.
 
 ## 1.2.0-rc5 — 2026-02-03
 

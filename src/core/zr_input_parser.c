@@ -297,6 +297,7 @@ static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i,
       - ESC [ A/B/C/D (arrows)
       - ESC [ <params> A/B/C/D (arrows with modifiers)
       - ESC [ H/F (home/end) and their param forms
+      - ESC [ Z (shift-tab)
   */
   size_t j = i + 2u;
   uint32_t param_index = 0u;
@@ -324,7 +325,14 @@ static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i,
 
   zr_key_t key = ZR_KEY_UNKNOWN;
   if (!zr__csi_simple_key_from_final(bytes[j], &key)) {
-    return false;
+    if (bytes[j] != (uint8_t)'Z') {
+      return false;
+    }
+    key = ZR_KEY_TAB;
+    *out_mods = (param_index >= 2u) ? zr__mods_from_csi_param(mod_param) : (uint32_t)ZR_MOD_SHIFT;
+    *out_key = key;
+    *out_consumed = (j + 1u) - i;
+    return true;
   }
 
   *out_key = key;

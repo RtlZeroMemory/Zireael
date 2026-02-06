@@ -73,6 +73,75 @@ struct plat_t {
   uint8_t _pad[2];
 };
 
+static const char* zr_win32_getenv_nonempty(const char* key) {
+  if (!key) {
+    return NULL;
+  }
+  const char* v = getenv(key);
+  if (!v || v[0] == '\0') {
+    return NULL;
+  }
+  return v;
+}
+
+static bool zr_win32_env_bool_override(const char* key, uint8_t* out_value) {
+  if (!key || !out_value) {
+    return false;
+  }
+
+  const char* v = zr_win32_getenv_nonempty(key);
+  if (!v) {
+    return false;
+  }
+  if (strcmp(v, "1") == 0 || strcmp(v, "true") == 0 || strcmp(v, "TRUE") == 0 || strcmp(v, "yes") == 0 ||
+      strcmp(v, "YES") == 0 || strcmp(v, "on") == 0 || strcmp(v, "ON") == 0) {
+    *out_value = 1u;
+    return true;
+  }
+  if (strcmp(v, "0") == 0 || strcmp(v, "false") == 0 || strcmp(v, "FALSE") == 0 || strcmp(v, "no") == 0 ||
+      strcmp(v, "NO") == 0 || strcmp(v, "off") == 0 || strcmp(v, "OFF") == 0) {
+    *out_value = 0u;
+    return true;
+  }
+  return false;
+}
+
+static void zr_win32_cap_override(const char* key, uint8_t* inout_cap) {
+  uint8_t override_value = 0u;
+  if (zr_win32_env_bool_override(key, &override_value)) {
+    *inout_cap = override_value;
+  }
+}
+
+static uint8_t zr_win32_detect_sync_update(void) {
+  if (zr_win32_getenv_nonempty("KITTY_WINDOW_ID")) {
+    return 1u;
+  }
+  if (zr_win32_getenv_nonempty("WEZTERM_PANE") || zr_win32_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+    return 1u;
+  }
+  const char* term = zr_win32_getenv_nonempty("TERM");
+  if (term && (strstr(term, "kitty") || strstr(term, "wezterm") || strstr(term, "rio"))) {
+    return 1u;
+  }
+  return 0u;
+}
+
+static uint8_t zr_win32_detect_osc52(void) {
+  if (zr_win32_getenv_nonempty("KITTY_WINDOW_ID")) {
+    return 1u;
+  }
+  if (zr_win32_getenv_nonempty("WEZTERM_PANE") || zr_win32_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+    return 1u;
+  }
+  const char* term = zr_win32_getenv_nonempty("TERM");
+  if (term && (strstr(term, "xterm") || strstr(term, "screen") || strstr(term, "tmux") || strstr(term, "kitty") ||
+               strstr(term, "wezterm"))) {
+    return 1u;
+  }
+  return 0u;
+}
+
 static void zr_win32_emit_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_len, const uint8_t* seq, size_t seq_len,
                                  WORD repeat) {
   if (!out_buf || !io_len || !seq) {
@@ -673,11 +742,20 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_bracketed_paste = 1u;
   /* Focus in/out bytes are not normalized by the core parser in v1. */
   plat->caps.supports_focus_events = 0u;
-  plat->caps.supports_osc52 = 1u;
-  plat->caps.supports_sync_update = 1u;
+  plat->caps.supports_osc52 = zr_win32_detect_osc52();
+  plat->caps.supports_sync_update = zr_win32_detect_sync_update();
   plat->caps.supports_scroll_region = 1u;
   plat->caps.supports_cursor_shape = 1u;
   plat->caps.supports_output_wait_writable = 0u;
+
+  /* Manual capability overrides for non-standard terminals and CI harnesses. */
+  zr_win32_cap_override("ZIREAEL_CAP_MOUSE", &plat->caps.supports_mouse);
+  zr_win32_cap_override("ZIREAEL_CAP_BRACKETED_PASTE", &plat->caps.supports_bracketed_paste);
+  zr_win32_cap_override("ZIREAEL_CAP_OSC52", &plat->caps.supports_osc52);
+  zr_win32_cap_override("ZIREAEL_CAP_SYNC_UPDATE", &plat->caps.supports_sync_update);
+  zr_win32_cap_override("ZIREAEL_CAP_SCROLL_REGION", &plat->caps.supports_scroll_region);
+  zr_win32_cap_override("ZIREAEL_CAP_CURSOR_SHAPE", &plat->caps.supports_cursor_shape);
+
   plat->caps._pad0[0] = 0u;
   plat->caps._pad0[1] = 0u;
   plat->caps._pad0[2] = 0u;

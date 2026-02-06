@@ -31,6 +31,7 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 
 enum {
   ZR_ENGINE_INPUT_PENDING_CAP = 64u,
@@ -886,7 +887,7 @@ static void zr_engine_wait_posts_drained(zr_engine_t* e) {
   }
   atomic_store_explicit(&e->destroy_started, 1u, memory_order_release);
   while (atomic_load_explicit(&e->post_user_inflight, memory_order_acquire) != 0u) {
-    /* spin */
+    thrd_yield();
   }
 }
 

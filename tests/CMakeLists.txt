@@ -178,6 +178,17 @@ else ()
     target_link_libraries(zireael_integration_posix_create_fd_leak PRIVATE zireael)
     add_test(NAME zireael.integration.posix.create.fd_leak COMMAND zireael_integration_posix_create_fd_leak)
     set_tests_properties(zireael.integration.posix.create.fd_leak PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+    add_executable(zireael_integration_posix_caps_overrides
+            integration/posix_caps_overrides.c
+    )
+    target_include_directories(zireael_integration_posix_caps_overrides PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(zireael_integration_posix_caps_overrides PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_posix_caps_overrides PRIVATE zireael)
+    add_test(NAME zireael.integration.posix.caps.overrides COMMAND zireael_integration_posix_caps_overrides)
+    set_tests_properties(zireael.integration.posix.caps.overrides PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
 endif ()
 
 add_executable(zireael_fuzz_smoke

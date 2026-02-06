@@ -66,6 +66,18 @@ Raw mode enables unbuffered input and disables terminal echo/line editing.
 - `plat_caps_t.supports_cursor_shape` — safe to emit DECSCUSR (`ESC[Ps q`) for cursor shape/blink control
 - `plat_caps_t.supports_output_wait_writable` — backend supports `plat_wait_output_writable()` for bounded output pacing
 
+Backends also support environment overrides for manual capability control in
+non-standard terminals/CI harnesses:
+
+- `ZIREAEL_CAP_MOUSE`
+- `ZIREAEL_CAP_BRACKETED_PASTE`
+- `ZIREAEL_CAP_OSC52`
+- `ZIREAEL_CAP_SYNC_UPDATE`
+- `ZIREAEL_CAP_SCROLL_REGION`
+- `ZIREAEL_CAP_CURSOR_SHAPE`
+
+Accepted values: `1/0`, `true/false`, `yes/no`, `on/off`.
+
 ## Output backpressure hook
 
 To support optional frame pacing, the platform interface exposes an output-writability wait:
@@ -80,10 +92,13 @@ To support optional frame pacing, the platform interface exposes an output-writa
 
 ### POSIX
 
-- Process-wide singleton: SIGWINCH handler and wake fd are global state
-- Second `plat_create` fails with `ZR_ERR_PLATFORM`
+- Process-wide SIGWINCH handler with a bounded wake-fd registry
+- Multiple concurrent `plat_create` instances are supported
+- Registry capacity is bounded (currently 32 concurrent wake fds)
 - Uses self-pipe for signal-safe wake
-- Chains to any previously installed `SIGWINCH` handler and restores it on destroy
+- Preserves one SIGWINCH wake via overflow marker when a wake pipe is saturated
+- Chains to any previously installed `SIGWINCH` handler
+- Restores the prior handler when the final POSIX platform instance is destroyed
 - `plat_wait_output_writable`: uses `poll(POLLOUT)` on stdout fd
 
 ### Windows

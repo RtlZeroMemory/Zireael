@@ -5,16 +5,26 @@
 */
 
 #include "util/zr_log.h"
+#include "util/zr_thread_yield.h"
 
 #include <stdatomic.h>
+#include <stdint.h>
+
+enum {
+  ZR_LOG_LOCK_YIELD_MASK = 63u,
+};
 
 static zr_log_sink_fn_t g_sink = 0;
 static void* g_sink_user = 0;
 static atomic_flag g_sink_lock = ATOMIC_FLAG_INIT;
 
 static void zr_log_lock(void) {
+  uint32_t spins = 0u;
   while (atomic_flag_test_and_set_explicit(&g_sink_lock, memory_order_acquire)) {
-    /* spin */
+    spins++;
+    if ((spins & ZR_LOG_LOCK_YIELD_MASK) == 0u) {
+      zr_thread_yield();
+    }
   }
 }
 

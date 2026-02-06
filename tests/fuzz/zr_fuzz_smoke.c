@@ -118,7 +118,9 @@ static void zr_smoke_check_input_parser(const uint8_t* data, size_t size) {
   enum {
     ZR_SMOKE_EVENT_CAP = 64,
     ZR_SMOKE_USER_CAP = 256,
-    ZR_SMOKE_OUT_CAP = 2048,
+    /* Worst-case packed event in this harness is mouse (record header + payload). */
+    ZR_SMOKE_MAX_RECORD_PADDED_BYTES = ((uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_mouse_t)) + 3u) & ~3u,
+    ZR_SMOKE_OUT_CAP = (uint32_t)sizeof(zr_evbatch_header_t) + (ZR_SMOKE_EVENT_CAP * ZR_SMOKE_MAX_RECORD_PADDED_BYTES),
   };
 
   zr_event_t ev_store1[ZR_SMOKE_EVENT_CAP];

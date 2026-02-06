@@ -491,7 +491,8 @@ static zr_result_t zr_dl_validate_cmd_fill_rect(const zr_dl_cmd_header_t* ch, zr
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_validate_cmd_draw_text(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r) {
+static zr_result_t zr_dl_validate_cmd_draw_text(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch,
+                                                zr_byte_reader_t* r) {
   if (!view || !ch || !r) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -524,8 +525,8 @@ static zr_result_t zr_dl_validate_cmd_draw_text(const zr_dl_view_t* view, const 
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_validate_cmd_push_clip(const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r, const zr_limits_t* lim,
-                                                uint32_t* clip_depth) {
+static zr_result_t zr_dl_validate_cmd_push_clip(const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r,
+                                                const zr_limits_t* lim, uint32_t* clip_depth) {
   if (!ch || !r || !lim || !clip_depth) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -622,7 +623,8 @@ static zr_result_t zr_dl_validate_cmd_payload(const zr_dl_view_t* view, const zr
   }
 }
 
-static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim, bool allow_cursor) {
+static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim,
+                                                    bool allow_cursor) {
   if (!view || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }

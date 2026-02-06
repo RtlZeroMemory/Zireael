@@ -207,8 +207,8 @@ int main(int argc, char** argv) {
   char skip_reason[256];
   memset(skip_reason, 0, sizeof(skip_reason));
 
-  zr_result_t r =
-      zr_win32_conpty_run_self_capture("--child", out, sizeof(out), &out_len, &exit_code, skip_reason, sizeof(skip_reason));
+  zr_result_t r = zr_win32_conpty_run_self_capture("--child", out, sizeof(out), &out_len, &exit_code, skip_reason,
+                                                   sizeof(skip_reason));
   if (r == ZR_ERR_UNSUPPORTED) {
     return zr_test_skip(skip_reason[0] ? skip_reason : "ConPTY unavailable");
   }

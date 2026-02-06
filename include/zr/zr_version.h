@@ -12,8 +12,8 @@
   NOTE: These version pins are part of the determinism contract. They must not
   be overridden by downstream builds.
 */
-#if defined(ZR_LIBRARY_VERSION_MAJOR) || defined(ZR_LIBRARY_VERSION_MINOR) || defined(ZR_LIBRARY_VERSION_PATCH) || \
-    defined(ZR_ENGINE_ABI_MAJOR) || defined(ZR_ENGINE_ABI_MINOR) || defined(ZR_ENGINE_ABI_PATCH) || \
+#if defined(ZR_LIBRARY_VERSION_MAJOR) || defined(ZR_LIBRARY_VERSION_MINOR) || defined(ZR_LIBRARY_VERSION_PATCH) ||     \
+    defined(ZR_ENGINE_ABI_MAJOR) || defined(ZR_ENGINE_ABI_MINOR) || defined(ZR_ENGINE_ABI_PATCH) ||                    \
     defined(ZR_DRAWLIST_VERSION_V1) || defined(ZR_DRAWLIST_VERSION_V2) || defined(ZR_EVENT_BATCH_VERSION_V1)
 #error "Zireael version pins are locked; do not override ZR_*_VERSION_* macros."
 #endif

@@ -58,6 +58,10 @@ struct plat_t {
 
 static volatile sig_atomic_t g_posix_sigwinch_pending = 0;
 static int g_posix_wake_write_fd = -1;
+static struct sigaction g_posix_sigwinch_prev_action;
+static volatile sig_atomic_t g_posix_sigwinch_prev_valid = 0;
+
+static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext);
 
 static const char* zr_posix_getenv_nonempty(const char* key) {
   if (!key) {
@@ -119,15 +123,42 @@ static uint8_t zr_posix_detect_sync_update(void) {
   return 0u;
 }
 
-static void zr_posix_sigwinch_handler(int signo) {
-  (void)signo;
-  g_posix_sigwinch_pending = 1;
+/*
+  Chain to any prior SIGWINCH handler we replaced during plat_create().
 
+  Why: Host runtimes may rely on their own SIGWINCH hooks. Chaining preserves
+  process behavior while still waking the engine's self-pipe.
+*/
+static void zr_posix_sigwinch_chain_previous(int signo, siginfo_t* info, void* ucontext) {
+  if (g_posix_sigwinch_prev_valid == 0) {
+    return;
+  }
+
+  if ((g_posix_sigwinch_prev_action.sa_flags & SA_SIGINFO) != 0) {
+    if (g_posix_sigwinch_prev_action.sa_handler == SIG_IGN || g_posix_sigwinch_prev_action.sa_handler == SIG_DFL) {
+      return;
+    }
+    void (*prev)(int, siginfo_t*, void*) = g_posix_sigwinch_prev_action.sa_sigaction;
+    if (prev && prev != zr_posix_sigwinch_handler) {
+      prev(signo, info, ucontext);
+    }
+    return;
+  }
+
+  void (*prev)(int) = g_posix_sigwinch_prev_action.sa_handler;
+  if (prev && prev != SIG_IGN && prev != SIG_DFL) {
+    prev(signo);
+  }
+}
+
+static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext) {
   int saved_errno = errno;
+  g_posix_sigwinch_pending = 1;
   if (g_posix_wake_write_fd >= 0) {
     const uint8_t b = 0u;
     (void)write(g_posix_wake_write_fd, &b, 1u);
   }
+  zr_posix_sigwinch_chain_previous(signo, info, ucontext);
   errno = saved_errno;
 }
 
@@ -462,13 +493,15 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
 
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = zr_posix_sigwinch_handler;
+  sa.sa_sigaction = zr_posix_sigwinch_handler;
   sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
+  sa.sa_flags = SA_SIGINFO;
   if (sigaction(SIGWINCH, &sa, &plat->sigwinch_prev) != 0) {
     r = ZR_ERR_PLATFORM;
     goto cleanup;
   }
+  g_posix_sigwinch_prev_action = plat->sigwinch_prev;
+  g_posix_sigwinch_prev_valid = 1;
   plat->sigwinch_installed = true;
 
   *out_plat = plat;
@@ -514,6 +547,8 @@ void plat_destroy(plat_t* plat) {
       g_posix_wake_write_fd = -1;
     }
     (void)sigaction(SIGWINCH, &plat->sigwinch_prev, NULL);
+    g_posix_sigwinch_prev_valid = 0;
+    memset(&g_posix_sigwinch_prev_action, 0, sizeof(g_posix_sigwinch_prev_action));
     plat->sigwinch_installed = false;
   }
 

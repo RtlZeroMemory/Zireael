@@ -1161,7 +1161,7 @@ zr_result_t engine_present(zr_engine_t* e) {
   return ZR_OK;
 }
 
-static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms, uint32_t time_ms) {
+static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms) {
   if (!e || !e->plat) {
     return (int)ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1174,6 +1174,7 @@ static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms, uint32_t
   if (w < 0) {
     return (int)w;
   }
+  const uint32_t time_ms = zr_engine_now_ms_u32();
   if (w == 0) {
     /*
       Resizes must be detectable even when SIGWINCH delivery is disrupted
@@ -1266,7 +1267,7 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
     }
   }
 
-  const int ready = zr_engine_poll_wait_and_fill(e, wait_ms, time_ms);
+  const int ready = zr_engine_poll_wait_and_fill(e, wait_ms);
   if (ready < 0) {
     return ready;
   }

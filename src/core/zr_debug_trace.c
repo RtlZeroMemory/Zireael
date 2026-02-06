@@ -94,12 +94,8 @@ zr_debug_config_t zr_debug_config_default(void) {
   return cfg;
 }
 
-zr_result_t zr_debug_trace_init(zr_debug_trace_t* t,
-                                const zr_debug_config_t* config,
-                                uint8_t* ring_buf,
-                                size_t ring_buf_cap,
-                                uint32_t* record_offsets,
-                                uint32_t* record_sizes,
+zr_result_t zr_debug_trace_init(zr_debug_trace_t* t, const zr_debug_config_t* config, uint8_t* ring_buf,
+                                size_t ring_buf_cap, uint32_t* record_offsets, uint32_t* record_sizes,
                                 uint32_t index_cap) {
   if (!t) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -172,9 +168,7 @@ void zr_debug_trace_set_start_time(zr_debug_trace_t* t, uint64_t start_time_us) 
   }
 }
 
-bool zr_debug_trace_enabled(const zr_debug_trace_t* t,
-                            zr_debug_category_t category,
-                            zr_debug_severity_t severity) {
+bool zr_debug_trace_enabled(const zr_debug_trace_t* t, zr_debug_category_t category, zr_debug_severity_t severity) {
   if (!t || !t->config.enabled) {
     return false;
   }
@@ -187,13 +181,8 @@ bool zr_debug_trace_enabled(const zr_debug_trace_t* t,
   return true;
 }
 
-zr_result_t zr_debug_trace_record(zr_debug_trace_t* t,
-                                  zr_debug_category_t category,
-                                  zr_debug_severity_t severity,
-                                  uint32_t code,
-                                  uint64_t timestamp_us,
-                                  const void* payload,
-                                  uint32_t payload_size) {
+zr_result_t zr_debug_trace_record(zr_debug_trace_t* t, zr_debug_category_t category, zr_debug_severity_t severity,
+                                  uint32_t code, uint64_t timestamp_us, const void* payload, uint32_t payload_size) {
   if (!t) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -281,59 +270,44 @@ zr_result_t zr_debug_trace_record(zr_debug_trace_t* t,
   return ZR_OK;
 }
 
-zr_result_t zr_debug_trace_frame(zr_debug_trace_t* t,
-                                 uint32_t code,
-                                 uint64_t timestamp_us,
+zr_result_t zr_debug_trace_frame(zr_debug_trace_t* t, uint32_t code, uint64_t timestamp_us,
                                  const zr_debug_frame_record_t* frame) {
   if (!frame) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  return zr_debug_trace_record(t, ZR_DEBUG_CAT_FRAME, ZR_DEBUG_SEV_INFO,
-                               code, timestamp_us, frame, sizeof(*frame));
+  return zr_debug_trace_record(t, ZR_DEBUG_CAT_FRAME, ZR_DEBUG_SEV_INFO, code, timestamp_us, frame, sizeof(*frame));
 }
 
-zr_result_t zr_debug_trace_event(zr_debug_trace_t* t,
-                                 uint32_t code,
-                                 zr_debug_severity_t severity,
-                                 uint64_t timestamp_us,
-                                 const zr_debug_event_record_t* event) {
+zr_result_t zr_debug_trace_event(zr_debug_trace_t* t, uint32_t code, zr_debug_severity_t severity,
+                                 uint64_t timestamp_us, const zr_debug_event_record_t* event) {
   if (!event) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  return zr_debug_trace_record(t, ZR_DEBUG_CAT_EVENT, severity,
-                               code, timestamp_us, event, sizeof(*event));
+  return zr_debug_trace_record(t, ZR_DEBUG_CAT_EVENT, severity, code, timestamp_us, event, sizeof(*event));
 }
 
-zr_result_t zr_debug_trace_error(zr_debug_trace_t* t,
-                                 uint32_t code,
-                                 uint64_t timestamp_us,
+zr_result_t zr_debug_trace_error(zr_debug_trace_t* t, uint32_t code, uint64_t timestamp_us,
                                  const zr_debug_error_record_t* error) {
   if (!error) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  return zr_debug_trace_record(t, ZR_DEBUG_CAT_ERROR, ZR_DEBUG_SEV_ERROR,
-                               code, timestamp_us, error, sizeof(*error));
+  return zr_debug_trace_record(t, ZR_DEBUG_CAT_ERROR, ZR_DEBUG_SEV_ERROR, code, timestamp_us, error, sizeof(*error));
 }
 
-zr_result_t zr_debug_trace_drawlist(zr_debug_trace_t* t,
-                                    uint32_t code,
-                                    uint64_t timestamp_us,
+zr_result_t zr_debug_trace_drawlist(zr_debug_trace_t* t, uint32_t code, uint64_t timestamp_us,
                                     const zr_debug_drawlist_record_t* dl) {
   if (!dl) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  return zr_debug_trace_record(t, ZR_DEBUG_CAT_DRAWLIST, ZR_DEBUG_SEV_INFO,
-                               code, timestamp_us, dl, sizeof(*dl));
+  return zr_debug_trace_record(t, ZR_DEBUG_CAT_DRAWLIST, ZR_DEBUG_SEV_INFO, code, timestamp_us, dl, sizeof(*dl));
 }
 
-zr_result_t zr_debug_trace_perf(zr_debug_trace_t* t,
-                                uint64_t timestamp_us,
-                                const zr_debug_perf_record_t* perf) {
+zr_result_t zr_debug_trace_perf(zr_debug_trace_t* t, uint64_t timestamp_us, const zr_debug_perf_record_t* perf) {
   if (!perf) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  return zr_debug_trace_record(t, ZR_DEBUG_CAT_PERF, ZR_DEBUG_SEV_TRACE,
-                               ZR_DEBUG_CODE_PERF_TIMING, timestamp_us, perf, sizeof(*perf));
+  return zr_debug_trace_record(t, ZR_DEBUG_CAT_PERF, ZR_DEBUG_SEV_TRACE, ZR_DEBUG_CODE_PERF_TIMING, timestamp_us, perf,
+                               sizeof(*perf));
 }
 
 /*
@@ -341,9 +315,7 @@ zr_result_t zr_debug_trace_perf(zr_debug_trace_t* t,
 
   Returns true and sets out_slot if found.
 */
-static bool zr_debug_find_record_slot(const zr_debug_trace_t* t,
-                                      uint64_t record_id,
-                                      uint32_t* out_slot) {
+static bool zr_debug_find_record_slot(const zr_debug_trace_t* t, uint64_t record_id, uint32_t* out_slot) {
   if (!t || t->index_count == 0u || !out_slot) {
     return false;
   }
@@ -377,10 +349,8 @@ static bool zr_debug_find_record_slot(const zr_debug_trace_t* t,
   return false;
 }
 
-zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t,
-                                 const zr_debug_query_t* query,
-                                 zr_debug_record_header_t* out_headers,
-                                 uint32_t out_headers_cap,
+zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t, const zr_debug_query_t* query,
+                                 zr_debug_record_header_t* out_headers, uint32_t out_headers_cap,
                                  zr_debug_query_result_t* out_result) {
   if (!t || !query || !out_result) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -435,7 +405,8 @@ zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t,
     if (query->max_frame_id > 0u && hdr.frame_id > query->max_frame_id) {
       continue;
     }
-    if (query->category_mask != 0u && (query->category_mask & zr_debug_cat_bit((zr_debug_category_t)hdr.category)) == 0u) {
+    if (query->category_mask != 0u &&
+        (query->category_mask & zr_debug_cat_bit((zr_debug_category_t)hdr.category)) == 0u) {
       continue;
     }
     if (hdr.severity < query->min_severity) {
@@ -459,11 +430,8 @@ zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t,
   return ZR_OK;
 }
 
-zr_result_t zr_debug_trace_get_payload(const zr_debug_trace_t* t,
-                                       uint64_t record_id,
-                                       void* out_payload,
-                                       uint32_t out_cap,
-                                       uint32_t* out_size) {
+zr_result_t zr_debug_trace_get_payload(const zr_debug_trace_t* t, uint64_t record_id, void* out_payload,
+                                       uint32_t out_cap, uint32_t* out_size) {
   if (!t || !out_size) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -514,8 +482,7 @@ zr_result_t zr_debug_trace_get_payload(const zr_debug_trace_t* t,
   return ZR_OK;
 }
 
-zr_result_t zr_debug_trace_get_stats(const zr_debug_trace_t* t,
-                                     zr_debug_stats_t* out_stats) {
+zr_result_t zr_debug_trace_get_stats(const zr_debug_trace_t* t, zr_debug_stats_t* out_stats) {
   if (!t || !out_stats) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -536,9 +503,7 @@ zr_result_t zr_debug_trace_get_stats(const zr_debug_trace_t* t,
   return ZR_OK;
 }
 
-int32_t zr_debug_trace_export(const zr_debug_trace_t* t,
-                              uint8_t* out_buf,
-                              size_t out_cap) {
+int32_t zr_debug_trace_export(const zr_debug_trace_t* t, uint8_t* out_buf, size_t out_cap) {
   if (!t) {
     return (int32_t)ZR_ERR_INVALID_ARGUMENT;
   }

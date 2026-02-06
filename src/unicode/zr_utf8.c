@@ -40,7 +40,9 @@ static zr_utf8_decode_result_t zr_utf8_invalid(size_t len) {
   return zr_utf8_make_result(ZR_UTF8_REPLACEMENT, (uint8_t)((len > 0u) ? 1u : 0u), 0u);
 }
 
-static bool zr_utf8_is_cont(uint8_t b) { return (uint8_t)(b & ZR_UTF8_CONT_MASK) == ZR_UTF8_CONT_VALUE; }
+static bool zr_utf8_is_cont(uint8_t b) {
+  return (uint8_t)(b & ZR_UTF8_CONT_MASK) == ZR_UTF8_CONT_VALUE;
+}
 
 static zr_utf8_decode_result_t zr_utf8_decode_ascii(uint8_t b0) {
   return zr_utf8_make_result((uint32_t)b0, 1u, 1u);
@@ -112,8 +114,8 @@ static zr_utf8_decode_result_t zr_utf8_decode_four_bytes(const uint8_t* s, size_
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp =
-      ((uint32_t)(b0 & 0x07u) << 18) | ((uint32_t)(b1 & 0x3Fu) << 12) | ((uint32_t)(b2 & 0x3Fu) << 6) | (uint32_t)(b3 & 0x3Fu);
+  const uint32_t cp = ((uint32_t)(b0 & 0x07u) << 18) | ((uint32_t)(b1 & 0x3Fu) << 12) | ((uint32_t)(b2 & 0x3Fu) << 6) |
+                      (uint32_t)(b3 & 0x3Fu);
   if (cp > ZR_UTF8_MAX_SCALAR) {
     return zr_utf8_invalid(len);
   }

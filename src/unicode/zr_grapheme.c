@@ -14,11 +14,21 @@ static bool zr_grapheme_is_control(zr_gcb_class_t c) {
   return c == ZR_GCB_CONTROL || c == ZR_GCB_CR || c == ZR_GCB_LF;
 }
 
-static bool zr_grapheme_is_hangul_l(zr_gcb_class_t c) { return c == ZR_GCB_L; }
-static bool zr_grapheme_is_hangul_v(zr_gcb_class_t c) { return c == ZR_GCB_V; }
-static bool zr_grapheme_is_hangul_t(zr_gcb_class_t c) { return c == ZR_GCB_T; }
-static bool zr_grapheme_is_hangul_lv(zr_gcb_class_t c) { return c == ZR_GCB_LV; }
-static bool zr_grapheme_is_hangul_lvt(zr_gcb_class_t c) { return c == ZR_GCB_LVT; }
+static bool zr_grapheme_is_hangul_l(zr_gcb_class_t c) {
+  return c == ZR_GCB_L;
+}
+static bool zr_grapheme_is_hangul_v(zr_gcb_class_t c) {
+  return c == ZR_GCB_V;
+}
+static bool zr_grapheme_is_hangul_t(zr_gcb_class_t c) {
+  return c == ZR_GCB_T;
+}
+static bool zr_grapheme_is_hangul_lv(zr_gcb_class_t c) {
+  return c == ZR_GCB_LV;
+}
+static bool zr_grapheme_is_hangul_lvt(zr_gcb_class_t c) {
+  return c == ZR_GCB_LVT;
+}
 
 static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_after_ep, uint32_t ri_run,
                                      zr_gcb_class_t next_class, bool next_is_ep) {
@@ -46,8 +56,8 @@ static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_af
 
   /* GB6: L x (L|V|LV|LVT) */
   if (zr_grapheme_is_hangul_l(prev_class) &&
-      (zr_grapheme_is_hangul_l(next_class) || zr_grapheme_is_hangul_v(next_class) || zr_grapheme_is_hangul_lv(next_class) ||
-       zr_grapheme_is_hangul_lvt(next_class))) {
+      (zr_grapheme_is_hangul_l(next_class) || zr_grapheme_is_hangul_v(next_class) ||
+       zr_grapheme_is_hangul_lv(next_class) || zr_grapheme_is_hangul_lvt(next_class))) {
     return false;
   }
 
@@ -58,7 +68,8 @@ static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_af
   }
 
   /* GB8: (LVT|T) x T */
-  if ((zr_grapheme_is_hangul_lvt(prev_class) || zr_grapheme_is_hangul_t(prev_class)) && zr_grapheme_is_hangul_t(next_class)) {
+  if ((zr_grapheme_is_hangul_lvt(prev_class) || zr_grapheme_is_hangul_t(prev_class)) &&
+      zr_grapheme_is_hangul_t(next_class)) {
     return false;
   }
 

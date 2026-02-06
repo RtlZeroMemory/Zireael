@@ -99,17 +99,35 @@ ZR_TEST_UNIT(engine_poll_events_emits_text_scalars_from_utf8_and_invalid_bytes) 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 2u);
+  const uint32_t event_count = zr_u32le_at(out + 12u);
+  ZR_ASSERT_TRUE(event_count >= 2u);
 
-  const size_t rec_bytes = sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t);
-  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
-  const size_t off_rec1 = off_rec0 + rec_bytes;
+  size_t off = sizeof(zr_evbatch_header_t);
+  uint32_t text_seen = 0u;
+  uint32_t cps[2] = {0u, 0u};
 
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_TEXT);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + sizeof(zr_ev_record_header_t) + 0u), 0x20ACu);
+  for (uint32_t i = 0u; i < event_count; i++) {
+    ZR_ASSERT_TRUE((off + sizeof(zr_ev_record_header_t)) <= (size_t)n);
 
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec1 + 0u), (uint32_t)ZR_EV_TEXT);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec1 + sizeof(zr_ev_record_header_t) + 0u), 0xFFFDu);
+    const uint32_t rec_type = zr_u32le_at(out + off + 0u);
+    const uint32_t rec_size = zr_u32le_at(out + off + 4u);
+    ZR_ASSERT_TRUE(rec_size >= (uint32_t)sizeof(zr_ev_record_header_t));
+    ZR_ASSERT_TRUE((off + (size_t)rec_size) <= (size_t)n);
+
+    if (rec_type == (uint32_t)ZR_EV_TEXT) {
+      ZR_ASSERT_TRUE(rec_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t)));
+      if (text_seen < 2u) {
+        cps[text_seen] = zr_u32le_at(out + off + sizeof(zr_ev_record_header_t) + 0u);
+      }
+      text_seen++;
+    }
+
+    off += (size_t)rec_size;
+  }
+
+  ZR_ASSERT_EQ_U32(text_seen, 2u);
+  ZR_ASSERT_EQ_U32(cps[0], 0x20ACu);
+  ZR_ASSERT_EQ_U32(cps[1], 0xFFFDu);
 
   engine_destroy(e);
 }

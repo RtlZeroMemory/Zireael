@@ -127,7 +127,7 @@ static void zr_fuzz_one(const uint8_t* data, size_t size) {
 }
 
 int main(void) {
-  enum { kIters = 500, kMaxSize = 256 };
+  enum { kIters = 1000, kMaxSize = 512 };
   uint32_t seed = 0x1A2B3C4Du;
   uint8_t buf[kMaxSize];
 

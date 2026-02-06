@@ -1,5 +1,8 @@
 /*
   src/core/zr_diff.c — Pure framebuffer diff renderer implementation.
+
+  Why: Emits minimal VT output by diffing previous/next framebuffers while
+  preserving grapheme/style correctness and deterministic terminal state.
 */
 
 #include "core/zr_diff.h"

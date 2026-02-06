@@ -28,7 +28,8 @@ typedef struct zr_diff_telemetry_record_t {
   fb_next (the logical app framebuffer), so overlay composition happens on
   fb_stage and only affects what diff/present sees for this frame.
 */
-static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out_present_fb, bool* out_presented_stage) {
+static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out_present_fb,
+                                             bool* out_presented_stage) {
   if (!e || !out_present_fb || !out_presented_stage) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -69,10 +70,10 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* prese
   scratch.row_cap = e->diff_row_cap;
   scratch.prev_hashes_valid = e->diff_prev_hashes_valid;
 
-  zr_result_t rc = zr_diff_render_ex(&e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired,
-                                     &e->cfg_runtime.limits, e->damage_rects, e->damage_rect_cap, &scratch,
-                                     e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len,
-                                     final_ts, stats);
+  zr_result_t rc =
+      zr_diff_render_ex(&e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired, &e->cfg_runtime.limits,
+                        e->damage_rects, e->damage_rect_cap, &scratch, e->cfg_runtime.enable_scroll_optimizations,
+                        e->out_buf, e->out_cap, out_len, final_ts, stats);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -171,8 +172,9 @@ static void zr_engine_trace_diff_telemetry(zr_engine_t* e, uint64_t frame_id, co
                               zr_engine_now_us(), &rec, (uint32_t)sizeof(rec));
 }
 
-static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len, const zr_term_state_t* final_ts,
-                                     const zr_diff_stats_t* stats, uint32_t diff_us, uint32_t write_us) {
+static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len,
+                                     const zr_term_state_t* final_ts, const zr_diff_stats_t* stats, uint32_t diff_us,
+                                     uint32_t write_us) {
   if (!e || !final_ts || !stats) {
     return;
   }
@@ -253,6 +255,8 @@ zr_result_t engine_present(zr_engine_t* e) {
   const uint64_t diff_start_us = zr_engine_now_us();
   rc = zr_engine_present_render(e, present_fb, &out_len, &final_ts, &stats);
   if (rc != ZR_OK) {
+    /* Diff scratch may have been used as transient indexed-coalescing storage. */
+    e->diff_prev_hashes_valid = 0u;
     return rc;
   }
 
@@ -267,6 +271,8 @@ zr_result_t engine_present(zr_engine_t* e) {
   const uint64_t write_start_us = zr_engine_now_us();
   rc = zr_engine_present_write(e, out_len);
   if (rc != ZR_OK) {
+    /* Keep reuse conservative when present fails before prev/next commit. */
+    e->diff_prev_hashes_valid = 0u;
     return rc;
   }
   {

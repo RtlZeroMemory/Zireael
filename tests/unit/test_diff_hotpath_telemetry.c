@@ -80,9 +80,8 @@ ZR_TEST_UNIT(diff_telemetry_marks_damage_path_on_sparse_frame) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 128u, &scratch, 0u, out, sizeof(out),
-                        &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 128u, &scratch, 0u, out,
+                                           sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
   ZR_ASSERT_EQ_U32(stats.path_damage_used, 1u);
   ZR_ASSERT_EQ_U32(stats.path_sweep_used, 0u);
@@ -138,9 +137,8 @@ ZR_TEST_UNIT(diff_telemetry_marks_sweep_path_on_dense_frame) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 256u, &scratch, 0u, out, sizeof(out),
-                        &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 256u, &scratch, 0u, out,
+                                           sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
   ZR_ASSERT_EQ_U32(stats.path_damage_used, 0u);
   ZR_ASSERT_EQ_U32(stats.path_sweep_used, 1u);
@@ -201,9 +199,8 @@ ZR_TEST_UNIT(diff_telemetry_marks_scroll_attempt_and_hit) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 256u, &scratch, 1u, out, sizeof(out),
-                        &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 256u, &scratch, 1u, out,
+                                           sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
   ZR_ASSERT_EQ_U32(stats.scroll_opt_attempted, 1u);
   ZR_ASSERT_EQ_U32(stats.scroll_opt_hit, 1u);
@@ -258,18 +255,16 @@ ZR_TEST_UNIT(diff_telemetry_counts_collision_guard_hits_with_reused_hashes) {
   zr_diff_stats_t stats_a;
   zr_diff_stats_t stats_b;
 
-  const zr_result_t rc_a =
-      zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 128u, &scratch, 0u, out_a, sizeof(out_a),
-                        &out_a_len, &final_a, &stats_a);
+  const zr_result_t rc_a = zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 128u, &scratch, 0u,
+                                             out_a, sizeof(out_a), &out_a_len, &final_a, &stats_a);
   ZR_ASSERT_EQ_U32(rc_a, ZR_OK);
   ZR_ASSERT_EQ_U32(stats_a.collision_guard_hits, 0u);
 
   memcpy(prev_hashes, next_hashes, sizeof(prev_hashes));
   scratch.prev_hashes_valid = 1u;
 
-  const zr_result_t rc_b =
-      zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 128u, &scratch, 0u, out_b, sizeof(out_b),
-                        &out_b_len, &final_b, &stats_b);
+  const zr_result_t rc_b = zr_diff_render_ex(&prev, &next, &caps, &initial, NULL, &lim, damage, 128u, &scratch, 0u,
+                                             out_b, sizeof(out_b), &out_b_len, &final_b, &stats_b);
   ZR_ASSERT_EQ_U32(rc_b, ZR_OK);
   ZR_ASSERT_EQ_U32(stats_b.collision_guard_hits, 2u);
   ZR_ASSERT_EQ_U32(stats_b.dirty_lines, 2u);

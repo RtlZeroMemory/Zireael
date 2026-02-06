@@ -18,6 +18,7 @@ If wrapper-facing docs disagree with internal specs under `docs/`, internal spec
 
 When ABI or format behavior changes:
 
+- keep lifecycle wording consistent (currently alpha) across README/docs/release model
 - update `include/zr/zr_version.h`
 - update `docs/VERSION_PINS.md`
 - update `docs/abi/versioning.md`

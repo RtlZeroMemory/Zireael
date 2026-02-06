@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml"><img src="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/RtlZeroMemory/Zireael/releases"><img src="https://img.shields.io/github/v/release/RtlZeroMemory/Zireael" alt="Release"></a>
+  <a href="https://rtlzeromemory.github.io/Zireael/release-model/"><img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: Alpha"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
   <a href="https://rtlzeromemory.github.io/Zireael/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs"></a>
 </p>
@@ -28,6 +29,14 @@ Wrapper / Host Runtime                 Zireael Engine
 
  event batch bytes      <-----------   engine_poll_events()
 ```
+
+## Project Status
+
+Zireael is currently in **alpha**.
+
+- APIs and wire formats are versioned, but pre-GA iteration is still active.
+- Wrapper authors should pin exact versions and expect fast-moving minor-line changes while alpha continues.
+- See `docs/release-model.md` for release-channel policy.
 
 ### What it is
 

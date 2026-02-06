@@ -35,7 +35,12 @@ typedef struct zr_diff_stats_t {
   uint32_t damage_rects;
   uint32_t damage_cells;
   uint8_t damage_full_frame;
-  uint8_t _pad0[3];
+  uint8_t path_sweep_used;
+  uint8_t path_damage_used;
+  uint8_t scroll_opt_attempted;
+  uint8_t scroll_opt_hit;
+  uint32_t collision_guard_hits;
+  uint32_t _pad0;
   size_t bytes_emitted;
 } zr_diff_stats_t;
 
@@ -45,11 +50,18 @@ typedef struct zr_diff_scratch_t {
 
     Why: Lets callers supply engine-owned storage so the diff path can avoid
     per-frame allocations while caching row fingerprints/dirty-line hints.
+
+    Contract:
+      - Set prev_hashes_valid=1 when prev_row_hashes[] already match `prev`.
+      - On successful present, callers can swap prev/next hash buffers to reuse
+        next-row hashes as the next frame's prev-row hashes.
   */
   uint64_t* prev_row_hashes;
   uint64_t* next_row_hashes;
   uint8_t* dirty_rows;
   uint32_t row_cap;
+  uint8_t prev_hashes_valid;
+  uint8_t _pad0[3];
 } zr_diff_scratch_t;
 
 /*

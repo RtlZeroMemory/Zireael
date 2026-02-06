@@ -36,7 +36,8 @@ The diff renderer computes a bounded, coalesced set of **damage rectangles** (ce
 `zr_diff_render_ex(...)` accepts optional caller-owned row scratch (`zr_diff_scratch_t`):
 
 - `prev_row_hashes[]`, `next_row_hashes[]`, `dirty_rows[]` are sized to at least framebuffer row count.
-- The renderer precomputes per-row fingerprints and dirty hints once per frame.
+- `prev_hashes_valid` lets callers reuse previously computed `prev_row_hashes[]` across frames.
+- The renderer precomputes per-row fingerprints and dirty hints once per frame (or reuses valid previous hashes).
 - If scratch is not supplied, rendering remains correct and deterministic; only the optimization path is disabled.
 
 #### Adaptive render path
@@ -44,13 +45,31 @@ The diff renderer computes a bounded, coalesced set of **damage rectangles** (ce
 When row-cache data is available, the renderer can choose between:
 
 - sparse damage-rectangle rendering (default path for low dirty density)
-- per-row sweep rendering (selected when dirty-row density is high)
+- per-row sweep rendering (selected when dirty-row density crosses an adaptive threshold)
+
+Adaptive threshold policy is intentionally simple:
+
+- starts from a fixed base dirty-row percentage
+- applies bounded adjustments for very small frames, wide frames, and very-dirty frames
+- remains deterministic for identical inputs
+
+When rendering through damage rectangles, coalescing uses a row-indexed active-rectangle walk to avoid the legacy
+`rows * rect_count` full scan while preserving deterministic interval ordering.
 
 Both paths preserve:
 
 - grapheme/wide-cell safety
 - single-output-buffer semantics (`ZR_ERR_LIMIT` on truncation, `out_len = 0` on failure)
 - deterministic output for the same `(prev, next, caps, initial_term_state)`
+- no per-frame heap churn
+
+#### Internal telemetry counters
+
+The diff renderer records internal counters for diagnostics/debug trace plumbing:
+
+- sweep path usage vs damage path usage
+- scroll optimization attempted/hit flags
+- hash collision-guard hits (equal-hash rows that required exact byte compare fallback)
 
 #### SGR emission policy
 

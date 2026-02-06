@@ -75,6 +75,15 @@ struct zr_engine_t {
   uint64_t* diff_next_row_hashes;
   uint8_t* diff_dirty_rows;
   uint32_t diff_row_cap;
+  uint8_t diff_prev_hashes_valid;
+  uint8_t _pad_diff0[3];
+
+  /* --- Diff telemetry counters (internal-only, append-safe) --- */
+  uint64_t diff_sweep_frames_total;
+  uint64_t diff_damage_frames_total;
+  uint64_t diff_scroll_attempts_total;
+  uint64_t diff_scroll_hits_total;
+  uint64_t diff_collision_guard_hits_total;
 
   /* --- Input/event pipeline --- */
   zr_event_queue_t evq;
@@ -273,6 +282,7 @@ static void zr_engine_free_diff_row_scratch(zr_engine_t* e) {
   e->diff_next_row_hashes = NULL;
   e->diff_dirty_rows = NULL;
   e->diff_row_cap = 0u;
+  e->diff_prev_hashes_valid = 0u;
 }
 
 static zr_result_t zr_engine_alloc_diff_row_scratch(uint32_t rows, uint64_t** out_prev_hashes,
@@ -400,6 +410,7 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
   e->diff_next_row_hashes = new_next_hashes;
   e->diff_dirty_rows = new_dirty_rows;
   e->diff_row_cap = rows;
+  e->diff_prev_hashes_valid = 0u;
 
   /* A resize invalidates any cursor/style assumptions (best-effort). */
   memset(&e->term_state, 0, sizeof(e->term_state));

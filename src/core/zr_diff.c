@@ -78,13 +78,19 @@ static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
 #define ZR_STYLE_ATTR_REVERSE (1u << 3)
 #define ZR_STYLE_ATTR_STRIKE (1u << 4)
 
-/* Diff mode selection based on dirty-row density (percent). */
-#define ZR_DIFF_SWEEP_DIRTY_LINE_PCT 35u
+/* Adaptive sweep threshold tuning (dirty-row density, percent). */
+#define ZR_DIFF_SWEEP_DIRTY_LINE_PCT_BASE 35u
+#define ZR_DIFF_SWEEP_DIRTY_LINE_PCT_WIDE_FRAME 30u
+#define ZR_DIFF_SWEEP_DIRTY_LINE_PCT_SMALL_FRAME 45u
+#define ZR_DIFF_SWEEP_DIRTY_LINE_PCT_VERY_DIRTY 25u
+#define ZR_DIFF_SWEEP_VERY_DIRTY_NUM 3u
+#define ZR_DIFF_SWEEP_VERY_DIRTY_DEN 4u
 
 /* Scroll detection short-circuit thresholds. */
 #define ZR_SCROLL_MAX_DELTA 64u
 #define ZR_SCROLL_MIN_DIRTY_LINES 4u
 #define ZR_DIFF_DIRTY_ROW_COUNT_UNKNOWN 0xFFFFFFFFu
+#define ZR_DIFF_RECT_INDEX_NONE 0xFFFFFFFFu
 
 /* FNV-1a 64-bit row fingerprint constants. */
 #define ZR_FNV64_OFFSET_BASIS 14695981039346656037ull
@@ -717,7 +723,7 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev, const zr_fb_t* nex
   }
   if (scratch) {
     const bool any = (scratch->prev_row_hashes != NULL) || (scratch->next_row_hashes != NULL) ||
-                     (scratch->dirty_rows != NULL) || (scratch->row_cap != 0u);
+                     (scratch->dirty_rows != NULL) || (scratch->row_cap != 0u) || (scratch->prev_hashes_valid != 0u);
     if (any) {
       if (!scratch->prev_row_hashes || !scratch->next_row_hashes || !scratch->dirty_rows) {
         return ZR_ERR_INVALID_ARGUMENT;
@@ -751,10 +757,17 @@ static void zr_diff_prepare_row_cache(zr_diff_ctx_t* ctx, zr_diff_scratch_t* scr
   ctx->dirty_row_count = 0u;
   ctx->has_row_cache = true;
 
+  const bool reuse_prev_hashes = (scratch->prev_hashes_valid != 0u);
+
   for (uint32_t y = 0u; y < ctx->next->rows; y++) {
-    const uint64_t prev_hash = zr_row_hash64(ctx->prev, y);
+    uint64_t prev_hash = 0u;
+    if (reuse_prev_hashes) {
+      prev_hash = ctx->prev_row_hashes[y];
+    } else {
+      prev_hash = zr_row_hash64(ctx->prev, y);
+      ctx->prev_row_hashes[y] = prev_hash;
+    }
     const uint64_t next_hash = zr_row_hash64(ctx->next, y);
-    ctx->prev_row_hashes[y] = prev_hash;
     ctx->next_row_hashes[y] = next_hash;
 
     uint8_t dirty = 0u;
@@ -763,6 +776,7 @@ static void zr_diff_prepare_row_cache(zr_diff_ctx_t* ctx, zr_diff_scratch_t* scr
     } else if (!zr_row_eq_exact(ctx->prev, y, ctx->next, y)) {
       /* Collision guard: equal hash must still pass exact row-byte compare. */
       dirty = 1u;
+      ctx->stats.collision_guard_hits++;
     }
 
     ctx->dirty_rows[y] = dirty;
@@ -1110,6 +1124,28 @@ static bool zr_diff_row_known_clean(const zr_diff_ctx_t* ctx, uint32_t y) {
   return ctx->dirty_rows[y] == 0u;
 }
 
+static uint32_t zr_diff_sweep_threshold_pct(const zr_diff_ctx_t* ctx) {
+  if (!ctx || !ctx->next || ctx->next->rows == 0u) {
+    return ZR_DIFF_SWEEP_DIRTY_LINE_PCT_BASE;
+  }
+
+  uint32_t threshold_pct = ZR_DIFF_SWEEP_DIRTY_LINE_PCT_BASE;
+
+  if (ctx->next->rows <= 12u) {
+    threshold_pct = ZR_DIFF_SWEEP_DIRTY_LINE_PCT_SMALL_FRAME;
+  } else if (ctx->next->cols >= 120u) {
+    threshold_pct = ZR_DIFF_SWEEP_DIRTY_LINE_PCT_WIDE_FRAME;
+  }
+
+  const uint64_t dirty_scaled = (uint64_t)ctx->dirty_row_count * (uint64_t)ZR_DIFF_SWEEP_VERY_DIRTY_DEN;
+  const uint64_t very_dirty_scaled = (uint64_t)ctx->next->rows * (uint64_t)ZR_DIFF_SWEEP_VERY_DIRTY_NUM;
+  if (dirty_scaled >= very_dirty_scaled) {
+    threshold_pct = ZR_DIFF_SWEEP_DIRTY_LINE_PCT_VERY_DIRTY;
+  }
+
+  return threshold_pct;
+}
+
 static bool zr_diff_should_use_sweep(const zr_diff_ctx_t* ctx) {
   if (!ctx || !ctx->next || ctx->next->rows == 0u) {
     return false;
@@ -1118,12 +1154,13 @@ static bool zr_diff_should_use_sweep(const zr_diff_ctx_t* ctx) {
     return false;
   }
 
+  const uint32_t threshold_pct = zr_diff_sweep_threshold_pct(ctx);
   const uint64_t dirty_scaled = (uint64_t)ctx->dirty_row_count * 100u;
-  const uint64_t rows_scaled = (uint64_t)ctx->next->rows * (uint64_t)ZR_DIFF_SWEEP_DIRTY_LINE_PCT;
+  const uint64_t rows_scaled = (uint64_t)ctx->next->rows * (uint64_t)threshold_pct;
   return dirty_scaled >= rows_scaled;
 }
 
-static zr_result_t zr_diff_render_damage_coalesced(zr_diff_ctx_t* ctx) {
+static zr_result_t zr_diff_render_damage_coalesced_scan(zr_diff_ctx_t* ctx) {
   if (!ctx || !ctx->next) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1180,6 +1217,131 @@ static zr_result_t zr_diff_render_damage_coalesced(zr_diff_ctx_t* ctx) {
   return ZR_OK;
 }
 
+static void zr_diff_row_heads_reset(uint64_t* row_heads, uint32_t rows) {
+  if (!row_heads) {
+    return;
+  }
+  for (uint32_t y = 0u; y < rows; y++) {
+    row_heads[y] = (uint64_t)ZR_DIFF_RECT_INDEX_NONE;
+  }
+}
+
+static zr_result_t zr_diff_render_damage_coalesced_indexed(zr_diff_ctx_t* ctx) {
+  if (!ctx || !ctx->next || !ctx->prev_row_hashes) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  const uint32_t rows = ctx->next->rows;
+  uint64_t* row_heads = ctx->prev_row_hashes;
+  zr_diff_row_heads_reset(row_heads, rows);
+
+  /*
+    Build per-row rectangle-start lists in index order.
+
+    Why: Reverse insertion keeps each start-list in ascending rectangle index,
+    preserving the same span flush order as the legacy row*rect_count scan.
+  */
+  for (uint32_t i = ctx->damage.rect_count; i > 0u; i--) {
+    const uint32_t idx = i - 1u;
+    zr_damage_rect_t* r = &ctx->damage.rects[idx];
+    const uint32_t start_y = r->y0;
+    if (start_y >= rows) {
+      continue;
+    }
+    const uint32_t head = (uint32_t)row_heads[start_y];
+    r->y0 = head;
+    row_heads[start_y] = (uint64_t)idx;
+  }
+
+  uint32_t active_head = ZR_DIFF_RECT_INDEX_NONE;
+  uint32_t active_tail = ZR_DIFF_RECT_INDEX_NONE;
+
+  for (uint32_t y = 0u; y < rows; y++) {
+    uint32_t start_idx = (uint32_t)row_heads[y];
+    while (start_idx != ZR_DIFF_RECT_INDEX_NONE) {
+      zr_damage_rect_t* r = &ctx->damage.rects[start_idx];
+      const uint32_t next_start = r->y0;
+      r->y0 = ZR_DIFF_RECT_INDEX_NONE;
+      if (active_tail == ZR_DIFF_RECT_INDEX_NONE) {
+        active_head = start_idx;
+        active_tail = start_idx;
+      } else {
+        ctx->damage.rects[active_tail].y0 = start_idx;
+        active_tail = start_idx;
+      }
+      start_idx = next_start;
+    }
+
+    uint32_t span_start = 0u;
+    uint32_t span_end = 0u;
+    bool have_span = false;
+
+    uint32_t prev_active = ZR_DIFF_RECT_INDEX_NONE;
+    uint32_t idx = active_head;
+    while (idx != ZR_DIFF_RECT_INDEX_NONE) {
+      zr_damage_rect_t* r = &ctx->damage.rects[idx];
+      const uint32_t next_active = r->y0;
+
+      if (!have_span) {
+        span_start = r->x0;
+        span_end = r->x1;
+        have_span = true;
+      } else {
+        const bool overlaps_or_touches = (r->x0 <= span_end + 1u) && (r->x1 + 1u >= span_start);
+        if (overlaps_or_touches) {
+          if (r->x0 < span_start) {
+            span_start = r->x0;
+          }
+          if (r->x1 > span_end) {
+            span_end = r->x1;
+          }
+        } else {
+          const zr_result_t rc = zr_diff_render_span(ctx, y, span_start, span_end);
+          if (rc != ZR_OK) {
+            return rc;
+          }
+          span_start = r->x0;
+          span_end = r->x1;
+        }
+      }
+
+      if (r->y1 == y) {
+        if (prev_active == ZR_DIFF_RECT_INDEX_NONE) {
+          active_head = next_active;
+        } else {
+          ctx->damage.rects[prev_active].y0 = next_active;
+        }
+        if (active_tail == idx) {
+          active_tail = prev_active;
+        }
+      } else {
+        prev_active = idx;
+      }
+
+      idx = next_active;
+    }
+
+    if (have_span) {
+      const zr_result_t rc = zr_diff_render_span(ctx, y, span_start, span_end);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+    }
+  }
+
+  return ZR_OK;
+}
+
+static zr_result_t zr_diff_render_damage_coalesced(zr_diff_ctx_t* ctx) {
+  if (!ctx || !ctx->next) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!ctx->has_row_cache || !ctx->prev_row_hashes) {
+    return zr_diff_render_damage_coalesced_scan(ctx);
+  }
+  return zr_diff_render_damage_coalesced_indexed(ctx);
+}
+
 static zr_result_t zr_diff_build_damage(zr_diff_ctx_t* ctx, const zr_limits_t* lim, zr_damage_rect_t* scratch,
                                         uint32_t scratch_cap) {
   if (!ctx || !ctx->prev || !ctx->next || !lim || !scratch) {
@@ -1233,9 +1395,7 @@ static zr_result_t zr_diff_build_damage(zr_diff_ctx_t* ctx, const zr_limits_t* l
   ctx->stats.damage_rects = ctx->damage.rect_count;
   ctx->stats.damage_cells = zr_damage_cells(&ctx->damage);
   ctx->stats.damage_full_frame = ctx->damage.full_frame;
-  ctx->stats._pad0[0] = 0u;
-  ctx->stats._pad0[1] = 0u;
-  ctx->stats._pad0[2] = 0u;
+  ctx->stats._pad0 = 0u;
 
   return ZR_OK;
 }
@@ -1289,9 +1449,7 @@ static void zr_diff_finalize_damage_stats_sweep(zr_diff_ctx_t* ctx) {
   ctx->stats.damage_rects = ctx->stats.dirty_lines;
   ctx->stats.damage_cells = ctx->stats.dirty_cells;
   ctx->stats.damage_full_frame = 0u;
-  ctx->stats._pad0[0] = 0u;
-  ctx->stats._pad0[1] = 0u;
-  ctx->stats._pad0[2] = 0u;
+  ctx->stats._pad0 = 0u;
 }
 
 static zr_result_t zr_diff_render_sweep_rows(zr_diff_ctx_t* ctx, uint32_t skip_top, uint32_t skip_bottom,
@@ -1326,6 +1484,7 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   if (!ctx || !out_skip || !out_skip_top || !out_skip_bottom) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  ctx->stats.scroll_opt_attempted = 1u;
   *out_skip = false;
   *out_skip_top = 0u;
   *out_skip_bottom = 0u;
@@ -1336,6 +1495,7 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   if (!plan.active) {
     return ZR_OK;
   }
+  ctx->stats.scroll_opt_hit = 1u;
 
   if (!zr_emit_decstbm(&ctx->sb, &ctx->ts, plan.top, plan.bottom)) {
     return ZR_ERR_LIMIT;
@@ -1429,9 +1589,7 @@ zr_result_t zr_diff_render_ex(const zr_fb_t* prev, const zr_fb_t* next, const pl
     ctx.stats.damage_full_frame = 1u;
     ctx.stats.damage_rects = 1u;
     ctx.stats.damage_cells = zr_u32_mul_clamp(next->cols, next->rows);
-    ctx.stats._pad0[0] = 0u;
-    ctx.stats._pad0[1] = 0u;
-    ctx.stats._pad0[2] = 0u;
+    ctx.stats._pad0 = 0u;
 
     for (uint32_t y = 0u; y < next->rows; y++) {
       if (y >= skip_top && y <= skip_bottom) {
@@ -1445,6 +1603,8 @@ zr_result_t zr_diff_render_ex(const zr_fb_t* prev, const zr_fb_t* next, const pl
     }
   } else {
     if (zr_diff_should_use_sweep(&ctx)) {
+      ctx.stats.path_sweep_used = 1u;
+      ctx.stats.path_damage_used = 0u;
       ctx.stats.dirty_lines = 0u;
       ctx.stats.dirty_cells = 0u;
       const zr_result_t rc = zr_diff_render_sweep_rows(&ctx, 0u, 0u, false);
@@ -1453,6 +1613,8 @@ zr_result_t zr_diff_render_ex(const zr_fb_t* prev, const zr_fb_t* next, const pl
         return rc;
       }
     } else {
+      ctx.stats.path_sweep_used = 0u;
+      ctx.stats.path_damage_used = 1u;
       zr_result_t rc = zr_diff_build_damage(&ctx, lim, scratch_damage_rects, scratch_damage_rect_cap);
       if (rc != ZR_OK) {
         zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);

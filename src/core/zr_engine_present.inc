@@ -6,6 +6,21 @@
   static helper visibility.
 */
 
+typedef struct zr_diff_telemetry_record_t {
+  uint64_t frame_id;
+  uint64_t sweep_frames_total;
+  uint64_t damage_frames_total;
+  uint64_t scroll_attempts_total;
+  uint64_t scroll_hits_total;
+  uint64_t collision_guard_hits_total;
+  uint8_t path_sweep_used;
+  uint8_t path_damage_used;
+  uint8_t scroll_opt_attempted;
+  uint8_t scroll_opt_hit;
+  uint32_t collision_guard_hits_last;
+  uint32_t _pad0;
+} zr_diff_telemetry_record_t;
+
 /*
   Select the framebuffer to present for this frame.
 
@@ -52,6 +67,7 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* prese
   scratch.next_row_hashes = e->diff_next_row_hashes;
   scratch.dirty_rows = e->diff_dirty_rows;
   scratch.row_cap = e->diff_row_cap;
+  scratch.prev_hashes_valid = e->diff_prev_hashes_valid;
 
   zr_result_t rc = zr_diff_render_ex(&e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired,
                                      &e->cfg_runtime.limits, e->damage_rects, e->damage_rect_cap, &scratch,
@@ -90,6 +106,20 @@ static zr_result_t zr_engine_present_write(zr_engine_t* e, size_t out_len) {
   return plat_write_output(e->plat, e->out_buf, (int32_t)out_len);
 }
 
+static void zr_engine_swap_diff_hashes_on_commit(zr_engine_t* e) {
+  if (!e || !e->diff_prev_row_hashes || !e->diff_next_row_hashes || e->diff_row_cap == 0u) {
+    if (e) {
+      e->diff_prev_hashes_valid = 0u;
+    }
+    return;
+  }
+
+  uint64_t* tmp = e->diff_prev_row_hashes;
+  e->diff_prev_row_hashes = e->diff_next_row_hashes;
+  e->diff_next_row_hashes = tmp;
+  e->diff_prev_hashes_valid = 1u;
+}
+
 /* Record a frame debug trace after present commits. */
 static void zr_engine_trace_frame(zr_engine_t* e, uint64_t frame_id, size_t out_len, const zr_diff_stats_t* stats) {
   if (!e || !e->debug_trace || !stats) {
@@ -114,6 +144,33 @@ static void zr_engine_trace_frame(zr_engine_t* e, uint64_t frame_id, size_t out_
   (void)zr_debug_trace_frame(e->debug_trace, ZR_DEBUG_CODE_FRAME_PRESENT, zr_engine_now_us(), &rec);
 }
 
+static void zr_engine_trace_diff_telemetry(zr_engine_t* e, uint64_t frame_id, const zr_diff_stats_t* stats) {
+  if (!e || !e->debug_trace || !stats) {
+    return;
+  }
+  if (!zr_debug_trace_enabled(e->debug_trace, ZR_DEBUG_CAT_PERF, ZR_DEBUG_SEV_INFO)) {
+    return;
+  }
+
+  zr_diff_telemetry_record_t rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.frame_id = frame_id;
+  rec.sweep_frames_total = e->diff_sweep_frames_total;
+  rec.damage_frames_total = e->diff_damage_frames_total;
+  rec.scroll_attempts_total = e->diff_scroll_attempts_total;
+  rec.scroll_hits_total = e->diff_scroll_hits_total;
+  rec.collision_guard_hits_total = e->diff_collision_guard_hits_total;
+  rec.path_sweep_used = stats->path_sweep_used;
+  rec.path_damage_used = stats->path_damage_used;
+  rec.scroll_opt_attempted = stats->scroll_opt_attempted;
+  rec.scroll_opt_hit = stats->scroll_opt_hit;
+  rec.collision_guard_hits_last = stats->collision_guard_hits;
+  rec._pad0 = 0u;
+
+  (void)zr_debug_trace_record(e->debug_trace, ZR_DEBUG_CAT_PERF, ZR_DEBUG_SEV_INFO, ZR_DEBUG_CODE_PERF_DIFF_PATH,
+                              zr_engine_now_us(), &rec, (uint32_t)sizeof(rec));
+}
+
 static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len, const zr_term_state_t* final_ts,
                                      const zr_diff_stats_t* stats, uint32_t diff_us, uint32_t write_us) {
   if (!e || !final_ts || !stats) {
@@ -127,6 +184,7 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
   } else {
     zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
   }
+  zr_engine_swap_diff_hashes_on_commit(e);
   e->term_state = *final_ts;
 
   e->metrics.frame_index++;
@@ -143,9 +201,16 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
   e->metrics._pad2[1] = 0u;
   e->metrics._pad2[2] = 0u;
 
+  e->diff_sweep_frames_total += (uint64_t)stats->path_sweep_used;
+  e->diff_damage_frames_total += (uint64_t)stats->path_damage_used;
+  e->diff_scroll_attempts_total += (uint64_t)stats->scroll_opt_attempted;
+  e->diff_scroll_hits_total += (uint64_t)stats->scroll_opt_hit;
+  e->diff_collision_guard_hits_total += (uint64_t)stats->collision_guard_hits;
+
   /* Update debug trace frame ID and record frame data. */
   if (e->debug_trace) {
     zr_engine_trace_frame(e, frame_id_presented, out_len, stats);
+    zr_engine_trace_diff_telemetry(e, frame_id_presented, stats);
     zr_debug_trace_set_frame(e->debug_trace, zr_engine_trace_frame_id(e));
   }
 }

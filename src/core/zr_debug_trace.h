@@ -68,6 +68,7 @@ typedef enum zr_debug_code_t {
 
   /* Perf codes (ZR_DEBUG_CAT_PERF) */
   ZR_DEBUG_CODE_PERF_TIMING = 0x0600,
+  ZR_DEBUG_CODE_PERF_DIFF_PATH = 0x0601,
 } zr_debug_code_t;
 
 /*

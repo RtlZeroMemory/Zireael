@@ -205,8 +205,8 @@ static bool zr_posix_term_supports_vt_common(void) {
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  static const char* kVtTerms[] = {
-      "xterm", "screen", "tmux", "rxvt", "vt", "linux", "alacritty", "kitty", "wezterm", "foot", "st", "rio"};
+  static const char* kVtTerms[] = {"xterm",     "screen", "tmux",    "rxvt", "vt", "linux",
+                                   "alacritty", "kitty",  "wezterm", "foot", "st", "rio"};
   return zr_posix_str_has_any(term, kVtTerms, sizeof(kVtTerms) / sizeof(kVtTerms[0]));
 }
 
@@ -228,8 +228,8 @@ static uint8_t zr_posix_detect_cursor_shape(void) {
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  static const char* kCursorTerms[] = {"xterm", "screen", "tmux", "rxvt", "alacritty",
-                                       "kitty", "wezterm", "foot", "st", "rio"};
+  static const char* kCursorTerms[] = {"xterm", "screen",  "tmux", "rxvt", "alacritty",
+                                       "kitty", "wezterm", "foot", "st",   "rio"};
   return zr_posix_str_has_any(term, kCursorTerms, sizeof(kCursorTerms) / sizeof(kCursorTerms[0])) ? 1u : 0u;
 }
 

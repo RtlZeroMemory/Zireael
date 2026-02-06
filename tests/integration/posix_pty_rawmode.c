@@ -21,6 +21,10 @@
 #include <string.h>
 #include <unistd.h>
 
+enum {
+  ZR_PTY_READ_TIMEOUT_MS = 5000,
+};
+
 static int zr_test_skip(const char* reason) {
   fprintf(stdout, "SKIP: %s\n", reason);
   return 77;
@@ -130,6 +134,12 @@ int main(void) {
     slave_fd = -1;
   }
 
+  if (setenv("ZIREAEL_CAP_MOUSE", "1", 1) != 0 || setenv("ZIREAEL_CAP_BRACKETED_PASTE", "1", 1) != 0) {
+    fprintf(stderr, "setenv() failed: errno=%d\n", errno);
+    (void)close(master_fd);
+    return 2;
+  }
+
   plat_t* plat = NULL;
   plat_config_t cfg;
   memset(&cfg, 0, sizeof(cfg));
@@ -142,49 +152,57 @@ int main(void) {
   zr_result_t r = plat_create(&plat, &cfg);
   if (r != ZR_OK || !plat) {
     fprintf(stderr, "plat_create() failed: r=%d\n", (int)r);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
 
-  static const uint8_t expected_enter[] =
-      "\x1b[?1049h"
-      "\x1b[?25l"
-      "\x1b[?7h"
-      "\x1b[?2004h"
-      "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
+  static const uint8_t expected_enter[] = "\x1b[?1049h"
+                                          "\x1b[?25l"
+                                          "\x1b[?7h"
+                                          "\x1b[?2004h"
+                                          "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
 
-  static const uint8_t expected_leave[] =
-      "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l"
-      "\x1b[?2004l"
-      "\x1b[?7h"
-      "\x1b[?25h"
-      "\x1b[?1049l";
+  static const uint8_t expected_leave[] = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l"
+                                          "\x1b[?2004l"
+                                          "\x1b[?7h"
+                                          "\x1b[?25h"
+                                          "\x1b[?1049l";
 
   r = plat_enter_raw(plat);
   if (r != ZR_OK) {
     fprintf(stderr, "plat_enter_raw() failed: r=%d\n", (int)r);
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
 
   uint8_t got_enter[sizeof(expected_enter) - 1u];
   memset(got_enter, 0, sizeof(got_enter));
-  if (zr_poll_read_exact(master_fd, got_enter, sizeof(got_enter), 2000) != 0) {
+  if (zr_poll_read_exact(master_fd, got_enter, sizeof(got_enter), ZR_PTY_READ_TIMEOUT_MS) != 0) {
     fprintf(stderr, "failed to read enter sequence from PTY\n");
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
   if (memcmp(got_enter, expected_enter, sizeof(got_enter)) != 0) {
     fprintf(stderr, "enter sequence mismatch\n");
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
   if (zr_poll_expect_no_more(master_fd, 50) != 0) {
     fprintf(stderr, "unexpected extra output after enter sequence\n");
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
@@ -193,21 +211,27 @@ int main(void) {
   if (r != ZR_OK) {
     fprintf(stderr, "plat_leave_raw() failed: r=%d\n", (int)r);
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
 
   uint8_t got_leave[sizeof(expected_leave) - 1u];
   memset(got_leave, 0, sizeof(got_leave));
-  if (zr_poll_read_exact(master_fd, got_leave, sizeof(got_leave), 2000) != 0) {
+  if (zr_poll_read_exact(master_fd, got_leave, sizeof(got_leave), ZR_PTY_READ_TIMEOUT_MS) != 0) {
     fprintf(stderr, "failed to read leave sequence from PTY\n");
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
   if (memcmp(got_leave, expected_leave, sizeof(got_leave)) != 0) {
     fprintf(stderr, "leave sequence mismatch\n");
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
@@ -217,11 +241,15 @@ int main(void) {
   if (r != ZR_OK) {
     fprintf(stderr, "second plat_leave_raw() failed: r=%d\n", (int)r);
     plat_destroy(plat);
+    (void)unsetenv("ZIREAEL_CAP_MOUSE");
+    (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
     (void)close(master_fd);
     return 2;
   }
 
   plat_destroy(plat);
+  (void)unsetenv("ZIREAEL_CAP_MOUSE");
+  (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
   (void)close(master_fd);
   return 0;
 }

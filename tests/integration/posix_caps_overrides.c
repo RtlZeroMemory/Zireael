@@ -118,8 +118,7 @@ int main(void) {
 
   if (caps.supports_mouse != 0u || caps.supports_bracketed_paste != 0u || caps.supports_osc52 != 0u ||
       caps.supports_sync_update != 1u || caps.supports_scroll_region != 0u || caps.supports_cursor_shape != 0u) {
-    fprintf(stderr,
-            "override mismatch: mouse=%u paste=%u osc52=%u sync=%u scroll=%u cursor=%u\n",
+    fprintf(stderr, "override mismatch: mouse=%u paste=%u osc52=%u sync=%u scroll=%u cursor=%u\n",
             (unsigned)caps.supports_mouse, (unsigned)caps.supports_bracketed_paste, (unsigned)caps.supports_osc52,
             (unsigned)caps.supports_sync_update, (unsigned)caps.supports_scroll_region,
             (unsigned)caps.supports_cursor_shape);

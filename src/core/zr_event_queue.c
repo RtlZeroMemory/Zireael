@@ -9,9 +9,9 @@
 #include "core/zr_event_queue.h"
 
 #include "util/zr_assert.h"
+#include "util/zr_thread_yield.h"
 
 #include <string.h>
-#include <threads.h>
 
 enum {
   ZR_EVQ_LOCK_YIELD_MASK = 63u,
@@ -26,7 +26,7 @@ static void zr_evq_lock(zr_event_queue_t* q) {
   while (atomic_flag_test_and_set_explicit(&q->lock, memory_order_acquire)) {
     spins++;
     if ((spins & ZR_EVQ_LOCK_YIELD_MASK) == 0u) {
-      thrd_yield();
+      zr_thread_yield();
     }
   }
 }

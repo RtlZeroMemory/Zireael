@@ -56,6 +56,19 @@ static void zr_set_cell_utf8(zr_fb_t* fb,
   c->style = style;
 }
 
+static uint32_t zr_count_byte(const uint8_t* bytes, size_t len, uint8_t needle) {
+  if (!bytes) {
+    return 0u;
+  }
+  uint32_t count = 0u;
+  for (size_t i = 0u; i < len; i++) {
+    if (bytes[i] == needle) {
+      count++;
+    }
+  }
+  return count;
+}
+
 ZR_TEST_UNIT(diff_span_separates_and_uses_cup) {
   zr_fb_t prev = zr_make_fb_1row(4u);
   zr_fb_t next = zr_make_fb_1row(4u);
@@ -184,6 +197,165 @@ ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
 
   const uint8_t expected[] = {(uint8_t)'X'};
   ZR_ASSERT_EQ_U32(out_len, 1u);
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(diff_sgr_attr_clear_falls_back_to_reset) {
+  zr_fb_t prev = zr_make_fb_1row(1u);
+  zr_fb_t next = zr_make_fb_1row(1u);
+
+  zr_style_t s_prev;
+  s_prev.fg_rgb = 0x00AA0000u;
+  s_prev.bg_rgb = 0x00000000u;
+  s_prev.attrs = 1u;
+  s_prev.reserved = 0u;
+
+  zr_style_t s_next = s_prev;
+  s_next.attrs = 0u;
+
+  zr_set_cell_ascii(&prev, 0u, (uint8_t)'X', s_prev);
+  zr_set_cell_ascii(&next, 0u, (uint8_t)'X', s_next);
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.style = s_prev;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[128];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  const uint8_t expected[] = {
+      0x1Bu, (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';',
+      (uint8_t)'2', (uint8_t)';', (uint8_t)'1', (uint8_t)'7', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
+      (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'2',
+      (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)'m',
+      (uint8_t)'X',
+  };
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(diff_damage_coalescing_keeps_unsorted_spans) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 64u, 2u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&next, 64u, 2u), ZR_OK);
+
+  zr_style_t s = {0u, 0u, 0u, 0u};
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  zr_cell_t* c = zr_fb_cell(&next, 50u, 0u);
+  ZR_ASSERT_TRUE(c != NULL);
+  memset(c->glyph, 0, sizeof(c->glyph));
+  c->glyph[0] = (uint8_t)'A';
+  c->glyph_len = 1u;
+  c->width = 1u;
+  c->style = s;
+
+  c = zr_fb_cell(&next, 50u, 1u);
+  ZR_ASSERT_TRUE(c != NULL);
+  memset(c->glyph, 0, sizeof(c->glyph));
+  c->glyph[0] = (uint8_t)'A';
+  c->glyph_len = 1u;
+  c->width = 1u;
+  c->style = s;
+
+  c = zr_fb_cell(&next, 10u, 1u);
+  ZR_ASSERT_TRUE(c != NULL);
+  memset(c->glyph, 0, sizeof(c->glyph));
+  c->glyph[0] = (uint8_t)'B';
+  c->glyph_len = 1u;
+  c->width = 1u;
+  c->style = s;
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.style = s;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_count_byte(out, out_len, (uint8_t)'A'), 2u);
+  ZR_ASSERT_EQ_U32(zr_count_byte(out, out_len, (uint8_t)'B'), 1u);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
+  zr_fb_t prev = zr_make_fb_1row(1u);
+  zr_fb_t next = zr_make_fb_1row(1u);
+
+  zr_style_t s_prev = {0x00112233u, 0x00000000u, 0u, 0u};
+  zr_style_t s_next = s_prev;
+  s_next.reserved = 1u;
+
+  zr_set_cell_ascii(&prev, 0u, (uint8_t)'X', s_prev);
+  zr_set_cell_ascii(&next, 0u, (uint8_t)'X', s_next);
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.style = s_prev;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[64];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                       &out_len, &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  const uint8_t expected[] = {(uint8_t)'X'};
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
 
   zr_fb_release(&prev);

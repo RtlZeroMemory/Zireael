@@ -70,6 +70,10 @@ struct zr_engine_t {
   /* --- Damage scratch (rect list is internal; only metrics are exported) --- */
   zr_damage_rect_t* damage_rects;
   uint32_t damage_rect_cap;
+  uint64_t* diff_prev_row_hashes;
+  uint64_t* diff_next_row_hashes;
+  uint8_t* diff_dirty_rows;
+  uint32_t diff_row_cap;
 
   /* --- Input/event pipeline --- */
   zr_event_queue_t evq;
@@ -257,6 +261,65 @@ static int32_t zr_engine_output_wait_timeout_ms(const zr_engine_runtime_config_t
   return (int32_t)ms_u32;
 }
 
+static void zr_engine_free_diff_row_scratch(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+  free(e->diff_prev_row_hashes);
+  free(e->diff_next_row_hashes);
+  free(e->diff_dirty_rows);
+  e->diff_prev_row_hashes = NULL;
+  e->diff_next_row_hashes = NULL;
+  e->diff_dirty_rows = NULL;
+  e->diff_row_cap = 0u;
+}
+
+static zr_result_t zr_engine_alloc_diff_row_scratch(uint32_t rows, uint64_t** out_prev_hashes, uint64_t** out_next_hashes,
+                                                     uint8_t** out_dirty_rows) {
+  if (!out_prev_hashes || !out_next_hashes || !out_dirty_rows) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (rows == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  *out_prev_hashes = NULL;
+  *out_next_hashes = NULL;
+  *out_dirty_rows = NULL;
+
+  size_t hash_bytes = 0u;
+  if (!zr_checked_mul_size((size_t)rows, sizeof(uint64_t), &hash_bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+  size_t dirty_bytes = 0u;
+  if (!zr_checked_mul_size((size_t)rows, sizeof(uint8_t), &dirty_bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  (void)hash_bytes;
+  (void)dirty_bytes;
+
+  *out_prev_hashes = (uint64_t*)calloc((size_t)rows, sizeof(uint64_t));
+  if (!*out_prev_hashes) {
+    return ZR_ERR_OOM;
+  }
+  *out_next_hashes = (uint64_t*)calloc((size_t)rows, sizeof(uint64_t));
+  if (!*out_next_hashes) {
+    free(*out_prev_hashes);
+    *out_prev_hashes = NULL;
+    return ZR_ERR_OOM;
+  }
+  *out_dirty_rows = (uint8_t*)calloc((size_t)rows, sizeof(uint8_t));
+  if (!*out_dirty_rows) {
+    free(*out_prev_hashes);
+    free(*out_next_hashes);
+    *out_prev_hashes = NULL;
+    *out_next_hashes = NULL;
+    return ZR_ERR_OOM;
+  }
+  return ZR_OK;
+}
+
 static void zr_engine_fb_copy(const zr_fb_t* src, zr_fb_t* dst) {
   if (!src || !dst || !src->cells || !dst->cells) {
     return;
@@ -296,6 +359,9 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
   zr_fb_t prev = {0u, 0u, NULL};
   zr_fb_t next = {0u, 0u, NULL};
   zr_fb_t stage = {0u, 0u, NULL};
+  uint64_t* new_prev_hashes = NULL;
+  uint64_t* new_next_hashes = NULL;
+  uint8_t* new_dirty_rows = NULL;
 
   zr_result_t rc = zr_fb_init(&prev, cols, rows);
   if (rc != ZR_OK) {
@@ -313,13 +379,26 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
     return rc;
   }
 
+  rc = zr_engine_alloc_diff_row_scratch(rows, &new_prev_hashes, &new_next_hashes, &new_dirty_rows);
+  if (rc != ZR_OK) {
+    zr_fb_release(&prev);
+    zr_fb_release(&next);
+    zr_fb_release(&stage);
+    return rc;
+  }
+
   zr_fb_release(&e->fb_prev);
   zr_fb_release(&e->fb_next);
   zr_fb_release(&e->fb_stage);
+  zr_engine_free_diff_row_scratch(e);
 
   e->fb_prev = prev;
   e->fb_next = next;
   e->fb_stage = stage;
+  e->diff_prev_row_hashes = new_prev_hashes;
+  e->diff_next_row_hashes = new_next_hashes;
+  e->diff_dirty_rows = new_dirty_rows;
+  e->diff_row_cap = rows;
 
   /* A resize invalidates any cursor/style assumptions (best-effort). */
   memset(&e->term_state, 0, sizeof(e->term_state));
@@ -909,6 +988,8 @@ static void zr_engine_release_heap_state(zr_engine_t* e) {
   free(e->damage_rects);
   e->damage_rects = NULL;
   e->damage_rect_cap = 0u;
+
+  zr_engine_free_diff_row_scratch(e);
 
   free(e->ev_storage);
   e->ev_storage = NULL;

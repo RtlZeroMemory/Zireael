@@ -1,5 +1,5 @@
 # fixture_id: diff_002_style_change_single_glyph
-# purpose: single glyph style change emits deterministic absolute SGR (v1).
+# purpose: single glyph style change emits deterministic delta SGR when safe.
 #
 # pinned:
 #   - caps.color_mode = RGB (truecolor)
@@ -9,4 +9,3 @@
 #
 # prev: " "
 # next: "A" with style fg=#FF0000 bg=#000000 attrs=bold
-

@@ -46,9 +46,17 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* prese
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_result_t rc = zr_diff_render(
-      &e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired, &e->cfg_runtime.limits, e->damage_rects,
-      e->damage_rect_cap, e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts, stats);
+  zr_diff_scratch_t scratch;
+  memset(&scratch, 0, sizeof(scratch));
+  scratch.prev_row_hashes = e->diff_prev_row_hashes;
+  scratch.next_row_hashes = e->diff_next_row_hashes;
+  scratch.dirty_rows = e->diff_dirty_rows;
+  scratch.row_cap = e->diff_row_cap;
+
+  zr_result_t rc = zr_diff_render_ex(&e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired,
+                                     &e->cfg_runtime.limits, e->damage_rects, e->damage_rect_cap, &scratch,
+                                     e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len,
+                                     final_ts, stats);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -107,7 +115,7 @@ static void zr_engine_trace_frame(zr_engine_t* e, uint64_t frame_id, size_t out_
 }
 
 static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len, const zr_term_state_t* final_ts,
-                                     const zr_diff_stats_t* stats) {
+                                     const zr_diff_stats_t* stats, uint32_t diff_us, uint32_t write_us) {
   if (!e || !final_ts || !stats) {
     return;
   }
@@ -129,6 +137,8 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
   e->metrics.damage_rects_last_frame = stats->damage_rects;
   e->metrics.damage_cells_last_frame = stats->damage_cells;
   e->metrics.damage_full_frame = stats->damage_full_frame;
+  e->metrics.us_diff_last_frame = diff_us;
+  e->metrics.us_write_last_frame = write_us;
   e->metrics._pad2[0] = 0u;
   e->metrics._pad2[1] = 0u;
   e->metrics._pad2[2] = 0u;
@@ -167,21 +177,41 @@ zr_result_t engine_present(zr_engine_t* e) {
   zr_diff_stats_t stats;
   const zr_fb_t* present_fb = NULL;
   bool presented_stage = false;
+  uint32_t diff_us = 0u;
+  uint32_t write_us = 0u;
 
   zr_result_t rc = zr_engine_present_pick_fb(e, &present_fb, &presented_stage);
   if (rc != ZR_OK) {
     return rc;
   }
 
+  const uint64_t diff_start_us = zr_engine_now_us();
   rc = zr_engine_present_render(e, present_fb, &out_len, &final_ts, &stats);
   if (rc != ZR_OK) {
     return rc;
   }
+
+  {
+    const uint64_t diff_end_us = zr_engine_now_us();
+    if (diff_end_us >= diff_start_us) {
+      const uint64_t delta = diff_end_us - diff_start_us;
+      diff_us = (delta > (uint64_t)UINT32_MAX) ? UINT32_MAX : (uint32_t)delta;
+    }
+  }
+
+  const uint64_t write_start_us = zr_engine_now_us();
   rc = zr_engine_present_write(e, out_len);
   if (rc != ZR_OK) {
     return rc;
   }
+  {
+    const uint64_t write_end_us = zr_engine_now_us();
+    if (write_end_us >= write_start_us) {
+      const uint64_t delta = write_end_us - write_start_us;
+      write_us = (delta > (uint64_t)UINT32_MAX) ? UINT32_MAX : (uint32_t)delta;
+    }
+  }
 
-  zr_engine_present_commit(e, presented_stage, out_len, &final_ts, &stats);
+  zr_engine_present_commit(e, presented_stage, out_len, &final_ts, &stats, diff_us, write_us);
   return ZR_OK;
 }

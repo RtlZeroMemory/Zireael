@@ -39,6 +39,19 @@ typedef struct zr_diff_stats_t {
   size_t   bytes_emitted;
 } zr_diff_stats_t;
 
+typedef struct zr_diff_scratch_t {
+  /*
+    Optional per-line scratch caches.
+
+    Why: Lets callers supply engine-owned storage so the diff path can avoid
+    per-frame allocations while caching row fingerprints/dirty-line hints.
+  */
+  uint64_t* prev_row_hashes;
+  uint64_t* next_row_hashes;
+  uint8_t*  dirty_rows;
+  uint32_t  row_cap;
+} zr_diff_scratch_t;
+
 /*
   zr_diff_render:
     - Pure function: does not mutate framebuffers.
@@ -67,5 +80,25 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
                            size_t* out_len,
                            zr_term_state_t* out_final_term_state,
                            zr_diff_stats_t* out_stats);
+
+/*
+  Extended entrypoint for engine-internal callsites that can provide
+  optional per-line scratch storage.
+*/
+zr_result_t zr_diff_render_ex(const zr_fb_t* prev,
+                              const zr_fb_t* next,
+                              const plat_caps_t* caps,
+                              const zr_term_state_t* initial_term_state,
+                              const zr_cursor_state_t* desired_cursor_state,
+                              const zr_limits_t* lim,
+                              zr_damage_rect_t* scratch_damage_rects,
+                              uint32_t scratch_damage_rect_cap,
+                              zr_diff_scratch_t* scratch,
+                              uint8_t enable_scroll_optimizations,
+                              uint8_t* out_buf,
+                              size_t out_cap,
+                              size_t* out_len,
+                              zr_term_state_t* out_final_term_state,
+                              zr_diff_stats_t* out_stats);
 
 #endif /* ZR_CORE_ZR_DIFF_H_INCLUDED */

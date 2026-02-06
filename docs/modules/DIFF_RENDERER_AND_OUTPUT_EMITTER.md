@@ -31,6 +31,35 @@ The diff renderer computes a bounded, coalesced set of **damage rectangles** (ce
 - The rectangle list is cap-bounded by `zr_limits_t.diff_max_damage_rects`. When exceeded, the renderer falls back to a
   “full damage” mode for that frame and reports it via metrics (`damage_full_frame = 1`).
 
+#### Optional row-cache scratch
+
+`zr_diff_render_ex(...)` accepts optional caller-owned row scratch (`zr_diff_scratch_t`):
+
+- `prev_row_hashes[]`, `next_row_hashes[]`, `dirty_rows[]` are sized to at least framebuffer row count.
+- The renderer precomputes per-row fingerprints and dirty hints once per frame.
+- If scratch is not supplied, rendering remains correct and deterministic; only the optimization path is disabled.
+
+#### Adaptive render path
+
+When row-cache data is available, the renderer can choose between:
+
+- sparse damage-rectangle rendering (default path for low dirty density)
+- per-row sweep rendering (selected when dirty-row density is high)
+
+Both paths preserve:
+
+- grapheme/wide-cell safety
+- single-output-buffer semantics (`ZR_ERR_LIMIT` on truncation, `out_len = 0` on failure)
+- deterministic output for the same `(prev, next, caps, initial_term_state)`
+
+#### SGR emission policy
+
+Style changes use a deterministic delta-then-fallback policy:
+
+- add-only attr/color changes emit compact delta SGR parameters
+- any attribute clear falls back to absolute reset-based SGR (`0;...m`) to avoid backend-specific clear-code assumptions
+- no partial SGR sequences are emitted; each emitted CSI is syntactically complete
+
 ### Cursor control
 
 Cursor control is applied as part of output emission:

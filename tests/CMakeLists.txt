@@ -90,6 +90,17 @@ target_compile_definitions(zireael_unit_tests PRIVATE
 target_link_libraries(zireael_unit_tests PRIVATE zireael_build_settings)
 target_link_libraries(zireael_unit_tests PRIVATE zireael_unit_lib)
 
+add_executable(zireael_perf_diff_hotpath
+        perf/diff_hotpath_bench.c
+)
+target_include_directories(zireael_perf_diff_hotpath PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/tests
+)
+target_link_libraries(zireael_perf_diff_hotpath PRIVATE zireael_build_settings)
+target_link_libraries(zireael_perf_diff_hotpath PRIVATE zireael_unit_lib)
+
 add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)
 

@@ -443,6 +443,44 @@ static zr_result_t zr_win32_write_all(HANDLE h_out, const uint8_t* bytes, int32_
   return ZR_OK;
 }
 
+static zr_result_t zr_win32_wait_handle_signaled(HANDLE h, int32_t timeout_ms) {
+  if (!h || h == INVALID_HANDLE_VALUE) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  DWORD timeout = INFINITE;
+  if (timeout_ms >= 0) {
+    timeout = (DWORD)timeout_ms;
+  }
+
+  const DWORD rc = WaitForSingleObject(h, timeout);
+  if (rc == WAIT_OBJECT_0) {
+    return ZR_OK;
+  }
+  if (rc == WAIT_TIMEOUT) {
+    return ZR_ERR_LIMIT;
+  }
+  if (rc == WAIT_FAILED) {
+    const DWORD err = GetLastError();
+    if (err == ERROR_INVALID_HANDLE || err == ERROR_INVALID_FUNCTION || err == ERROR_NOT_SUPPORTED) {
+      return ZR_ERR_UNSUPPORTED;
+    }
+  }
+  return ZR_ERR_PLATFORM;
+}
+
+static uint8_t zr_win32_detect_output_wait_cap(HANDLE h_out) {
+  if (!h_out || h_out == INVALID_HANDLE_VALUE) {
+    return 0u;
+  }
+  if (GetFileType(h_out) != FILE_TYPE_PIPE) {
+    return 0u;
+  }
+
+  const zr_result_t rc = zr_win32_wait_handle_signaled(h_out, 0);
+  return (rc == ZR_OK || rc == ZR_ERR_LIMIT) ? 1u : 0u;
+}
+
 static zr_result_t zr_win32_write_cstr(HANDLE h_out, const uint8_t* s, size_t n_with_nul) {
   if (!s || n_with_nul == 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -677,7 +715,7 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_sync_update = 1u;
   plat->caps.supports_scroll_region = 1u;
   plat->caps.supports_cursor_shape = 1u;
-  plat->caps.supports_output_wait_writable = 0u;
+  plat->caps.supports_output_wait_writable = zr_win32_detect_output_wait_cap(plat->h_out);
   plat->caps._pad0[0] = 0u;
   plat->caps._pad0[1] = 0u;
   plat->caps._pad0[2] = 0u;
@@ -977,9 +1015,13 @@ zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {
 }
 
 zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms) {
-  (void)plat;
-  (void)timeout_ms;
-  return ZR_ERR_UNSUPPORTED;
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (plat->caps.supports_output_wait_writable == 0u) {
+    return ZR_ERR_UNSUPPORTED;
+  }
+  return zr_win32_wait_handle_signaled(plat->h_out, timeout_ms);
 }
 
 /* Wait for input or wake event; returns 1 if ready, 0 on timeout, or error code. */

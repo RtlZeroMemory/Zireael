@@ -68,6 +68,7 @@ typedef enum zr_debug_code_t {
 
   /* Perf codes (ZR_DEBUG_CAT_PERF) */
   ZR_DEBUG_CODE_PERF_TIMING = 0x0600,
+  ZR_DEBUG_CODE_PERF_DIFF_PATH = 0x0601,
 } zr_debug_code_t;
 
 /*
@@ -84,33 +85,33 @@ typedef struct zr_debug_trace_t {
   zr_debug_config_t config;
 
   /* --- Ring buffer storage (caller-owned) --- */
-  uint8_t* ring_buf;            /* Raw byte storage */
-  size_t ring_buf_cap;          /* Total byte capacity */
+  uint8_t* ring_buf;   /* Raw byte storage */
+  size_t ring_buf_cap; /* Total byte capacity */
 
   /* --- Record index ring (caller-owned) --- */
   /*
     Why: Separate index allows O(1) record lookup by slot without scanning
     variable-length payloads.
   */
-  uint32_t* record_offsets;     /* Offset into ring_buf for each record */
-  uint32_t* record_sizes;       /* Size of each record (header + payload) */
-  uint32_t index_cap;           /* Number of index slots */
-  uint32_t index_head;          /* Next slot to write */
-  uint32_t index_count;         /* Current number of valid records */
+  uint32_t* record_offsets; /* Offset into ring_buf for each record */
+  uint32_t* record_sizes;   /* Size of each record (header + payload) */
+  uint32_t index_cap;       /* Number of index slots */
+  uint32_t index_head;      /* Next slot to write */
+  uint32_t index_count;     /* Current number of valid records */
 
   /* --- Counters --- */
   uint64_t next_record_id;
   uint64_t total_dropped;
   uint64_t current_frame_id;
-  uint64_t start_time_us;       /* Engine creation time for relative timestamps */
+  uint64_t start_time_us; /* Engine creation time for relative timestamps */
 
   /* --- Aggregated stats --- */
   uint32_t error_count;
   uint32_t warn_count;
 
   /* --- Byte ring state --- */
-  size_t byte_head;             /* Next write position */
-  size_t byte_used;             /* Bytes currently in use */
+  size_t byte_head; /* Next write position */
+  size_t byte_used; /* Bytes currently in use */
 } zr_debug_trace_t;
 
 /*
@@ -120,12 +121,8 @@ typedef struct zr_debug_trace_t {
     - record_offsets and record_sizes must each have ring_cap entries.
     - Returns ZR_ERR_INVALID_ARGUMENT if any pointer is NULL or capacity is 0.
 */
-zr_result_t zr_debug_trace_init(zr_debug_trace_t* t,
-                                const zr_debug_config_t* config,
-                                uint8_t* ring_buf,
-                                size_t ring_buf_cap,
-                                uint32_t* record_offsets,
-                                uint32_t* record_sizes,
+zr_result_t zr_debug_trace_init(zr_debug_trace_t* t, const zr_debug_config_t* config, uint8_t* ring_buf,
+                                size_t ring_buf_cap, uint32_t* record_offsets, uint32_t* record_sizes,
                                 uint32_t index_cap);
 
 /*
@@ -152,9 +149,7 @@ void zr_debug_trace_set_start_time(zr_debug_trace_t* t, uint64_t start_time_us);
   zr_debug_trace_enabled:
     - Returns true if tracing is enabled for the given category and severity.
 */
-bool zr_debug_trace_enabled(const zr_debug_trace_t* t,
-                            zr_debug_category_t category,
-                            zr_debug_severity_t severity);
+bool zr_debug_trace_enabled(const zr_debug_trace_t* t, zr_debug_category_t category, zr_debug_severity_t severity);
 
 /*
   zr_debug_trace_record:
@@ -164,42 +159,26 @@ bool zr_debug_trace_enabled(const zr_debug_trace_t* t,
     - payload may be NULL if payload_size is 0.
     - Returns ZR_OK on success, ZR_ERR_LIMIT if payload exceeds max size.
 */
-zr_result_t zr_debug_trace_record(zr_debug_trace_t* t,
-                                  zr_debug_category_t category,
-                                  zr_debug_severity_t severity,
-                                  uint32_t code,
-                                  uint64_t timestamp_us,
-                                  const void* payload,
-                                  uint32_t payload_size);
+zr_result_t zr_debug_trace_record(zr_debug_trace_t* t, zr_debug_category_t category, zr_debug_severity_t severity,
+                                  uint32_t code, uint64_t timestamp_us, const void* payload, uint32_t payload_size);
 
 /*
   Convenience wrappers for common record types.
   All take timestamp_us as absolute microseconds.
 */
-zr_result_t zr_debug_trace_frame(zr_debug_trace_t* t,
-                                 uint32_t code,
-                                 uint64_t timestamp_us,
+zr_result_t zr_debug_trace_frame(zr_debug_trace_t* t, uint32_t code, uint64_t timestamp_us,
                                  const zr_debug_frame_record_t* frame);
 
-zr_result_t zr_debug_trace_event(zr_debug_trace_t* t,
-                                 uint32_t code,
-                                 zr_debug_severity_t severity,
-                                 uint64_t timestamp_us,
-                                 const zr_debug_event_record_t* event);
+zr_result_t zr_debug_trace_event(zr_debug_trace_t* t, uint32_t code, zr_debug_severity_t severity,
+                                 uint64_t timestamp_us, const zr_debug_event_record_t* event);
 
-zr_result_t zr_debug_trace_error(zr_debug_trace_t* t,
-                                 uint32_t code,
-                                 uint64_t timestamp_us,
+zr_result_t zr_debug_trace_error(zr_debug_trace_t* t, uint32_t code, uint64_t timestamp_us,
                                  const zr_debug_error_record_t* error);
 
-zr_result_t zr_debug_trace_drawlist(zr_debug_trace_t* t,
-                                    uint32_t code,
-                                    uint64_t timestamp_us,
+zr_result_t zr_debug_trace_drawlist(zr_debug_trace_t* t, uint32_t code, uint64_t timestamp_us,
                                     const zr_debug_drawlist_record_t* dl);
 
-zr_result_t zr_debug_trace_perf(zr_debug_trace_t* t,
-                                uint64_t timestamp_us,
-                                const zr_debug_perf_record_t* perf);
+zr_result_t zr_debug_trace_perf(zr_debug_trace_t* t, uint64_t timestamp_us, const zr_debug_perf_record_t* perf);
 
 /*
   zr_debug_trace_query:
@@ -207,10 +186,8 @@ zr_result_t zr_debug_trace_perf(zr_debug_trace_t* t,
     - out_headers must have space for at least query->max_records headers.
     - Returns query statistics in out_result.
 */
-zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t,
-                                 const zr_debug_query_t* query,
-                                 zr_debug_record_header_t* out_headers,
-                                 uint32_t out_headers_cap,
+zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t, const zr_debug_query_t* query,
+                                 zr_debug_record_header_t* out_headers, uint32_t out_headers_cap,
                                  zr_debug_query_result_t* out_result);
 
 /*
@@ -219,18 +196,14 @@ zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t,
     - out_payload must have at least out_cap bytes.
     - Returns ZR_ERR_LIMIT if record not found or payload doesn't fit.
 */
-zr_result_t zr_debug_trace_get_payload(const zr_debug_trace_t* t,
-                                       uint64_t record_id,
-                                       void* out_payload,
-                                       uint32_t out_cap,
-                                       uint32_t* out_size);
+zr_result_t zr_debug_trace_get_payload(const zr_debug_trace_t* t, uint64_t record_id, void* out_payload,
+                                       uint32_t out_cap, uint32_t* out_size);
 
 /*
   zr_debug_trace_get_stats:
     - Returns aggregate statistics without querying individual records.
 */
-zr_result_t zr_debug_trace_get_stats(const zr_debug_trace_t* t,
-                                     zr_debug_stats_t* out_stats);
+zr_result_t zr_debug_trace_get_stats(const zr_debug_trace_t* t, zr_debug_stats_t* out_stats);
 
 /*
   zr_debug_trace_export:
@@ -238,8 +211,6 @@ zr_result_t zr_debug_trace_get_stats(const zr_debug_trace_t* t,
     - Format: sequence of (header, payload) pairs.
     - Returns bytes written or negative error code.
 */
-int32_t zr_debug_trace_export(const zr_debug_trace_t* t,
-                              uint8_t* out_buf,
-                              size_t out_cap);
+int32_t zr_debug_trace_export(const zr_debug_trace_t* t, uint8_t* out_buf, size_t out_cap);
 
 #endif /* ZR_CORE_ZR_DEBUG_TRACE_H_INCLUDED */

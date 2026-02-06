@@ -263,6 +263,7 @@ static int zr_run_case(const zr_bench_case_t* bench_case, zr_bench_metrics_t* ou
   scratch.next_row_hashes = next_row_hashes;
   scratch.dirty_rows = dirty_rows;
   scratch.row_cap = ZR_BENCH_ROWS;
+  scratch.prev_hashes_valid = 0u;
 
   const zr_fb_t* src = &fb_a;
   const zr_fb_t* dst = &fb_b;
@@ -302,6 +303,14 @@ static int zr_run_case(const zr_bench_case_t* bench_case, zr_bench_metrics_t* ou
     const uint64_t write_t1 = zr_now_ns();
 
     ts = final_ts;
+
+    /* Mirror engine commit semantics: prev <- presented, then hash buffers swap. */
+    {
+      uint64_t* tmp = scratch.prev_row_hashes;
+      scratch.prev_row_hashes = scratch.next_row_hashes;
+      scratch.next_row_hashes = tmp;
+      scratch.prev_hashes_valid = 1u;
+    }
 
     if (i >= ZR_BENCH_WARMUP_ITERS) {
       const size_t j = (size_t)(i - ZR_BENCH_WARMUP_ITERS);

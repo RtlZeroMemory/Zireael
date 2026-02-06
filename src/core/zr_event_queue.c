@@ -436,7 +436,10 @@ zr_result_t zr_event_queue_post_paste(zr_event_queue_t* q, uint32_t time_ms, con
   }
 
   uint32_t off = 0u;
-  ZR_ASSERT(zr_evq_user_alloc_locked(q, byte_len, &off));
+  if (!zr_evq_user_alloc_locked(q, byte_len, &off)) {
+    zr_evq_unlock(q);
+    return ZR_ERR_LIMIT;
+  }
 
   if (byte_len != 0u) {
     memcpy(q->user_bytes + off, bytes, byte_len);

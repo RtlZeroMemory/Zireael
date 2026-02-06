@@ -42,6 +42,7 @@ add_executable(zireael_unit_tests
         unit/test_damage_rects.c
         unit/test_debug_trace.c
         unit/test_diff_color_quant.c
+        unit/test_diff_hotpath_telemetry.c
         unit/test_diff_spans.c
         unit/test_drawlist_execute.c
         unit/test_engine_poll_events_truncation.c

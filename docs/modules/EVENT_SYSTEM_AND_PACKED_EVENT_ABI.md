@@ -28,7 +28,7 @@ Defined by `src/core/zr_event.h`.
 | Type | Value | Payload | Description |
 |------|-------|---------|-------------|
 | `ZR_EV_KEY` | 1 | 16B | Key press/release with key code, modifiers, action |
-| `ZR_EV_TEXT` | 2 | 8B | Unicode codepoint input |
+| `ZR_EV_TEXT` | 2 | 8B | Unicode scalar value input |
 | `ZR_EV_PASTE` | 3 | 8B+ | Bracketed paste (UTF-8 bytes) |
 | `ZR_EV_MOUSE` | 4 | 32B | Mouse move/drag/click/wheel with position and buttons |
 | `ZR_EV_RESIZE` | 5 | 16B | Terminal resize (cols, rows) |
@@ -40,6 +40,11 @@ Defined by `src/core/zr_event.h`.
 - `key` — key code (escape, enter, arrows, F1-F12, etc.)
 - `mods` — modifier mask (shift, ctrl, alt, meta)
 - `action` — down, up, or repeat
+
+## Text event fields
+
+- `codepoint` — Unicode scalar value (U+0000..U+10FFFF, excluding surrogates)
+- Invalid UTF-8 input is emitted as U+FFFD deterministically
 
 ## Mouse event fields
 

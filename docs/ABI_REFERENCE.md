@@ -66,6 +66,7 @@ provide compatibility paths, but the public root is `include/zr/`).
 - All on-wire/buffer formats are **little-endian**.
 - Event records are **4-byte aligned** and self-framed by `zr_ev_record_header_t.size`.
 - Reserved/padding fields in v1 structs **MUST be 0** when passed by the caller.
+- `ZR_EV_TEXT.codepoint` carries Unicode scalar values; invalid UTF-8 input emits U+FFFD.
 
 Drawlist v1/v2 and event batch v1 are specified by:
 
@@ -92,7 +93,7 @@ typedef struct zr_dl_cmd_set_cursor_t {
 ## Platform capabilities
 
 The engine detects terminal capabilities at init. Wrappers can query these
-through `engine_get_metrics()` or by inspecting the returned `plat_caps_t`:
+through `engine_get_caps()` (which returns `zr_terminal_caps_t`):
 
 | Capability | Description |
 |------------|-------------|

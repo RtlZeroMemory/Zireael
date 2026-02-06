@@ -36,7 +36,7 @@
 
 struct plat_t {
   plat_config_t cfg;
-  plat_caps_t   caps;
+  plat_caps_t caps;
 
   int stdin_fd;
   int stdout_fd;
@@ -45,19 +45,19 @@ struct plat_t {
   int wake_read_fd;
   int wake_write_fd;
 
-  int            stdin_flags_saved;
-  bool           stdin_flags_valid;
+  int stdin_flags_saved;
+  bool stdin_flags_valid;
   struct termios termios_saved;
-  bool           termios_valid;
+  bool termios_valid;
 
   bool raw_active;
 
   struct sigaction sigwinch_prev;
-  bool             sigwinch_installed;
+  bool sigwinch_installed;
 };
 
 static volatile sig_atomic_t g_posix_sigwinch_pending = 0;
-static int                  g_posix_wake_write_fd = -1;
+static int g_posix_wake_write_fd = -1;
 
 static const char* zr_posix_getenv_nonempty(const char* key) {
   if (!key) {
@@ -177,7 +177,8 @@ static zr_result_t zr_posix_make_self_pipe(int* out_read_fd, int* out_write_fd) 
     (void)close(fds[1]);
     return ZR_ERR_PLATFORM;
   }
-  if (zr_posix_set_fd_flag(fds[0], O_NONBLOCK, true) != ZR_OK || zr_posix_set_fd_flag(fds[1], O_NONBLOCK, true) != ZR_OK) {
+  if (zr_posix_set_fd_flag(fds[0], O_NONBLOCK, true) != ZR_OK ||
+      zr_posix_set_fd_flag(fds[1], O_NONBLOCK, true) != ZR_OK) {
     (void)close(fds[0]);
     (void)close(fds[1]);
     return ZR_ERR_PLATFORM;
@@ -558,10 +559,10 @@ zr_result_t plat_enter_raw(plat_t* plat) {
   }
 
   struct termios raw = plat->termios_saved;
-  raw.c_iflag &= (tcflag_t)~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-  raw.c_oflag &= (tcflag_t)~(OPOST);
+  raw.c_iflag &= (tcflag_t) ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+  raw.c_oflag &= (tcflag_t) ~(OPOST);
   raw.c_cflag |= (tcflag_t)(CS8);
-  raw.c_lflag &= (tcflag_t)~(ECHO | ICANON | IEXTEN | ISIG);
+  raw.c_lflag &= (tcflag_t) ~(ECHO | ICANON | IEXTEN | ISIG);
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 0;
 
@@ -731,7 +732,8 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
       return 1;
     }
 
-    if ((fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 || (fds[1].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+    if ((fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 ||
+        (fds[1].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
       return (int32_t)ZR_ERR_PLATFORM;
     }
   }

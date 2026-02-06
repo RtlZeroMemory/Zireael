@@ -82,13 +82,21 @@ void mock_plat_set_size(uint32_t cols, uint32_t rows) {
   g_plat.size.rows = rows;
 }
 
-void mock_plat_set_caps(plat_caps_t caps) { g_plat.caps = caps; }
+void mock_plat_set_caps(plat_caps_t caps) {
+  g_plat.caps = caps;
+}
 
-void mock_plat_set_now_ms(uint64_t now_ms) { g_plat.now_ms = now_ms; }
+void mock_plat_set_now_ms(uint64_t now_ms) {
+  g_plat.now_ms = now_ms;
+}
 
-void mock_plat_set_output_writable(uint8_t writable) { g_plat.output_writable = (writable != 0u); }
+void mock_plat_set_output_writable(uint8_t writable) {
+  g_plat.output_writable = (writable != 0u);
+}
 
-void mock_plat_set_read_max(uint32_t max_bytes) { g_plat.read_max = max_bytes; }
+void mock_plat_set_read_max(uint32_t max_bytes) {
+  g_plat.read_max = max_bytes;
+}
 
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len) {
   if (!bytes && len != 0u) {
@@ -110,13 +118,21 @@ void mock_plat_clear_writes(void) {
   g_plat.write_calls = 0u;
 }
 
-uint32_t mock_plat_write_call_count(void) { return g_plat.write_calls; }
+uint32_t mock_plat_write_call_count(void) {
+  return g_plat.write_calls;
+}
 
-uint32_t mock_plat_wait_output_call_count(void) { return g_plat.wait_output_calls; }
+uint32_t mock_plat_wait_output_call_count(void) {
+  return g_plat.wait_output_calls;
+}
 
-uint64_t mock_plat_bytes_written_total(void) { return g_plat.write_total_len; }
+uint64_t mock_plat_bytes_written_total(void) {
+  return g_plat.write_total_len;
+}
 
-size_t mock_plat_last_write_len(void) { return g_plat.write_last_len; }
+size_t mock_plat_last_write_len(void) {
+  return g_plat.write_last_len;
+}
 
 size_t mock_plat_last_write_copy(uint8_t* out, size_t out_cap) {
   if (!out && out_cap != 0u) {
@@ -295,4 +311,6 @@ zr_result_t plat_wake(plat_t* plat) {
   return ZR_OK;
 }
 
-uint64_t plat_now_ms(void) { return g_plat.now_ms; }
+uint64_t plat_now_ms(void) {
+  return g_plat.now_ms;
+}

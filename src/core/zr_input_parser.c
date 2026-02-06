@@ -75,7 +75,9 @@ static void zr__push_text_scalar(zr_event_queue_t* q, uint32_t time_ms, uint32_t
   (void)zr_event_queue_push(q, &ev);
 }
 
-static bool zr__is_digit(uint8_t b) { return b >= (uint8_t)'0' && b <= (uint8_t)'9'; }
+static bool zr__is_digit(uint8_t b) {
+  return b >= (uint8_t)'0' && b <= (uint8_t)'9';
+}
 
 /*
   Return true when bytes[i] starts a valid UTF-8 prefix that is incomplete.
@@ -150,10 +152,10 @@ static bool zr__csi_tilde_key_from_first(uint32_t first, zr_key_t* out_key) {
     uint32_t n;
     zr_key_t key;
   } map[] = {
-      {1u, ZR_KEY_HOME},     {7u, ZR_KEY_HOME},      {4u, ZR_KEY_END},      {8u, ZR_KEY_END},
-      {15u, ZR_KEY_F5},      {17u, ZR_KEY_F6},       {18u, ZR_KEY_F7},      {19u, ZR_KEY_F8},
-      {20u, ZR_KEY_F9},      {21u, ZR_KEY_F10},      {23u, ZR_KEY_F11},     {24u, ZR_KEY_F12},
-      {2u, ZR_KEY_INSERT},   {3u, ZR_KEY_DELETE},    {5u, ZR_KEY_PAGE_UP},  {6u, ZR_KEY_PAGE_DOWN},
+      {1u, ZR_KEY_HOME},   {7u, ZR_KEY_HOME},   {4u, ZR_KEY_END},     {8u, ZR_KEY_END},
+      {15u, ZR_KEY_F5},    {17u, ZR_KEY_F6},    {18u, ZR_KEY_F7},     {19u, ZR_KEY_F8},
+      {20u, ZR_KEY_F9},    {21u, ZR_KEY_F10},   {23u, ZR_KEY_F11},    {24u, ZR_KEY_F12},
+      {2u, ZR_KEY_INSERT}, {3u, ZR_KEY_DELETE}, {5u, ZR_KEY_PAGE_UP}, {6u, ZR_KEY_PAGE_DOWN},
   };
 
   for (size_t mi = 0u; mi < (sizeof(map) / sizeof(map[0])); mi++) {
@@ -171,31 +173,31 @@ static bool zr__csi_simple_key_from_final(uint8_t final_byte, zr_key_t* out_key)
   }
 
   switch (final_byte) {
-    case (uint8_t)'A':
-      *out_key = ZR_KEY_UP;
-      return true;
-    case (uint8_t)'B':
-      *out_key = ZR_KEY_DOWN;
-      return true;
-    case (uint8_t)'C':
-      *out_key = ZR_KEY_RIGHT;
-      return true;
-    case (uint8_t)'D':
-      *out_key = ZR_KEY_LEFT;
-      return true;
-    case (uint8_t)'H':
-      *out_key = ZR_KEY_HOME;
-      return true;
-    case (uint8_t)'F':
-      *out_key = ZR_KEY_END;
-      return true;
-    default:
-      return false;
+  case (uint8_t)'A':
+    *out_key = ZR_KEY_UP;
+    return true;
+  case (uint8_t)'B':
+    *out_key = ZR_KEY_DOWN;
+    return true;
+  case (uint8_t)'C':
+    *out_key = ZR_KEY_RIGHT;
+    return true;
+  case (uint8_t)'D':
+    *out_key = ZR_KEY_LEFT;
+    return true;
+  case (uint8_t)'H':
+    *out_key = ZR_KEY_HOME;
+    return true;
+  case (uint8_t)'F':
+    *out_key = ZR_KEY_END;
+    return true;
+  default:
+    return false;
   }
 }
 
-static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key,
-                                    uint32_t* out_mods, size_t* out_consumed) {
+static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key, uint32_t* out_mods,
+                                    size_t* out_consumed) {
   if (!bytes || !out_key || !out_consumed) {
     return false;
   }
@@ -249,8 +251,8 @@ static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, 
   return true;
 }
 
-static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key,
-                                     uint32_t* out_mods, size_t* out_consumed) {
+static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key, uint32_t* out_mods,
+                                     size_t* out_consumed) {
   if (!bytes || !out_key || !out_consumed) {
     return false;
   }
@@ -318,38 +320,38 @@ static bool zr__parse_ss3_key(const uint8_t* bytes, size_t len, size_t i, zr_key
 
   zr_key_t key = ZR_KEY_UNKNOWN;
   switch (bytes[i + 2u]) {
-    case (uint8_t)'A':
-      key = ZR_KEY_UP;
-      break;
-    case (uint8_t)'B':
-      key = ZR_KEY_DOWN;
-      break;
-    case (uint8_t)'C':
-      key = ZR_KEY_RIGHT;
-      break;
-    case (uint8_t)'D':
-      key = ZR_KEY_LEFT;
-      break;
-    case (uint8_t)'H':
-      key = ZR_KEY_HOME;
-      break;
-    case (uint8_t)'F':
-      key = ZR_KEY_END;
-      break;
-    case (uint8_t)'P':
-      key = ZR_KEY_F1;
-      break;
-    case (uint8_t)'Q':
-      key = ZR_KEY_F2;
-      break;
-    case (uint8_t)'R':
-      key = ZR_KEY_F3;
-      break;
-    case (uint8_t)'S':
-      key = ZR_KEY_F4;
-      break;
-    default:
-      return false;
+  case (uint8_t)'A':
+    key = ZR_KEY_UP;
+    break;
+  case (uint8_t)'B':
+    key = ZR_KEY_DOWN;
+    break;
+  case (uint8_t)'C':
+    key = ZR_KEY_RIGHT;
+    break;
+  case (uint8_t)'D':
+    key = ZR_KEY_LEFT;
+    break;
+  case (uint8_t)'H':
+    key = ZR_KEY_HOME;
+    break;
+  case (uint8_t)'F':
+    key = ZR_KEY_END;
+    break;
+  case (uint8_t)'P':
+    key = ZR_KEY_F1;
+    break;
+  case (uint8_t)'Q':
+    key = ZR_KEY_F2;
+    break;
+  case (uint8_t)'R':
+    key = ZR_KEY_F3;
+    break;
+  case (uint8_t)'S':
+    key = ZR_KEY_F4;
+    break;
+  default:
+    return false;
   }
 
   *out_key = key;

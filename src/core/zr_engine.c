@@ -68,7 +68,7 @@ struct zr_engine_t {
 
   /* --- Damage scratch (rect list is internal; only metrics are exported) --- */
   zr_damage_rect_t* damage_rects;
-  uint32_t          damage_rect_cap;
+  uint32_t damage_rect_cap;
 
   /* --- Input/event pipeline --- */
   zr_event_queue_t evq;
@@ -578,43 +578,42 @@ static zr_result_t zr_engine_drain_platform_input(zr_engine_t* e, uint32_t time_
   return ZR_OK;
 }
 
-static bool zr_engine_pack_one_event(zr_evpack_writer_t* w, const zr_event_queue_t* q,
-                                     const zr_event_t* ev) {
+static bool zr_engine_pack_one_event(zr_evpack_writer_t* w, const zr_event_queue_t* q, const zr_event_t* ev) {
   if (!w || !q || !ev) {
     return false;
   }
 
   switch (ev->type) {
-    case ZR_EV_KEY:
-      return zr_evpack_append_record(w, ZR_EV_KEY, ev->time_ms, ev->flags, &ev->u.key, sizeof(ev->u.key));
-    case ZR_EV_TEXT:
-      return zr_evpack_append_record(w, ZR_EV_TEXT, ev->time_ms, ev->flags, &ev->u.text, sizeof(ev->u.text));
-    case ZR_EV_PASTE: {
-      const uint8_t* payload = NULL;
-      uint32_t payload_len = 0u;
-      if (!zr_event_queue_paste_payload_view(q, ev, &payload, &payload_len)) {
-        return false;
-      }
-      return zr_evpack_append_record2(w, ZR_EV_PASTE, ev->time_ms, ev->flags, &ev->u.paste.hdr,
-                                      sizeof(ev->u.paste.hdr), payload, (size_t)payload_len);
-    }
-    case ZR_EV_MOUSE:
-      return zr_evpack_append_record(w, ZR_EV_MOUSE, ev->time_ms, ev->flags, &ev->u.mouse, sizeof(ev->u.mouse));
-    case ZR_EV_RESIZE:
-      return zr_evpack_append_record(w, ZR_EV_RESIZE, ev->time_ms, ev->flags, &ev->u.resize, sizeof(ev->u.resize));
-    case ZR_EV_TICK:
-      return zr_evpack_append_record(w, ZR_EV_TICK, ev->time_ms, ev->flags, &ev->u.tick, sizeof(ev->u.tick));
-    case ZR_EV_USER: {
-      const uint8_t* payload = NULL;
-      uint32_t payload_len = 0u;
-      if (!zr_event_queue_user_payload_view(q, ev, &payload, &payload_len)) {
-        return false;
-      }
-      return zr_evpack_append_record2(w, ZR_EV_USER, ev->time_ms, ev->flags, &ev->u.user.hdr,
-                                      sizeof(ev->u.user.hdr), payload, (size_t)payload_len);
-    }
-    default:
+  case ZR_EV_KEY:
+    return zr_evpack_append_record(w, ZR_EV_KEY, ev->time_ms, ev->flags, &ev->u.key, sizeof(ev->u.key));
+  case ZR_EV_TEXT:
+    return zr_evpack_append_record(w, ZR_EV_TEXT, ev->time_ms, ev->flags, &ev->u.text, sizeof(ev->u.text));
+  case ZR_EV_PASTE: {
+    const uint8_t* payload = NULL;
+    uint32_t payload_len = 0u;
+    if (!zr_event_queue_paste_payload_view(q, ev, &payload, &payload_len)) {
       return false;
+    }
+    return zr_evpack_append_record2(w, ZR_EV_PASTE, ev->time_ms, ev->flags, &ev->u.paste.hdr, sizeof(ev->u.paste.hdr),
+                                    payload, (size_t)payload_len);
+  }
+  case ZR_EV_MOUSE:
+    return zr_evpack_append_record(w, ZR_EV_MOUSE, ev->time_ms, ev->flags, &ev->u.mouse, sizeof(ev->u.mouse));
+  case ZR_EV_RESIZE:
+    return zr_evpack_append_record(w, ZR_EV_RESIZE, ev->time_ms, ev->flags, &ev->u.resize, sizeof(ev->u.resize));
+  case ZR_EV_TICK:
+    return zr_evpack_append_record(w, ZR_EV_TICK, ev->time_ms, ev->flags, &ev->u.tick, sizeof(ev->u.tick));
+  case ZR_EV_USER: {
+    const uint8_t* payload = NULL;
+    uint32_t payload_len = 0u;
+    if (!zr_event_queue_user_payload_view(q, ev, &payload, &payload_len)) {
+      return false;
+    }
+    return zr_evpack_append_record2(w, ZR_EV_USER, ev->time_ms, ev->flags, &ev->u.user.hdr, sizeof(ev->u.user.hdr),
+                                    payload, (size_t)payload_len);
+  }
+  default:
+    return false;
   }
 }
 
@@ -904,13 +903,8 @@ static uint64_t zr_engine_trace_frame_id(const zr_engine_t* e) {
 /*
   Record a drawlist debug trace if tracing is enabled.
 */
-static void zr_engine_trace_drawlist(zr_engine_t* e,
-                                     uint32_t code,
-                                     const uint8_t* bytes,
-                                     uint32_t bytes_len,
-                                     uint32_t cmd_count,
-                                     uint32_t version,
-                                     zr_result_t validation_result,
+static void zr_engine_trace_drawlist(zr_engine_t* e, uint32_t code, const uint8_t* bytes, uint32_t bytes_len,
+                                     uint32_t cmd_count, uint32_t version, zr_result_t validation_result,
                                      zr_result_t execution_result) {
   if (!e || !e->debug_trace) {
     return;
@@ -927,8 +921,8 @@ static void zr_engine_trace_drawlist(zr_engine_t* e,
     if (n > (uint32_t)ZR_DEBUG_MAX_PAYLOAD_SIZE) {
       n = (uint32_t)ZR_DEBUG_MAX_PAYLOAD_SIZE;
     }
-    (void)zr_debug_trace_record(e->debug_trace, ZR_DEBUG_CAT_DRAWLIST, ZR_DEBUG_SEV_TRACE,
-                                ZR_DEBUG_CODE_DRAWLIST_CMD, zr_engine_now_us(), bytes, n);
+    (void)zr_debug_trace_record(e->debug_trace, ZR_DEBUG_CAT_DRAWLIST, ZR_DEBUG_SEV_TRACE, ZR_DEBUG_CODE_DRAWLIST_CMD,
+                                zr_engine_now_us(), bytes, n);
   }
 
   zr_debug_drawlist_record_t rec;
@@ -960,28 +954,26 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   zr_dl_view_t v;
   zr_result_t rc = zr_dl_validate(bytes, (size_t)bytes_len, &e->cfg_runtime.limits, &v);
   if (rc != ZR_OK) {
-    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_VALIDATE, bytes,
-                             (uint32_t)bytes_len, 0u, 0u, rc, ZR_OK);
+    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_VALIDATE, bytes, (uint32_t)bytes_len, 0u, 0u, rc, ZR_OK);
     return rc;
   }
 
   zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
-  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits,
-                     e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
+  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
                      &cursor_stage);
   if (rc != ZR_OK) {
-    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes,
-                             (uint32_t)bytes_len, v.hdr.cmd_count, v.hdr.version, ZR_OK, rc);
+    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
+                             v.hdr.version, ZR_OK, rc);
     return rc;
   }
 
   zr_engine_fb_swap(&e->fb_next, &e->fb_stage);
   e->cursor_desired = cursor_stage;
 
-  zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes,
-                           (uint32_t)bytes_len, v.hdr.cmd_count, v.hdr.version, ZR_OK, ZR_OK);
+  zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
+                           v.hdr.version, ZR_OK, ZR_OK);
 
   return ZR_OK;
 }
@@ -993,8 +985,7 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   fb_next (the logical app framebuffer), so overlay composition happens on
   fb_stage and only affects what diff/present sees for this frame.
 */
-static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e,
-                                             const zr_fb_t** out_present_fb,
+static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out_present_fb,
                                              bool* out_presented_stage) {
   if (!e || !out_present_fb || !out_presented_stage) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1022,19 +1013,15 @@ static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e,
   return ZR_OK;
 }
 
-static zr_result_t zr_engine_present_render(zr_engine_t* e,
-                                            const zr_fb_t* present_fb,
-                                            size_t* out_len,
-                                            zr_term_state_t* final_ts,
-                                            zr_diff_stats_t* stats) {
+static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* present_fb, size_t* out_len,
+                                            zr_term_state_t* final_ts, zr_diff_stats_t* stats) {
   if (!e || !present_fb || !out_len || !final_ts || !stats) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_result_t rc = zr_diff_render(&e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired,
-                                  &e->cfg_runtime.limits, e->damage_rects, e->damage_rect_cap,
-                                  e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts,
-                                  stats);
+  zr_result_t rc = zr_diff_render(
+      &e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired, &e->cfg_runtime.limits, e->damage_rects,
+      e->damage_rect_cap, e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts, stats);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -1071,10 +1058,7 @@ static zr_result_t zr_engine_present_write(zr_engine_t* e, size_t out_len) {
 /*
   Record a frame debug trace after present commits.
 */
-static void zr_engine_trace_frame(zr_engine_t* e,
-                                  uint64_t frame_id,
-                                  size_t out_len,
-                                  const zr_diff_stats_t* stats) {
+static void zr_engine_trace_frame(zr_engine_t* e, uint64_t frame_id, size_t out_len, const zr_diff_stats_t* stats) {
   if (!e || !e->debug_trace || !stats) {
     return;
   }
@@ -1094,15 +1078,11 @@ static void zr_engine_trace_frame(zr_engine_t* e,
   rec.dirty_cells = stats->dirty_cells;
   rec.damage_rects = stats->damage_rects;
 
-  (void)zr_debug_trace_frame(e->debug_trace, ZR_DEBUG_CODE_FRAME_PRESENT,
-                             zr_engine_now_us(), &rec);
+  (void)zr_debug_trace_frame(e->debug_trace, ZR_DEBUG_CODE_FRAME_PRESENT, zr_engine_now_us(), &rec);
 }
 
-static void zr_engine_present_commit(zr_engine_t* e,
-                                     bool presented_stage,
-                                     size_t out_len,
-                                     const zr_term_state_t* final_ts,
-                                     const zr_diff_stats_t* stats) {
+static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len,
+                                     const zr_term_state_t* final_ts, const zr_diff_stats_t* stats) {
   if (!e || !final_ts || !stats) {
     return;
   }
@@ -1356,10 +1336,8 @@ zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps) {
   return ZR_OK;
 }
 
-static zr_result_t zr_engine_set_config_prepare_out_buf(zr_engine_t* e,
-                                                        const zr_engine_runtime_config_t* cfg,
-                                                        uint8_t** out_buf_new,
-                                                        size_t* out_cap_new,
+static zr_result_t zr_engine_set_config_prepare_out_buf(zr_engine_t* e, const zr_engine_runtime_config_t* cfg,
+                                                        uint8_t** out_buf_new, size_t* out_cap_new,
                                                         bool* want_out_buf) {
   if (!e || !cfg || !out_buf_new || !out_cap_new || !want_out_buf) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1381,11 +1359,10 @@ static zr_result_t zr_engine_set_config_prepare_out_buf(zr_engine_t* e,
   return ZR_OK;
 }
 
-static zr_result_t zr_engine_set_config_prepare_damage_rects(zr_engine_t* e,
-                                                            const zr_engine_runtime_config_t* cfg,
-                                                            zr_damage_rect_t** out_damage_rects_new,
-                                                            uint32_t* out_damage_rect_cap_new,
-                                                            bool* want_damage_rects) {
+static zr_result_t zr_engine_set_config_prepare_damage_rects(zr_engine_t* e, const zr_engine_runtime_config_t* cfg,
+                                                             zr_damage_rect_t** out_damage_rects_new,
+                                                             uint32_t* out_damage_rect_cap_new,
+                                                             bool* want_damage_rects) {
   if (!e || !cfg || !out_damage_rects_new || !out_damage_rect_cap_new || !want_damage_rects) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1416,10 +1393,8 @@ static zr_result_t zr_engine_set_config_prepare_damage_rects(zr_engine_t* e,
   return ZR_OK;
 }
 
-static zr_result_t zr_engine_set_config_prepare_arenas(zr_engine_t* e,
-                                                       const zr_engine_runtime_config_t* cfg,
-                                                       zr_arena_t* arena_frame_new,
-                                                       zr_arena_t* arena_persistent_new,
+static zr_result_t zr_engine_set_config_prepare_arenas(zr_engine_t* e, const zr_engine_runtime_config_t* cfg,
+                                                       zr_arena_t* arena_frame_new, zr_arena_t* arena_persistent_new,
                                                        bool* want_arena_reinit) {
   if (!e || !cfg || !arena_frame_new || !arena_persistent_new || !want_arena_reinit) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1449,16 +1424,10 @@ static zr_result_t zr_engine_set_config_prepare_arenas(zr_engine_t* e,
   return ZR_OK;
 }
 
-static void zr_engine_set_config_commit(zr_engine_t* e,
-                                        const zr_engine_runtime_config_t* cfg,
-                                        bool want_out_buf,
-                                        uint8_t** out_buf_new,
-                                        size_t out_cap_new,
-                                        bool want_damage_rects,
-                                        zr_damage_rect_t** damage_rects_new,
-                                        uint32_t damage_rect_cap_new,
-                                        bool want_arena_reinit,
-                                        zr_arena_t* arena_frame_new,
+static void zr_engine_set_config_commit(zr_engine_t* e, const zr_engine_runtime_config_t* cfg, bool want_out_buf,
+                                        uint8_t** out_buf_new, size_t out_cap_new, bool want_damage_rects,
+                                        zr_damage_rect_t** damage_rects_new, uint32_t damage_rect_cap_new,
+                                        bool want_arena_reinit, zr_arena_t* arena_frame_new,
                                         zr_arena_t* arena_persistent_new) {
   if (!e || !cfg || !out_buf_new || !damage_rects_new || !arena_frame_new || !arena_persistent_new) {
     return;
@@ -1614,10 +1583,8 @@ zr_result_t engine_debug_enable(zr_engine_t* e, const zr_debug_config_t* config)
   }
 
   /* Initialize trace context. */
-  zr_result_t rc = zr_debug_trace_init(e->debug_trace, &cfg,
-                                       e->debug_ring_buf, ZR_DEBUG_RING_BUF_SIZE,
-                                       e->debug_record_offsets, e->debug_record_sizes,
-                                       ring_cap);
+  zr_result_t rc = zr_debug_trace_init(e->debug_trace, &cfg, e->debug_ring_buf, ZR_DEBUG_RING_BUF_SIZE,
+                                       e->debug_record_offsets, e->debug_record_sizes, ring_cap);
   if (rc != ZR_OK) {
     zr_engine_debug_free(e);
     return rc;
@@ -1637,11 +1604,8 @@ void engine_debug_disable(zr_engine_t* e) {
   zr_engine_debug_free(e);
 }
 
-zr_result_t engine_debug_query(zr_engine_t* e,
-                               const zr_debug_query_t* query,
-                               zr_debug_record_header_t* out_headers,
-                               uint32_t out_headers_cap,
-                               zr_debug_query_result_t* out_result) {
+zr_result_t engine_debug_query(zr_engine_t* e, const zr_debug_query_t* query, zr_debug_record_header_t* out_headers,
+                               uint32_t out_headers_cap, zr_debug_query_result_t* out_result) {
   if (!e || !query || !out_result) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1654,10 +1618,7 @@ zr_result_t engine_debug_query(zr_engine_t* e,
   return zr_debug_trace_query(e->debug_trace, query, out_headers, out_headers_cap, out_result);
 }
 
-zr_result_t engine_debug_get_payload(zr_engine_t* e,
-                                     uint64_t record_id,
-                                     void* out_payload,
-                                     uint32_t out_cap,
+zr_result_t engine_debug_get_payload(zr_engine_t* e, uint64_t record_id, void* out_payload, uint32_t out_cap,
                                      uint32_t* out_size) {
   if (!e || !out_size) {
     return ZR_ERR_INVALID_ARGUMENT;

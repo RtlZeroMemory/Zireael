@@ -151,7 +151,7 @@ if (rc != ZR_OK) {
 
 Current pins (from `include/zr/zr_version.h`):
 
-- Library: `1.2.1`
+- Library: `1.2.2`
 - Engine ABI: `1.1.0`
 - Drawlist formats: `v1`, `v2`
 - Event batch format: `v1`

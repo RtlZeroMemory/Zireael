@@ -5,6 +5,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.2.2 — 2026-02-06
+
+### Added
+
+- Perf benchmark target `zireael_perf_diff_hotpath` for repeatable diff/write/bytes measurements across sparse, dense, scroll-like, and style-churn scenarios.
+
+### Changed
+
+- core: diff renderer now supports per-line hash/dirty cache, adaptive sparse-vs-sweep selection, and improved scroll detection heuristics to reduce hot-path work.
+- core: present path now records diff and write timing metrics to make regressions observable in CI and local profiling.
+- win32: output writable waiting now handles pipe-like handles conservatively and reports unsupported wait capability explicitly.
+
+### Fixed
+
+- core: damage-span coalescing now preserves correctness when incoming dirty spans are not x-sorted.
+- core: SGR delta emission now falls back cleanly so style-only transitions never emit partial `ESC[` control prefixes.
+- tests/perf: removed 128-bit division usage that broke clang-cl linking (`__udivti3`) and replaced it with overflow-safe integer mean math.
+
 ## 1.2.1 — 2026-02-06
 
 ### Added

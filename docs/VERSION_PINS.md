@@ -8,7 +8,7 @@ Pinned library version (see `include/zr/zr_version.h`):
 
 - `ZR_LIBRARY_VERSION_MAJOR = 1`
 - `ZR_LIBRARY_VERSION_MINOR = 2`
-- `ZR_LIBRARY_VERSION_PATCH = 1`
+- `ZR_LIBRARY_VERSION_PATCH = 2`
 - Lifecycle status: alpha
 
 ## Engine ABI

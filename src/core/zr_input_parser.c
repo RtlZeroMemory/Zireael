@@ -113,6 +113,32 @@ static bool zr__is_incomplete_utf8_prefix(const uint8_t* bytes, size_t len, size
       return false;
     }
   }
+
+  /*
+    Keep only prefixes that can still become valid once additional bytes arrive.
+    Examples:
+      - E0 80 .. is impossible (second byte must be A0..BF)
+      - F4 90 .. is impossible (second byte must be 80..8F)
+  */
+  if (avail >= 2u) {
+    const uint8_t b1 = bytes[i + 1u];
+    if (expect == 3u) {
+      if (b0 == 0xE0u && b1 < 0xA0u) {
+        return false;
+      }
+      if (b0 == 0xEDu && b1 > 0x9Fu) {
+        return false;
+      }
+    } else if (expect == 4u) {
+      if (b0 == 0xF0u && b1 < 0x90u) {
+        return false;
+      }
+      if (b0 == 0xF4u && b1 > 0x8Fu) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 

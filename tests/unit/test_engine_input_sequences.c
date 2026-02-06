@@ -134,6 +134,67 @@ ZR_TEST_UNIT(engine_poll_events_emits_text_scalars_from_utf8_and_invalid_bytes) 
   engine_destroy(e);
 }
 
+ZR_TEST_UNIT(engine_poll_events_does_not_buffer_impossible_utf8_prefix) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  /*
+    E0 80 is an impossible UTF-8 prefix (E0 requires second byte A0..BF).
+    Prefix parsing must not defer this input as "incomplete".
+  */
+  const uint8_t in[] = {0xE0u, 0x80u};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128];
+  memset(out, 0, sizeof(out));
+
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  const uint32_t event_count = zr_u32le_at(out + 12u);
+  ZR_ASSERT_TRUE(event_count >= 2u);
+
+  size_t off = sizeof(zr_evbatch_header_t);
+  uint32_t text_seen = 0u;
+  uint32_t cps[2] = {0u, 0u};
+
+  for (uint32_t i = 0u; i < event_count; i++) {
+    ZR_ASSERT_TRUE((off + sizeof(zr_ev_record_header_t)) <= (size_t)n);
+
+    const uint32_t rec_type = zr_u32le_at(out + off + 0u);
+    const uint32_t rec_size = zr_u32le_at(out + off + 4u);
+    ZR_ASSERT_TRUE(rec_size >= (uint32_t)sizeof(zr_ev_record_header_t));
+    ZR_ASSERT_TRUE((off + (size_t)rec_size) <= (size_t)n);
+
+    if (rec_type == (uint32_t)ZR_EV_TEXT) {
+      ZR_ASSERT_TRUE(rec_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t)));
+      if (text_seen < 2u) {
+        cps[text_seen] = zr_u32le_at(out + off + sizeof(zr_ev_record_header_t) + 0u);
+      }
+      text_seen++;
+    }
+
+    off += (size_t)rec_size;
+  }
+
+  ZR_ASSERT_EQ_U32(text_seen, 2u);
+  ZR_ASSERT_EQ_U32(cps[0], 0xFFFDu);
+  ZR_ASSERT_EQ_U32(cps[1], 0xFFFDu);
+
+  engine_destroy(e);
+}
+
 ZR_TEST_UNIT(engine_poll_events_parses_ss3_arrow) {
   mock_plat_reset();
   mock_plat_set_size(10u, 4u);

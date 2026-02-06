@@ -33,6 +33,11 @@ Wrappers should treat truncation as a signal to increase their event buffer size
 
 Wrappers should validate `byte_len` against the record size before reading.
 
+## Text events
+
+`ZR_EV_TEXT` records carry one Unicode scalar value per event (`zr_ev_text_t.codepoint`).
+Input bytes are decoded as UTF-8; malformed byte sequences are normalized to `U+FFFD`.
+
 ## Parsing sketch
 
 ```c

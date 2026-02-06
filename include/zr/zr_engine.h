@@ -19,6 +19,12 @@
 
 typedef struct zr_engine_t zr_engine_t;
 
+/*
+  Threading contract:
+    - All engine entrypoints are engine-thread only unless explicitly noted.
+    - engine_post_user_event() is thread-safe and may be called from another thread.
+*/
+
 zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cfg);
 void        engine_destroy(zr_engine_t* e);
 

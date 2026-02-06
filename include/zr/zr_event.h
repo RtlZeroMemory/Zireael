@@ -109,7 +109,11 @@ typedef struct zr_ev_key_t {
 } zr_ev_key_t;
 
 typedef struct zr_ev_text_t {
-  uint32_t codepoint; /* Unicode scalar value (U+0000..U+10FFFF), or implementation-defined. */
+  /*
+    Unicode scalar value (U+0000..U+10FFFF).
+    Invalid UTF-8 input is normalized to U+FFFD by the engine's pinned policy.
+  */
+  uint32_t codepoint;
   uint32_t reserved0;
 } zr_ev_text_t;
 

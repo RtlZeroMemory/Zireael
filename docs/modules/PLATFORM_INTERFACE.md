@@ -90,6 +90,7 @@ To support optional frame pacing, the platform interface exposes an output-writa
 - Uses ConPTY or native console API
 - Multiple engines may be creatable but contend for console
 - Treat as single-engine unless you fully control console ownership
+- Key input text is translated to UTF-8 bytes before core parsing
 - `plat_wait_output_writable`: best-effort; returns `ZR_ERR_UNSUPPORTED` if not feasible
 
 ## Implementation files

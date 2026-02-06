@@ -16,6 +16,7 @@
 /*
   zr_input_parse_bytes:
     - Consumes raw input bytes and enqueues normalized events.
+    - Decodes text as UTF-8 codepoints (invalid bytes -> U+FFFD by pinned policy).
     - Always makes progress by consuming at least 1 byte per loop iteration.
     - Unknown/malformed escape sequences are handled deterministically.
 
@@ -28,7 +29,7 @@ void zr_input_parse_bytes(zr_event_queue_t* q, const uint8_t* bytes, size_t len,
 /*
   zr_input_parse_bytes_prefix:
     - Like zr_input_parse_bytes(), but may stop before a trailing, incomplete
-      supported escape sequence so callers can buffer it and retry.
+      supported escape sequence or UTF-8 sequence so callers can buffer and retry.
 
   Returns: number of bytes consumed from the front of {bytes,len}.
 */

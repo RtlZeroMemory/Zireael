@@ -32,6 +32,14 @@ static uint64_t zr_debug_relative_timestamp_us(const zr_debug_trace_t* t, uint64
   return absolute_us - t->start_time_us;
 }
 
+/* Saturating conversion from u64 counters to ABI-facing u32 fields. */
+static uint32_t zr_debug_u64_to_u32_sat(uint64_t v) {
+  if (v > (uint64_t)UINT32_MAX) {
+    return UINT32_MAX;
+  }
+  return (uint32_t)v;
+}
+
 /*
   Evict oldest records to make room for a new record.
 
@@ -446,7 +454,7 @@ zr_result_t zr_debug_trace_query(const zr_debug_trace_t* t,
   out_result->records_available = available;
   out_result->oldest_record_id = (oldest_id != UINT64_MAX) ? oldest_id : 0u;
   out_result->newest_record_id = newest_id;
-  out_result->records_dropped = (uint32_t)t->total_dropped;
+  out_result->records_dropped = zr_debug_u64_to_u32_sat(t->total_dropped);
 
   return ZR_OK;
 }

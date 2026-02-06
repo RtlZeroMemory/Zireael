@@ -339,6 +339,30 @@ ZR_TEST(unit_debug_trace_query_filter_frame) {
   ZR_ASSERT_EQ_U32(result.records_available, 3u);
 }
 
+ZR_TEST(unit_debug_trace_query_saturates_records_dropped_u32) {
+  (void)ctx;
+  zr_debug_trace_t t;
+  zr_debug_config_t cfg = zr_debug_config_default();
+  cfg.enabled = 1u;
+  cfg.min_severity = ZR_DEBUG_SEV_TRACE;
+
+  zr_result_t rc = test_trace_init(&t, &cfg);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  t.total_dropped = UINT64_MAX;
+
+  zr_debug_query_t query;
+  memset(&query, 0, sizeof(query));
+  query.category_mask = 0xFFFFFFFFu;
+  query.max_records = 1u;
+
+  zr_debug_record_header_t headers[1];
+  zr_debug_query_result_t result;
+  rc = zr_debug_trace_query(&t, &query, headers, 1u, &result);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+  ZR_ASSERT_EQ_U32(result.records_dropped, UINT32_MAX);
+}
+
 ZR_TEST(unit_debug_trace_reset) {
   (void)ctx;
   zr_debug_trace_t t;

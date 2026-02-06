@@ -35,6 +35,9 @@ Defined by `src/core/zr_event.h`.
 | `ZR_EV_TICK` | 6 | 16B | Frame tick with delta time |
 | `ZR_EV_USER` | 7 | 16B+ | User-posted event via `engine_post_user_event()` |
 
+`ZR_EV_TEXT` is emitted per decoded UTF-8 codepoint from platform input bytes.
+Malformed UTF-8 is normalized to `U+FFFD` using the pinned invalid-sequence policy.
+
 ## Key event fields
 
 - `key` — key code (escape, enter, arrows, F1-F12, etc.)

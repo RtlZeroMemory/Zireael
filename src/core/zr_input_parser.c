@@ -1,11 +1,14 @@
 /*
-  src/core/zr_input_parser.c — Minimal input byte parser implementation.
+  src/core/zr_input_parser.c — Deterministic VT input parser with UTF-8 text decode.
 
-  Why: Provides a deterministic, bounds-checked parser for platform input bytes
-  suitable for fuzzing. Unknown escape sequences are handled without hangs.
+  Why: Normalizes platform input bytes into key/mouse/text events with strict
+  bounds checks, deterministic fallback behavior, and pinned UTF-8 invalid-byte
+  handling.
 */
 
 #include "core/zr_input_parser.h"
+
+#include "unicode/zr_utf8.h"
 
 #include <string.h>
 
@@ -40,15 +43,70 @@ static void zr__push_mouse(zr_event_queue_t* q, uint32_t time_ms, int32_t x, int
   (void)zr_event_queue_push(q, &ev);
 }
 
-static void zr__push_text_byte(zr_event_queue_t* q, uint32_t time_ms, uint8_t b) {
+static void zr__push_text_codepoint(zr_event_queue_t* q, uint32_t time_ms, uint32_t codepoint) {
   zr_event_t ev;
   memset(&ev, 0, sizeof(ev));
   ev.type = ZR_EV_TEXT;
   ev.time_ms = time_ms;
   ev.flags = 0u;
-  ev.u.text.codepoint = (uint32_t)b;
+  ev.u.text.codepoint = codepoint;
   ev.u.text.reserved0 = 0u;
   (void)zr_event_queue_push(q, &ev);
+}
+
+static bool zr__utf8_is_cont(uint8_t b) { return (uint8_t)(b & 0xC0u) == 0x80u; }
+
+static uint8_t zr__utf8_expected_len(uint8_t b0) {
+  if (b0 >= 0xC2u && b0 <= 0xDFu) {
+    return 2u;
+  }
+  if (b0 >= 0xE0u && b0 <= 0xEFu) {
+    return 3u;
+  }
+  if (b0 >= 0xF0u && b0 <= 0xF4u) {
+    return 4u;
+  }
+  return 0u;
+}
+
+/*
+  Check whether bytes[i] starts a potentially-valid UTF-8 sequence that is
+  incomplete at the end of the current buffer.
+
+  Why: Platform reads can split multibyte codepoints. Prefix parsing should
+  hold such tails so the next read can complete one ZR_EV_TEXT codepoint event.
+*/
+static bool zr__utf8_is_incomplete_prefix(const uint8_t* bytes, size_t len, size_t i) {
+  if (!bytes || i >= len) {
+    return false;
+  }
+
+  const uint8_t b0 = bytes[i];
+  const uint8_t expected = zr__utf8_expected_len(b0);
+  if (expected == 0u) {
+    return false;
+  }
+
+  const size_t avail = len - i;
+  if (avail >= (size_t)expected) {
+    return false;
+  }
+
+  for (size_t j = 1u; j < avail; j++) {
+    if (!zr__utf8_is_cont(bytes[i + j])) {
+      return false;
+    }
+  }
+
+  if (avail >= 2u) {
+    const uint8_t b1 = bytes[i + 1u];
+    if ((b0 == 0xE0u && b1 < 0xA0u) || (b0 == 0xEDu && b1 > 0x9Fu) || (b0 == 0xF0u && b1 < 0x90u) ||
+        (b0 == 0xF4u && b1 > 0x8Fu)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static bool zr__is_digit(uint8_t b) { return b >= (uint8_t)'0' && b <= (uint8_t)'9'; }
@@ -503,7 +561,13 @@ static size_t zr__consume_escape(zr_event_queue_t* q, const uint8_t* bytes, size
   return 1u;
 }
 
-/* Parse bytes into events, optionally stopping before an incomplete supported ESC sequence. */
+/*
+  Parse bytes into events, optionally stopping before incomplete ESC/UTF-8 tails.
+
+  Why: The engine buffers pending input and retries when more bytes arrive.
+  Preserving split escape sequences and split UTF-8 codepoints prevents
+  generating spurious fallback events.
+*/
 static size_t zr_input_parse_bytes_internal(zr_event_queue_t* q, const uint8_t* bytes, size_t len, uint32_t time_ms,
                                             bool stop_before_incomplete_escape) {
   if (!q || (!bytes && len != 0u)) {
@@ -540,9 +604,17 @@ static size_t zr_input_parse_bytes_internal(zr_event_queue_t* q, const uint8_t* 
       continue;
     }
 
-    /* MVP: treat all remaining bytes as text bytes (no UTF-8 decoding yet). */
-    zr__push_text_byte(q, time_ms, b);
-    i += 1u;
+    if (stop_before_incomplete_escape && zr__utf8_is_incomplete_prefix(bytes, len, i)) {
+      break;
+    }
+
+    const zr_utf8_decode_result_t d = zr_utf8_decode_one(bytes + i, len - i);
+    zr__push_text_codepoint(q, time_ms, d.scalar);
+    if (d.size == 0u) {
+      i += 1u;
+    } else {
+      i += (size_t)d.size;
+    }
   }
 
   return i;

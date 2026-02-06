@@ -29,6 +29,15 @@ static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_DISABLE[] = "\x1b[?2004l";
 static const uint8_t ZR_WIN32_SEQ_MOUSE_ENABLE[] = "\x1b[?1000h\x1b[?1006h";
 static const uint8_t ZR_WIN32_SEQ_MOUSE_DISABLE[] = "\x1b[?1006l\x1b[?1000l";
 
+/* --- UTF-16 / UTF-8 constants --- */
+#define ZR_WIN32_UTF8_MAX_BYTES 4u
+#define ZR_WIN32_REPLACEMENT_CODEPOINT 0xFFFDu
+#define ZR_WIN32_SURROGATE_HIGH_MIN 0xD800u
+#define ZR_WIN32_SURROGATE_HIGH_MAX 0xDBFFu
+#define ZR_WIN32_SURROGATE_LOW_MIN 0xDC00u
+#define ZR_WIN32_SURROGATE_LOW_MAX 0xDFFFu
+#define ZR_WIN32_SURROGATE_BASE 0x10000u
+
 zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg);
 
 struct plat_t {
@@ -50,7 +59,10 @@ struct plat_t {
   bool    modes_valid;
   bool    cp_valid;
   bool    raw_active;
-  uint8_t _pad[5];
+
+  uint16_t pending_high_surrogate;
+  bool     pending_high_surrogate_valid;
+  uint8_t  _pad[3];
 };
 
 static void zr_win32_emit_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_len, const uint8_t* seq, size_t seq_len,
@@ -71,6 +83,79 @@ static void zr_win32_emit_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_le
     memcpy(out_buf + *io_len, seq, seq_len);
     *io_len += seq_len;
   }
+}
+
+static bool zr_win32_is_high_surrogate(uint16_t unit) {
+  return unit >= (uint16_t)ZR_WIN32_SURROGATE_HIGH_MIN && unit <= (uint16_t)ZR_WIN32_SURROGATE_HIGH_MAX;
+}
+
+static bool zr_win32_is_low_surrogate(uint16_t unit) {
+  return unit >= (uint16_t)ZR_WIN32_SURROGATE_LOW_MIN && unit <= (uint16_t)ZR_WIN32_SURROGATE_LOW_MAX;
+}
+
+/* Combine a valid UTF-16 surrogate pair into one Unicode scalar value. */
+static uint32_t zr_win32_surrogate_pair_to_scalar(uint16_t high, uint16_t low) {
+  const uint32_t hi = (uint32_t)(high - (uint16_t)ZR_WIN32_SURROGATE_HIGH_MIN);
+  const uint32_t lo = (uint32_t)(low - (uint16_t)ZR_WIN32_SURROGATE_LOW_MIN);
+  return (uint32_t)(ZR_WIN32_SURROGATE_BASE + ((hi << 10u) | lo));
+}
+
+/* Encode one Unicode scalar as UTF-8 bytes (invalid scalar -> U+FFFD). */
+static size_t zr_win32_utf8_encode_scalar(uint32_t scalar, uint8_t out[ZR_WIN32_UTF8_MAX_BYTES]) {
+  if (!out) {
+    return 0u;
+  }
+
+  uint32_t cp = scalar;
+  if (cp > 0x10FFFFu || (cp >= (uint32_t)ZR_WIN32_SURROGATE_HIGH_MIN && cp <= (uint32_t)ZR_WIN32_SURROGATE_LOW_MAX)) {
+    cp = ZR_WIN32_REPLACEMENT_CODEPOINT;
+  }
+
+  if (cp <= 0x7Fu) {
+    out[0] = (uint8_t)cp;
+    return 1u;
+  }
+  if (cp <= 0x7FFu) {
+    out[0] = (uint8_t)(0xC0u | (uint8_t)(cp >> 6u));
+    out[1] = (uint8_t)(0x80u | (uint8_t)(cp & 0x3Fu));
+    return 2u;
+  }
+  if (cp <= 0xFFFFu) {
+    out[0] = (uint8_t)(0xE0u | (uint8_t)(cp >> 12u));
+    out[1] = (uint8_t)(0x80u | (uint8_t)((cp >> 6u) & 0x3Fu));
+    out[2] = (uint8_t)(0x80u | (uint8_t)(cp & 0x3Fu));
+    return 3u;
+  }
+
+  out[0] = (uint8_t)(0xF0u | (uint8_t)(cp >> 18u));
+  out[1] = (uint8_t)(0x80u | (uint8_t)((cp >> 12u) & 0x3Fu));
+  out[2] = (uint8_t)(0x80u | (uint8_t)((cp >> 6u) & 0x3Fu));
+  out[3] = (uint8_t)(0x80u | (uint8_t)(cp & 0x3Fu));
+  return 4u;
+}
+
+static void zr_win32_emit_utf8_scalar_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_len, uint32_t scalar, WORD repeat) {
+  uint8_t seq[ZR_WIN32_UTF8_MAX_BYTES];
+  const size_t seq_len = zr_win32_utf8_encode_scalar(scalar, seq);
+  if (seq_len == 0u) {
+    return;
+  }
+  zr_win32_emit_repeat(out_buf, out_cap, io_len, seq, seq_len, repeat);
+}
+
+/*
+  Flush a pending high surrogate as U+FFFD.
+
+  Why: If a high surrogate is not immediately followed by a valid low surrogate,
+  we must not lose consumed input records.
+*/
+static void zr_win32_flush_pending_surrogate(uint8_t* out_buf, size_t out_cap, size_t* io_len, plat_t* plat) {
+  if (!plat || !plat->pending_high_surrogate_valid) {
+    return;
+  }
+  plat->pending_high_surrogate_valid = false;
+  plat->pending_high_surrogate = 0u;
+  zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap, io_len, ZR_WIN32_REPLACEMENT_CODEPOINT, 1u);
 }
 
 static zr_result_t zr_win32_write_all(HANDLE h_out, const uint8_t* bytes, int32_t len) {
@@ -306,6 +391,8 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->out_mode_orig = 0u;
   plat->modes_valid = false;
   plat->raw_active = false;
+  plat->pending_high_surrogate = 0u;
+  plat->pending_high_surrogate_valid = false;
   plat->last_size.cols = 0u;
   plat->last_size.rows = 0u;
 
@@ -374,6 +461,8 @@ zr_result_t plat_enter_raw(plat_t* plat) {
   }
 
   zr_win32_emit_enter_sequences_best_effort(plat);
+  plat->pending_high_surrogate = 0u;
+  plat->pending_high_surrogate_valid = false;
   plat->raw_active = true;
   return ZR_OK;
 }
@@ -544,15 +633,32 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
         continue;
       }
 
-      /*
-        The core input parser is currently byte-oriented (no UTF-8 decode).
-        Emit ASCII only; ignore non-ASCII so we don't generate spurious multi-byte
-        "text events" for a single key press.
-      */
-      if (ch <= 0x7Fu && out_len + 1u <= out_cap_z) {
-        const uint8_t seq[] = {(uint8_t)ch};
-        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
+      const uint16_t unit = (uint16_t)ch;
+      if (zr_win32_is_high_surrogate(unit)) {
+        zr_win32_flush_pending_surrogate(out_buf, out_cap_z, &out_len, plat);
+        plat->pending_high_surrogate = unit;
+        plat->pending_high_surrogate_valid = true;
+        continue;
       }
+
+      if (zr_win32_is_low_surrogate(unit)) {
+        if (plat->pending_high_surrogate_valid) {
+          const uint32_t scalar = zr_win32_surrogate_pair_to_scalar(plat->pending_high_surrogate, unit);
+          plat->pending_high_surrogate_valid = false;
+          plat->pending_high_surrogate = 0u;
+          zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap_z, &out_len, scalar, repeat);
+        } else {
+          zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap_z, &out_len, ZR_WIN32_REPLACEMENT_CODEPOINT, repeat);
+        }
+        continue;
+      }
+
+      zr_win32_flush_pending_surrogate(out_buf, out_cap_z, &out_len, plat);
+      zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap_z, &out_len, (uint32_t)unit, repeat);
+    }
+
+    if (read == n_events) {
+      zr_win32_flush_pending_surrogate(out_buf, out_cap_z, &out_len, plat);
     }
 
     if (out_len > (size_t)INT32_MAX) {

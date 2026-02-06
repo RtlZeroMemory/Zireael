@@ -6,6 +6,8 @@ Terminal input bytes are parsed and normalized into engine events, then packed i
 
 - `engine_poll_events()` writes a packed event batch into a caller-provided buffer.
 - Wrappers parse it and translate to their own event model.
+- `ZR_EV_TEXT` records carry decoded Unicode codepoints from UTF-8 input bytes.
+  Malformed UTF-8 input is normalized to `U+FFFD` deterministically.
 
 See: [ABI → Event Batch Format](../abi/event-batch-format.md).
 

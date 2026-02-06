@@ -617,6 +617,20 @@ static bool zr_engine_pack_one_event(zr_evpack_writer_t* w, const zr_event_queue
   }
 }
 
+/*
+  Check whether the event queue currently has at least one event.
+
+  Why: zr_event_queue_peek() takes the queue lock, so this check is safe even
+  when engine_post_user_event() concurrently enqueues from another thread.
+*/
+static bool zr_engine_event_queue_has_events(const zr_event_queue_t* q) {
+  if (!q) {
+    return false;
+  }
+  zr_event_t ev;
+  return zr_event_queue_peek(q, &ev);
+}
+
 /* Initialize the engine-owned runtime config from the create-time config. */
 static void zr_engine_runtime_from_create_cfg(zr_engine_t* e, const zr_engine_config_t* cfg) {
   if (!e || !cfg) {
@@ -1134,7 +1148,7 @@ static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms, uint32_t
     return (int)ZR_ERR_INVALID_ARGUMENT;
   }
 
-  if (zr_event_queue_count(&e->evq) != 0u) {
+  if (zr_engine_event_queue_has_events(&e->evq)) {
     return 1;
   }
 
@@ -1225,7 +1239,7 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
   uint32_t time_ms = zr_engine_now_ms_u32();
 
   int wait_ms = timeout_ms;
-  if (zr_event_queue_count(&e->evq) == 0u && wait_ms > 0) {
+  if (!zr_engine_event_queue_has_events(&e->evq) && wait_ms > 0) {
     const uint32_t until_tick_ms = zr_engine_tick_until_due_ms(e, time_ms);
     if (until_tick_ms == 0u) {
       wait_ms = 0;
@@ -1242,7 +1256,7 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
   time_ms = zr_engine_now_ms_u32();
   zr_engine_maybe_enqueue_tick(e, time_ms);
 
-  if (zr_event_queue_count(&e->evq) == 0u) {
+  if (!zr_engine_event_queue_has_events(&e->evq)) {
     return 0;
   }
   return zr_engine_poll_pack(e, out_buf, out_cap);

@@ -7,17 +7,41 @@
 
 #include "core/zr_input_parser.h"
 
+#include "unicode/zr_utf8.h"
+
 #include <string.h>
 
-static void zr__push_key(zr_event_queue_t* q, uint32_t time_ms, zr_key_t key) {
+static uint32_t zr__mods_from_csi_param(uint32_t mod_param) {
+  uint32_t mods = 0u;
+  if (mod_param < 2u) {
+    return 0u;
+  }
+
+  const uint32_t bits = mod_param - 1u;
+  if ((bits & 1u) != 0u) {
+    mods |= ZR_MOD_SHIFT;
+  }
+  if ((bits & 2u) != 0u) {
+    mods |= ZR_MOD_ALT;
+  }
+  if ((bits & 4u) != 0u) {
+    mods |= ZR_MOD_CTRL;
+  }
+  if ((bits & 8u) != 0u) {
+    mods |= ZR_MOD_META;
+  }
+  return mods;
+}
+
+static void zr__push_key(zr_event_queue_t* q, uint32_t time_ms, zr_key_t key, uint32_t mods, zr_key_action_t action) {
   zr_event_t ev;
   memset(&ev, 0, sizeof(ev));
   ev.type = ZR_EV_KEY;
   ev.time_ms = time_ms;
   ev.flags = 0u;
   ev.u.key.key = (uint32_t)key;
-  ev.u.key.mods = 0u;
-  ev.u.key.action = (uint32_t)ZR_KEY_ACTION_DOWN;
+  ev.u.key.mods = mods;
+  ev.u.key.action = (uint32_t)action;
   ev.u.key.reserved0 = 0u;
   (void)zr_event_queue_push(q, &ev);
 }
@@ -40,18 +64,55 @@ static void zr__push_mouse(zr_event_queue_t* q, uint32_t time_ms, int32_t x, int
   (void)zr_event_queue_push(q, &ev);
 }
 
-static void zr__push_text_byte(zr_event_queue_t* q, uint32_t time_ms, uint8_t b) {
+static void zr__push_text_scalar(zr_event_queue_t* q, uint32_t time_ms, uint32_t scalar) {
   zr_event_t ev;
   memset(&ev, 0, sizeof(ev));
   ev.type = ZR_EV_TEXT;
   ev.time_ms = time_ms;
   ev.flags = 0u;
-  ev.u.text.codepoint = (uint32_t)b;
+  ev.u.text.codepoint = scalar;
   ev.u.text.reserved0 = 0u;
   (void)zr_event_queue_push(q, &ev);
 }
 
 static bool zr__is_digit(uint8_t b) { return b >= (uint8_t)'0' && b <= (uint8_t)'9'; }
+
+/*
+  Return true when bytes[i] starts a valid UTF-8 prefix that is incomplete.
+
+  Why: Prefix parsing is used by the engine's pending-input buffer, which may
+  receive one byte at a time. We must preserve an incomplete scalar until more
+  bytes arrive instead of emitting replacement text prematurely.
+*/
+static bool zr__is_incomplete_utf8_prefix(const uint8_t* bytes, size_t len, size_t i) {
+  if (!bytes || i >= len) {
+    return false;
+  }
+
+  const uint8_t b0 = bytes[i];
+  size_t expect = 0u;
+  if (b0 >= 0xC2u && b0 <= 0xDFu) {
+    expect = 2u;
+  } else if (b0 >= 0xE0u && b0 <= 0xEFu) {
+    expect = 3u;
+  } else if (b0 >= 0xF0u && b0 <= 0xF4u) {
+    expect = 4u;
+  } else {
+    return false;
+  }
+
+  const size_t avail = len - i;
+  if (avail >= expect) {
+    return false;
+  }
+
+  for (size_t j = 1u; j < avail; j++) {
+    if ((bytes[i + j] & 0xC0u) != 0x80u) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static bool zr__parse_u32_dec(const uint8_t* bytes, size_t len, size_t* io_i, uint32_t* out_val) {
   if (!bytes || !io_i || !out_val) {
@@ -80,9 +141,65 @@ static bool zr__parse_u32_dec(const uint8_t* bytes, size_t len, size_t* io_i, ui
   return true;
 }
 
+static bool zr__csi_tilde_key_from_first(uint32_t first, zr_key_t* out_key) {
+  if (!out_key) {
+    return false;
+  }
+
+  static const struct {
+    uint32_t n;
+    zr_key_t key;
+  } map[] = {
+      {1u, ZR_KEY_HOME},     {7u, ZR_KEY_HOME},      {4u, ZR_KEY_END},      {8u, ZR_KEY_END},
+      {15u, ZR_KEY_F5},      {17u, ZR_KEY_F6},       {18u, ZR_KEY_F7},      {19u, ZR_KEY_F8},
+      {20u, ZR_KEY_F9},      {21u, ZR_KEY_F10},      {23u, ZR_KEY_F11},     {24u, ZR_KEY_F12},
+      {2u, ZR_KEY_INSERT},   {3u, ZR_KEY_DELETE},    {5u, ZR_KEY_PAGE_UP},  {6u, ZR_KEY_PAGE_DOWN},
+  };
+
+  for (size_t mi = 0u; mi < (sizeof(map) / sizeof(map[0])); mi++) {
+    if (map[mi].n == first) {
+      *out_key = map[mi].key;
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool zr__csi_simple_key_from_final(uint8_t final_byte, zr_key_t* out_key) {
+  if (!out_key) {
+    return false;
+  }
+
+  switch (final_byte) {
+    case (uint8_t)'A':
+      *out_key = ZR_KEY_UP;
+      return true;
+    case (uint8_t)'B':
+      *out_key = ZR_KEY_DOWN;
+      return true;
+    case (uint8_t)'C':
+      *out_key = ZR_KEY_RIGHT;
+      return true;
+    case (uint8_t)'D':
+      *out_key = ZR_KEY_LEFT;
+      return true;
+    case (uint8_t)'H':
+      *out_key = ZR_KEY_HOME;
+      return true;
+    case (uint8_t)'F':
+      *out_key = ZR_KEY_END;
+      return true;
+    default:
+      return false;
+  }
+}
+
 static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key,
-                                   size_t* out_consumed) {
+                                    uint32_t* out_mods, size_t* out_consumed) {
   if (!bytes || !out_key || !out_consumed) {
+    return false;
+  }
+  if (!out_mods) {
     return false;
   }
   if ((i + 2u) >= len) {
@@ -94,6 +211,8 @@ static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, 
 
   size_t j = i + 2u;
   uint32_t first = 0u;
+  uint32_t mod_param = 0u;
+  bool has_mod = false;
   if (!zr__parse_u32_dec(bytes, len, &j, &first)) {
     return false;
   }
@@ -106,6 +225,10 @@ static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, 
       if (!zr__parse_u32_dec(bytes, len, &j, &dummy)) {
         return false;
       }
+      if (!has_mod) {
+        mod_param = dummy;
+        has_mod = true;
+      }
       continue;
     }
     return false;
@@ -116,63 +239,22 @@ static bool zr__parse_csi_tilde_key(const uint8_t* bytes, size_t len, size_t i, 
   }
 
   zr_key_t key = ZR_KEY_UNKNOWN;
-  switch (first) {
-    case 1u:
-    case 7u:
-      key = ZR_KEY_HOME;
-      break;
-    case 4u:
-    case 8u:
-      key = ZR_KEY_END;
-      break;
-    case 15u:
-      key = ZR_KEY_F5;
-      break;
-    case 17u:
-      key = ZR_KEY_F6;
-      break;
-    case 18u:
-      key = ZR_KEY_F7;
-      break;
-    case 19u:
-      key = ZR_KEY_F8;
-      break;
-    case 20u:
-      key = ZR_KEY_F9;
-      break;
-    case 21u:
-      key = ZR_KEY_F10;
-      break;
-    case 23u:
-      key = ZR_KEY_F11;
-      break;
-    case 24u:
-      key = ZR_KEY_F12;
-      break;
-    case 2u:
-      key = ZR_KEY_INSERT;
-      break;
-    case 3u:
-      key = ZR_KEY_DELETE;
-      break;
-    case 5u:
-      key = ZR_KEY_PAGE_UP;
-      break;
-    case 6u:
-      key = ZR_KEY_PAGE_DOWN;
-      break;
-    default:
-      return false;
+  if (!zr__csi_tilde_key_from_first(first, &key)) {
+    return false;
   }
 
   *out_key = key;
+  *out_mods = has_mod ? zr__mods_from_csi_param(mod_param) : 0u;
   *out_consumed = (j + 1u) - i;
   return true;
 }
 
 static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key,
-                                    size_t* out_consumed) {
+                                     uint32_t* out_mods, size_t* out_consumed) {
   if (!bytes || !out_key || !out_consumed) {
+    return false;
+  }
+  if (!out_mods) {
     return false;
   }
   if ((i + 2u) >= len) {
@@ -189,9 +271,19 @@ static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i,
       - ESC [ H/F (home/end) and their param forms
   */
   size_t j = i + 2u;
-  while (j < len) {
-    const uint8_t b = bytes[j];
-    if (zr__is_digit(b) || b == (uint8_t)';') {
+  uint32_t param_index = 0u;
+  uint32_t mod_param = 0u;
+
+  while (j < len && (zr__is_digit(bytes[j]) || bytes[j] == (uint8_t)';')) {
+    uint32_t parsed = 0u;
+    if (!zr__parse_u32_dec(bytes, len, &j, &parsed)) {
+      return false;
+    }
+    param_index++;
+    if (param_index == 2u) {
+      mod_param = parsed;
+    }
+    if (j < len && bytes[j] == (uint8_t)';') {
       j++;
       continue;
     }
@@ -203,30 +295,12 @@ static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i,
   }
 
   zr_key_t key = ZR_KEY_UNKNOWN;
-  switch (bytes[j]) {
-    case (uint8_t)'A':
-      key = ZR_KEY_UP;
-      break;
-    case (uint8_t)'B':
-      key = ZR_KEY_DOWN;
-      break;
-    case (uint8_t)'C':
-      key = ZR_KEY_RIGHT;
-      break;
-    case (uint8_t)'D':
-      key = ZR_KEY_LEFT;
-      break;
-    case (uint8_t)'H':
-      key = ZR_KEY_HOME;
-      break;
-    case (uint8_t)'F':
-      key = ZR_KEY_END;
-      break;
-    default:
-      return false;
+  if (!zr__csi_simple_key_from_final(bytes[j], &key)) {
+    return false;
   }
 
   *out_key = key;
+  *out_mods = (param_index >= 2u) ? zr__mods_from_csi_param(mod_param) : 0u;
   *out_consumed = (j + 1u) - i;
   return true;
 }
@@ -473,6 +547,7 @@ static size_t zr__consume_escape(zr_event_queue_t* q, const uint8_t* bytes, size
   }
 
   zr_key_t key = ZR_KEY_UNKNOWN;
+  uint32_t mods = 0u;
   size_t consumed = 0u;
 
   if ((i + 2u) < len && bytes[i + 1u] == (uint8_t)'[') {
@@ -483,23 +558,23 @@ static size_t zr__consume_escape(zr_event_queue_t* q, const uint8_t* bytes, size
       }
     }
 
-    if (zr__parse_csi_simple_key(bytes, len, i, &key, &consumed)) {
-      zr__push_key(q, time_ms, key);
+    if (zr__parse_csi_simple_key(bytes, len, i, &key, &mods, &consumed)) {
+      zr__push_key(q, time_ms, key, mods, ZR_KEY_ACTION_DOWN);
       return consumed;
     }
-    if (zr__parse_csi_tilde_key(bytes, len, i, &key, &consumed)) {
-      zr__push_key(q, time_ms, key);
+    if (zr__parse_csi_tilde_key(bytes, len, i, &key, &mods, &consumed)) {
+      zr__push_key(q, time_ms, key, mods, ZR_KEY_ACTION_DOWN);
       return consumed;
     }
   }
 
   if (zr__parse_ss3_key(bytes, len, i, &key, &consumed)) {
-    zr__push_key(q, time_ms, key);
+    zr__push_key(q, time_ms, key, 0u, ZR_KEY_ACTION_DOWN);
     return consumed;
   }
 
   /* Deterministic fallback: treat bare ESC as an Escape key. */
-  zr__push_key(q, time_ms, ZR_KEY_ESCAPE);
+  zr__push_key(q, time_ms, ZR_KEY_ESCAPE, 0u, ZR_KEY_ACTION_DOWN);
   return 1u;
 }
 
@@ -525,24 +600,32 @@ static size_t zr_input_parse_bytes_internal(zr_event_queue_t* q, const uint8_t* 
     }
 
     if (b == (uint8_t)'\r' || b == (uint8_t)'\n') {
-      zr__push_key(q, time_ms, ZR_KEY_ENTER);
+      zr__push_key(q, time_ms, ZR_KEY_ENTER, 0u, ZR_KEY_ACTION_DOWN);
       i += 1u;
       continue;
     }
     if (b == (uint8_t)'\t') {
-      zr__push_key(q, time_ms, ZR_KEY_TAB);
+      zr__push_key(q, time_ms, ZR_KEY_TAB, 0u, ZR_KEY_ACTION_DOWN);
       i += 1u;
       continue;
     }
     if (b == 0x7Fu) {
-      zr__push_key(q, time_ms, ZR_KEY_BACKSPACE);
+      zr__push_key(q, time_ms, ZR_KEY_BACKSPACE, 0u, ZR_KEY_ACTION_DOWN);
       i += 1u;
       continue;
     }
 
-    /* MVP: treat all remaining bytes as text bytes (no UTF-8 decoding yet). */
-    zr__push_text_byte(q, time_ms, b);
-    i += 1u;
+    if (stop_before_incomplete_escape && zr__is_incomplete_utf8_prefix(bytes, len, i)) {
+      break;
+    }
+
+    zr_utf8_decode_result_t d = zr_utf8_decode_one(bytes + i, len - i);
+    if (d.size == 0u) {
+      break;
+    }
+    const uint32_t scalar = (d.valid != 0u) ? d.scalar : 0xFFFDu;
+    zr__push_text_scalar(q, time_ms, scalar);
+    i += (size_t)d.size;
   }
 
   return i;

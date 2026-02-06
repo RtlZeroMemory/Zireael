@@ -10,6 +10,7 @@
 
 #include "core/zr_cursor.h"
 #include "core/zr_damage.h"
+#include "core/zr_debug_overlay.h"
 #include "core/zr_debug_trace.h"
 #include "core/zr_diff.h"
 #include "core/zr_drawlist.h"
@@ -967,7 +968,9 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
-  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, &cursor_stage);
+  rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits,
+                     e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
+                     &cursor_stage);
   if (rc != ZR_OK) {
     zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes,
                              (uint32_t)bytes_len, v.hdr.cmd_count, v.hdr.version, ZR_OK, rc);
@@ -983,15 +986,52 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   return ZR_OK;
 }
 
-static zr_result_t zr_engine_present_render(zr_engine_t* e,
-                                            size_t* out_len,
-                                            zr_term_state_t* final_ts,
-                                            zr_diff_stats_t* stats) {
-  if (!e || !out_len || !final_ts || !stats) {
+/*
+  Select the framebuffer to present for this frame.
+
+  Why: The debug overlay is a presentation-time concern. It must not pollute
+  fb_next (the logical app framebuffer), so overlay composition happens on
+  fb_stage and only affects what diff/present sees for this frame.
+*/
+static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e,
+                                             const zr_fb_t** out_present_fb,
+                                             bool* out_presented_stage) {
+  if (!e || !out_present_fb || !out_presented_stage) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_result_t rc = zr_diff_render(&e->fb_prev, &e->fb_next, &e->caps, &e->term_state, &e->cursor_desired,
+  if (e->cfg_runtime.enable_debug_overlay == 0u) {
+    *out_present_fb = &e->fb_next;
+    *out_presented_stage = false;
+    return ZR_OK;
+  }
+
+  if (!e->fb_next.cells || !e->fb_stage.cells || e->fb_next.cols != e->fb_stage.cols ||
+      e->fb_next.rows != e->fb_stage.rows) {
+    return ZR_ERR_PLATFORM;
+  }
+
+  zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
+  zr_result_t rc = zr_debug_overlay_render(&e->fb_stage, &e->metrics);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  *out_present_fb = &e->fb_stage;
+  *out_presented_stage = true;
+  return ZR_OK;
+}
+
+static zr_result_t zr_engine_present_render(zr_engine_t* e,
+                                            const zr_fb_t* present_fb,
+                                            size_t* out_len,
+                                            zr_term_state_t* final_ts,
+                                            zr_diff_stats_t* stats) {
+  if (!e || !present_fb || !out_len || !final_ts || !stats) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_result_t rc = zr_diff_render(&e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired,
                                   &e->cfg_runtime.limits, e->damage_rects, e->damage_rect_cap,
                                   e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts,
                                   stats);
@@ -1059,6 +1099,7 @@ static void zr_engine_trace_frame(zr_engine_t* e,
 }
 
 static void zr_engine_present_commit(zr_engine_t* e,
+                                     bool presented_stage,
                                      size_t out_len,
                                      const zr_term_state_t* final_ts,
                                      const zr_diff_stats_t* stats) {
@@ -1068,7 +1109,11 @@ static void zr_engine_present_commit(zr_engine_t* e,
 
   const uint64_t frame_id_presented = zr_engine_trace_frame_id(e);
 
-  zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
+  if (presented_stage) {
+    zr_engine_fb_swap(&e->fb_prev, &e->fb_stage);
+  } else {
+    zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
+  }
   e->term_state = *final_ts;
 
   e->metrics.frame_index++;
@@ -1115,8 +1160,15 @@ zr_result_t engine_present(zr_engine_t* e) {
   size_t out_len = 0u;
   zr_term_state_t final_ts;
   zr_diff_stats_t stats;
+  const zr_fb_t* present_fb = NULL;
+  bool presented_stage = false;
 
-  zr_result_t rc = zr_engine_present_render(e, &out_len, &final_ts, &stats);
+  zr_result_t rc = zr_engine_present_pick_fb(e, &present_fb, &presented_stage);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  rc = zr_engine_present_render(e, present_fb, &out_len, &final_ts, &stats);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -1125,7 +1177,7 @@ zr_result_t engine_present(zr_engine_t* e) {
     return rc;
   }
 
-  zr_engine_present_commit(e, out_len, &final_ts, &stats);
+  zr_engine_present_commit(e, presented_stage, out_len, &final_ts, &stats);
   return ZR_OK;
 }
 

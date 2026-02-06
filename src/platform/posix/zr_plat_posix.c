@@ -440,7 +440,8 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.color_mode = cfg->requested_color_mode;
   plat->caps.supports_mouse = 1u;
   plat->caps.supports_bracketed_paste = 1u;
-  plat->caps.supports_focus_events = 1u;
+  /* Focus in/out bytes are not normalized by the core parser in v1. */
+  plat->caps.supports_focus_events = 0u;
   plat->caps.supports_osc52 = 1u;
   plat->caps.supports_sync_update = zr_posix_detect_sync_update();
   plat->caps.supports_scroll_region = zr_posix_detect_scroll_region();

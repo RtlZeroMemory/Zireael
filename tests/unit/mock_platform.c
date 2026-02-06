@@ -53,7 +53,7 @@ static void zr_mock_plat_default_caps(plat_caps_t* out) {
   out->color_mode = PLAT_COLOR_MODE_RGB;
   out->supports_mouse = 1u;
   out->supports_bracketed_paste = 1u;
-  out->supports_focus_events = 1u;
+  out->supports_focus_events = 0u;
   out->supports_osc52 = 0u;
   out->supports_sync_update = 0u;
   out->supports_scroll_region = 1u;

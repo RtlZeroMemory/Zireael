@@ -73,6 +73,38 @@ static void zr_win32_emit_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_le
   }
 }
 
+static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
+  if (!out) {
+    return 0u;
+  }
+
+  if (scalar > 0x10FFFFu || (scalar >= 0xD800u && scalar <= 0xDFFFu)) {
+    scalar = 0xFFFDu;
+  }
+
+  if (scalar <= 0x7Fu) {
+    out[0] = (uint8_t)scalar;
+    return 1u;
+  }
+  if (scalar <= 0x7FFu) {
+    out[0] = (uint8_t)(0xC0u | ((scalar >> 6u) & 0x1Fu));
+    out[1] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    return 2u;
+  }
+  if (scalar <= 0xFFFFu) {
+    out[0] = (uint8_t)(0xE0u | ((scalar >> 12u) & 0x0Fu));
+    out[1] = (uint8_t)(0x80u | ((scalar >> 6u) & 0x3Fu));
+    out[2] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    return 3u;
+  }
+
+  out[0] = (uint8_t)(0xF0u | ((scalar >> 18u) & 0x07u));
+  out[1] = (uint8_t)(0x80u | ((scalar >> 12u) & 0x3Fu));
+  out[2] = (uint8_t)(0x80u | ((scalar >> 6u) & 0x3Fu));
+  out[3] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+  return 4u;
+}
+
 static zr_result_t zr_win32_write_all(HANDLE h_out, const uint8_t* bytes, int32_t len) {
   if (len < 0) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -327,7 +359,8 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.color_mode = cfg->requested_color_mode;
   plat->caps.supports_mouse = 1u;
   plat->caps.supports_bracketed_paste = 1u;
-  plat->caps.supports_focus_events = 1u;
+  /* Focus in/out bytes are not normalized by the core parser in v1. */
+  plat->caps.supports_focus_events = 0u;
   plat->caps.supports_osc52 = 1u;
   plat->caps.supports_sync_update = 1u;
   plat->caps.supports_scroll_region = 1u;
@@ -544,14 +577,10 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
         continue;
       }
 
-      /*
-        The core input parser is currently byte-oriented (no UTF-8 decode).
-        Emit ASCII only; ignore non-ASCII so we don't generate spurious multi-byte
-        "text events" for a single key press.
-      */
-      if (ch <= 0x7Fu && out_len + 1u <= out_cap_z) {
-        const uint8_t seq[] = {(uint8_t)ch};
-        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
+      {
+        uint8_t utf8[4];
+        const size_t n = zr_win32_encode_utf8_scalar((uint32_t)ch, utf8);
+        zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, utf8, n, repeat);
       }
     }
 

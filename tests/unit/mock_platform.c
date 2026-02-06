@@ -98,8 +98,6 @@ void mock_plat_set_read_max(uint32_t max_bytes) {
   g_plat.read_max = max_bytes;
 }
 
-void mock_plat_set_read_max(uint32_t max_bytes) { g_plat.read_max = max_bytes; }
-
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len) {
   if (!bytes && len != 0u) {
     return ZR_ERR_INVALID_ARGUMENT;

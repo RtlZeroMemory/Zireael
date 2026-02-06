@@ -95,14 +95,6 @@ zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint
 */
 zr_result_t zr_event_queue_post_paste(zr_event_queue_t* q, uint32_t time_ms, const uint8_t* bytes, uint32_t byte_len);
 
-/*
-  Engine-thread bracketed paste enqueue:
-    - copies paste bytes into the queue's user_bytes ring
-    - returns ZR_ERR_LIMIT if user_bytes capacity is exceeded
-    - may drop the oldest event if the event queue is full
-*/
-zr_result_t zr_event_queue_post_paste(zr_event_queue_t* q, uint32_t time_ms, const uint8_t* bytes, uint32_t byte_len);
-
 /* Pop/peek in FIFO order. */
 bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev);
 bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev);
@@ -128,12 +120,5 @@ bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_
 */
 bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev, const uint8_t** out_bytes,
                                        uint32_t* out_len);
-
-/*
-  Returns a borrowed pointer to the paste payload bytes for a ZR_EV_PASTE event.
-  The pointer remains valid until the corresponding event is popped/dropped.
-*/
-bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
-                                       const uint8_t** out_bytes, uint32_t* out_len);
 
 #endif /* ZR_CORE_ZR_EVENT_QUEUE_H_INCLUDED */

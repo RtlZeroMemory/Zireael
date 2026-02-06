@@ -88,9 +88,9 @@ static int zr_make_pty_pair(int* out_master_fd, int* out_slave_fd) {
 }
 
 typedef struct zr_wait_thread_args_t {
-  plat_t*  plat;
-  int32_t  timeout_ms;
-  int32_t  result;
+  plat_t* plat;
+  int32_t timeout_ms;
+  int32_t result;
 } zr_wait_thread_args_t;
 
 static volatile sig_atomic_t g_prev_sigwinch_count = 0;
@@ -208,7 +208,8 @@ int main(void) {
   plat_t* plat2 = NULL;
   r = plat_create(&plat2, &cfg);
   if (r != ZR_ERR_PLATFORM || plat2 != NULL) {
-    fprintf(stderr, "expected second plat_create() to fail with ZR_ERR_PLATFORM (r=%d plat2=%p)\n", (int)r, (void*)plat2);
+    fprintf(stderr, "expected second plat_create() to fail with ZR_ERR_PLATFORM (r=%d plat2=%p)\n", (int)r,
+            (void*)plat2);
     if (plat2) {
       plat_destroy(plat2);
     }

@@ -874,7 +874,15 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
       }
       if (vk == VK_TAB) {
         zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap_z, &out_len);
-        if (mods == ZR_WIN32_MOD_SHIFT_BIT) {
+        if ((mods & ZR_WIN32_MOD_SHIFT_BIT) != 0u) {
+          /*
+            Keep historical Shift-Tab form for shift-only, but preserve full
+            modifier state for shifted variants (e.g. Shift+Ctrl+Tab).
+          */
+          if (mods != ZR_WIN32_MOD_SHIFT_BIT) {
+            zr_win32_emit_csi_final_repeat(out_buf, out_cap_z, &out_len, (uint8_t)'Z', mods, repeat);
+            continue;
+          }
           const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'Z'};
           zr_win32_emit_repeat(out_buf, out_cap_z, &out_len, seq, sizeof(seq), repeat);
         } else {

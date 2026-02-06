@@ -5,6 +5,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+### Changed
+
+- Documented project lifecycle status as **alpha** in wrapper-facing docs and release guidance.
+
 ## 1.2.0-rc5 — 2026-02-03
 
 ### Fixed

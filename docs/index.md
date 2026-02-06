@@ -2,6 +2,8 @@
 
 Zireael is a deterministic terminal rendering engine in C for embedding in higher-level TUI frameworks.
 
+Project status: **alpha** (see [Release Model](release-model.md)).
+
 It exposes a **small public C ABI** and two versioned binary protocols:
 
 - **Drawlist** (wrapper -> engine): render commands in a little-endian byte stream

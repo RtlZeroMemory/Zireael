@@ -54,6 +54,7 @@ This runs strict MkDocs and generates Doxygen API docs when available.
 
 ## Release And Versioning Model
 
+- Current project lifecycle is alpha
 - Follow SemVer release tags: `vMAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH-<pre>`
 - Keep `include/zr/zr_version.h` and `CHANGELOG.md` aligned before tagging
 - See `docs/release-model.md` for release channels and policy details

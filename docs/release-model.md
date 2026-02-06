@@ -2,6 +2,13 @@
 
 Zireael uses a SemVer-based release model aligned with common open-source C library practices.
 
+## Current Lifecycle Status
+
+The project is currently in **alpha**.
+
+- Release consumers should prefer explicit pre-release tags while alpha is active.
+- Compatibility still follows versioned contracts, but broad API/UX refinement is expected before GA.
+
 ## Standards
 
 - Semantic Versioning 2.0.0 for tag shape and compatibility intent.

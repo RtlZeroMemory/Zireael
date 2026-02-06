@@ -111,14 +111,14 @@ uint32_t zr_event_queue_count(const zr_event_queue_t* q);
   Returns a borrowed pointer to the user payload bytes for a ZR_EV_USER event.
   The pointer remains valid until the corresponding event is popped/dropped.
 */
-bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
-                                      const uint8_t** out_bytes, uint32_t* out_len);
+bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev, const uint8_t** out_bytes,
+                                      uint32_t* out_len);
 
 /*
   Returns a borrowed pointer to the paste payload bytes for a ZR_EV_PASTE event.
   The pointer remains valid until the corresponding event is popped/dropped.
 */
-bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
-                                       const uint8_t** out_bytes, uint32_t* out_len);
+bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev, const uint8_t** out_bytes,
+                                       uint32_t* out_len);
 
 #endif /* ZR_CORE_ZR_EVENT_QUEUE_H_INCLUDED */

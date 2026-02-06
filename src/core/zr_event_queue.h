@@ -65,8 +65,8 @@ typedef struct zr_event_queue_t {
     - Caller supplies all storage (no heap allocation).
     - user_bytes is used for variable-length payload copies (USER/PASTE).
 */
-zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_t events_cap,
-                                uint8_t* user_bytes, uint32_t user_bytes_cap);
+zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_t events_cap, uint8_t* user_bytes,
+                                uint32_t user_bytes_cap);
 
 /* Engine-thread enqueue with deterministic coalescing/drop policy. */
 zr_result_t zr_event_queue_push(zr_event_queue_t* q, const zr_event_t* ev);
@@ -84,8 +84,8 @@ zr_result_t zr_event_queue_try_push_no_drop(zr_event_queue_t* q, const zr_event_
     - returns ZR_ERR_LIMIT if queue or user_bytes capacity is exceeded
     - does not drop existing events to make room
 */
-zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag,
-                                     const uint8_t* payload, uint32_t payload_len);
+zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag, const uint8_t* payload,
+                                     uint32_t payload_len);
 
 /*
   Engine-thread bracketed paste enqueue:

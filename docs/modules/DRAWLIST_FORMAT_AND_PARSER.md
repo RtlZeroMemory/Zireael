@@ -83,6 +83,8 @@ Validation happens before any command executes:
 - No overlapping sections
 - Command sizes match opcode expectations exactly
 - String/blob indices within bounds
+- `DRAW_TEXT_RUN` blobs are validated in deterministic phases:
+  span resolution -> framing-size check -> per-segment string-slice bounds
 - Reserved fields are zero
 
 On failure: `ZR_ERR_FORMAT` or `ZR_ERR_UNSUPPORTED`, no partial effects.

@@ -78,6 +78,7 @@ Wrappers should ensure:
 - `string_index` / `blob_index` are in range
 - `byte_off + byte_len` stays within referenced span
 - UTF-8 payloads are valid when required by command semantics
+- `DRAW_TEXT_RUN` blob validation is deterministic: span resolution, blob framing-size check, then per-segment slice checks
 
 ## Drawlist v2 Cursor Command
 

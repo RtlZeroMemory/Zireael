@@ -5,6 +5,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+### Changed
+
+- core: refactored drawlist `DRAW_TEXT_RUN` validation into focused helpers for span-table reads, blob framing checks, and per-segment slice validation (no behavior change).
+- docs: synchronized drawlist module/ABI pages with the deterministic three-phase `DRAW_TEXT_RUN` blob validation flow.
+
 ## 1.2.3 — 2026-02-06
 
 ### Added

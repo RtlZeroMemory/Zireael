@@ -5,6 +5,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.2.3 — 2026-02-06
+
+### Added
+
+- core: added targeted unit coverage for diff hotpath telemetry (sweep vs damage selection, scroll-opt attempt/hit, and collision-guard counters).
+
+### Changed
+
+- core: phase 2 diff hotpath tuning now reuses row hashes across committed frames, uses deterministic adaptive sweep thresholds, and applies row-indexed damage coalescing to reduce coalescing scan cost.
+- docs: expanded diff renderer module documentation with row-hash reuse lifecycle, adaptive threshold policy, and internal telemetry semantics.
+
+### Fixed
+
+- core: invalidates reused row-hash cache state on present failure paths (render/write error before commit) so failure recovery cannot reuse transient indexed-coalescing scratch state.
+- core: paste enqueue allocation now returns `ZR_ERR_LIMIT` instead of asserting when payload storage cannot be reserved, preserving deterministic bounded failure behavior.
+
 ## 1.2.2 — 2026-02-06
 
 ### Added

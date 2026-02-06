@@ -90,6 +90,17 @@ target_compile_definitions(zireael_unit_tests PRIVATE
 target_link_libraries(zireael_unit_tests PRIVATE zireael_build_settings)
 target_link_libraries(zireael_unit_tests PRIVATE zireael_unit_lib)
 
+add_executable(zireael_perf_diff_hotpath
+        perf/diff_hotpath_bench.c
+)
+target_include_directories(zireael_perf_diff_hotpath PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/tests
+)
+target_link_libraries(zireael_perf_diff_hotpath PRIVATE zireael_build_settings)
+target_link_libraries(zireael_perf_diff_hotpath PRIVATE zireael_unit_lib)
+
 add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)
 
@@ -245,3 +256,33 @@ target_link_libraries(zireael_fuzz_grapheme_iter PRIVATE zireael_build_settings)
 target_link_libraries(zireael_fuzz_grapheme_iter PRIVATE zireael)
 add_test(NAME zireael.fuzz.grapheme.iter COMMAND zireael_fuzz_grapheme_iter)
 set_tests_properties(zireael.fuzz.grapheme.iter PROPERTIES TIMEOUT 5)
+
+if (ZIREAEL_BUILD_LIBFUZZER)
+    if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "ZIREAEL_BUILD_LIBFUZZER requires Clang.")
+    endif ()
+
+    set(_zr_libfuzz_flags
+            -fno-omit-frame-pointer
+            -fno-sanitize-recover=all
+            -fsanitize=fuzzer,address,undefined
+    )
+
+    function(zr_add_libfuzzer_target target_name source_file)
+        add_executable(${target_name}
+                ${source_file}
+        )
+        target_include_directories(${target_name} PRIVATE
+                ${PROJECT_SOURCE_DIR}/src
+        )
+        target_link_libraries(${target_name} PRIVATE zireael_build_settings)
+        target_link_libraries(${target_name} PRIVATE zireael)
+        target_compile_options(${target_name} PRIVATE ${_zr_libfuzz_flags})
+        target_link_options(${target_name} PRIVATE ${_zr_libfuzz_flags})
+    endfunction()
+
+    zr_add_libfuzzer_target(zireael_libfuzz_drawlist_parser fuzz/libfuzzer_drawlist_parser.c)
+    zr_add_libfuzzer_target(zireael_libfuzz_input_parser fuzz/libfuzzer_input_parser.c)
+    zr_add_libfuzzer_target(zireael_libfuzz_utf8_decode fuzz/libfuzzer_utf8_decode.c)
+    zr_add_libfuzzer_target(zireael_libfuzz_grapheme_iter fuzz/libfuzzer_grapheme_iter.c)
+endif ()

@@ -21,6 +21,16 @@
 typedef struct zr_engine_t zr_engine_t;
 
 /*
+  Threading contract (normative):
+    - Engine instances are single-thread-affine.
+    - All `engine_*` APIs are engine-thread-only, except:
+        `engine_post_user_event()`, which is callable cross-thread.
+    - During teardown, `engine_post_user_event()` may return
+      `ZR_ERR_INVALID_ARGUMENT`.
+    - Wrappers must quiesce post threads before calling `engine_destroy()`.
+*/
+
+/*
   Create an engine instance.
 
   Contract:

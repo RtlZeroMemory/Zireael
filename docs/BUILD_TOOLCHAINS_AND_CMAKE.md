@@ -20,6 +20,13 @@ cmake --build --preset posix-clang-tsan
 ctest --test-dir out/build/posix-clang-tsan --output-on-failure
 ```
 
+Optional POSIX libFuzzer harness build:
+
+```text
+cmake --preset posix-clang-fuzz
+cmake --build --preset posix-clang-fuzz
+```
+
 Typical Windows debug build (clang-cl):
 
 ```text
@@ -49,3 +56,8 @@ Project options are defined in `CMakeLists.txt` (top-level). CI typically sets:
 
 - `-DZIREAEL_WARNINGS_AS_ERRORS=ON`
 - `-DZIREAEL_BUILD_EXAMPLES=OFF`
+
+Optional fuzz harnesses:
+
+- `-DZIREAEL_BUILD_LIBFUZZER=ON` builds Clang-only libFuzzer targets under
+  `tests/` for coverage-guided parser fuzzing.

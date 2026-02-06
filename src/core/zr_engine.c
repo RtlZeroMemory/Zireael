@@ -71,6 +71,10 @@ struct zr_engine_t {
   /* --- Damage scratch (rect list is internal; only metrics are exported) --- */
   zr_damage_rect_t* damage_rects;
   uint32_t damage_rect_cap;
+  uint64_t* diff_prev_row_hashes;
+  uint64_t* diff_next_row_hashes;
+  uint8_t* diff_dirty_rows;
+  uint32_t diff_row_cap;
 
   /* --- Input/event pipeline --- */
   zr_event_queue_t evq;
@@ -258,6 +262,65 @@ static int32_t zr_engine_output_wait_timeout_ms(const zr_engine_runtime_config_t
   return (int32_t)ms_u32;
 }
 
+static void zr_engine_free_diff_row_scratch(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+  free(e->diff_prev_row_hashes);
+  free(e->diff_next_row_hashes);
+  free(e->diff_dirty_rows);
+  e->diff_prev_row_hashes = NULL;
+  e->diff_next_row_hashes = NULL;
+  e->diff_dirty_rows = NULL;
+  e->diff_row_cap = 0u;
+}
+
+static zr_result_t zr_engine_alloc_diff_row_scratch(uint32_t rows, uint64_t** out_prev_hashes,
+                                                    uint64_t** out_next_hashes, uint8_t** out_dirty_rows) {
+  if (!out_prev_hashes || !out_next_hashes || !out_dirty_rows) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (rows == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  *out_prev_hashes = NULL;
+  *out_next_hashes = NULL;
+  *out_dirty_rows = NULL;
+
+  size_t hash_bytes = 0u;
+  if (!zr_checked_mul_size((size_t)rows, sizeof(uint64_t), &hash_bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+  size_t dirty_bytes = 0u;
+  if (!zr_checked_mul_size((size_t)rows, sizeof(uint8_t), &dirty_bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  (void)hash_bytes;
+  (void)dirty_bytes;
+
+  *out_prev_hashes = (uint64_t*)calloc((size_t)rows, sizeof(uint64_t));
+  if (!*out_prev_hashes) {
+    return ZR_ERR_OOM;
+  }
+  *out_next_hashes = (uint64_t*)calloc((size_t)rows, sizeof(uint64_t));
+  if (!*out_next_hashes) {
+    free(*out_prev_hashes);
+    *out_prev_hashes = NULL;
+    return ZR_ERR_OOM;
+  }
+  *out_dirty_rows = (uint8_t*)calloc((size_t)rows, sizeof(uint8_t));
+  if (!*out_dirty_rows) {
+    free(*out_prev_hashes);
+    free(*out_next_hashes);
+    *out_prev_hashes = NULL;
+    *out_next_hashes = NULL;
+    return ZR_ERR_OOM;
+  }
+  return ZR_OK;
+}
+
 static void zr_engine_fb_copy(const zr_fb_t* src, zr_fb_t* dst) {
   if (!src || !dst || !src->cells || !dst->cells) {
     return;
@@ -297,6 +360,9 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
   zr_fb_t prev = {0u, 0u, NULL};
   zr_fb_t next = {0u, 0u, NULL};
   zr_fb_t stage = {0u, 0u, NULL};
+  uint64_t* new_prev_hashes = NULL;
+  uint64_t* new_next_hashes = NULL;
+  uint8_t* new_dirty_rows = NULL;
 
   zr_result_t rc = zr_fb_init(&prev, cols, rows);
   if (rc != ZR_OK) {
@@ -314,13 +380,26 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
     return rc;
   }
 
+  rc = zr_engine_alloc_diff_row_scratch(rows, &new_prev_hashes, &new_next_hashes, &new_dirty_rows);
+  if (rc != ZR_OK) {
+    zr_fb_release(&prev);
+    zr_fb_release(&next);
+    zr_fb_release(&stage);
+    return rc;
+  }
+
   zr_fb_release(&e->fb_prev);
   zr_fb_release(&e->fb_next);
   zr_fb_release(&e->fb_stage);
+  zr_engine_free_diff_row_scratch(e);
 
   e->fb_prev = prev;
   e->fb_next = next;
   e->fb_stage = stage;
+  e->diff_prev_row_hashes = new_prev_hashes;
+  e->diff_next_row_hashes = new_next_hashes;
+  e->diff_dirty_rows = new_dirty_rows;
+  e->diff_row_cap = rows;
 
   /* A resize invalidates any cursor/style assumptions (best-effort). */
   memset(&e->term_state, 0, sizeof(e->term_state));
@@ -911,6 +990,8 @@ static void zr_engine_release_heap_state(zr_engine_t* e) {
   e->damage_rects = NULL;
   e->damage_rect_cap = 0u;
 
+  zr_engine_free_diff_row_scratch(e);
+
   free(e->ev_storage);
   e->ev_storage = NULL;
   e->ev_cap = 0u;
@@ -1049,308 +1130,9 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   return ZR_OK;
 }
 
-/*
-  Select the framebuffer to present for this frame.
+#include "core/zr_engine_present.inc"
 
-  Why: The debug overlay is a presentation-time concern. It must not pollute
-  fb_next (the logical app framebuffer), so overlay composition happens on
-  fb_stage and only affects what diff/present sees for this frame.
-*/
-static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out_present_fb,
-                                             bool* out_presented_stage) {
-  if (!e || !out_present_fb || !out_presented_stage) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  if (e->cfg_runtime.enable_debug_overlay == 0u) {
-    *out_present_fb = &e->fb_next;
-    *out_presented_stage = false;
-    return ZR_OK;
-  }
-
-  if (!e->fb_next.cells || !e->fb_stage.cells || e->fb_next.cols != e->fb_stage.cols ||
-      e->fb_next.rows != e->fb_stage.rows) {
-    return ZR_ERR_PLATFORM;
-  }
-
-  zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
-  zr_result_t rc = zr_debug_overlay_render(&e->fb_stage, &e->metrics);
-  if (rc != ZR_OK) {
-    return rc;
-  }
-
-  *out_present_fb = &e->fb_stage;
-  *out_presented_stage = true;
-  return ZR_OK;
-}
-
-static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* present_fb, size_t* out_len,
-                                            zr_term_state_t* final_ts, zr_diff_stats_t* stats) {
-  if (!e || !present_fb || !out_len || !final_ts || !stats) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  zr_result_t rc = zr_diff_render(
-      &e->fb_prev, present_fb, &e->caps, &e->term_state, &e->cursor_desired, &e->cfg_runtime.limits, e->damage_rects,
-      e->damage_rect_cap, e->cfg_runtime.enable_scroll_optimizations, e->out_buf, e->out_cap, out_len, final_ts, stats);
-  if (rc != ZR_OK) {
-    return rc;
-  }
-
-  if (e->caps.supports_sync_update != 0u) {
-    const size_t prefix_len = sizeof(ZR_SYNC_BEGIN) - 1u;
-    const size_t suffix_len = sizeof(ZR_SYNC_END) - 1u;
-    const size_t overhead = prefix_len + suffix_len;
-    if ((*out_len + overhead) <= e->out_cap) {
-      memmove(e->out_buf + prefix_len, e->out_buf, *out_len);
-      memcpy(e->out_buf, ZR_SYNC_BEGIN, prefix_len);
-      memcpy(e->out_buf + prefix_len + *out_len, ZR_SYNC_END, suffix_len);
-      *out_len += overhead;
-      stats->bytes_emitted = *out_len;
-    }
-  }
-
-  if (*out_len > (size_t)INT32_MAX) {
-    *out_len = 0u;
-    memset(final_ts, 0, sizeof(*final_ts));
-    memset(stats, 0, sizeof(*stats));
-    return ZR_ERR_LIMIT;
-  }
-  return ZR_OK;
-}
-
-static zr_result_t zr_engine_present_write(zr_engine_t* e, size_t out_len) {
-  if (!e || !e->plat) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-  return plat_write_output(e->plat, e->out_buf, (int32_t)out_len);
-}
-
-/*
-  Record a frame debug trace after present commits.
-*/
-static void zr_engine_trace_frame(zr_engine_t* e, uint64_t frame_id, size_t out_len, const zr_diff_stats_t* stats) {
-  if (!e || !e->debug_trace || !stats) {
-    return;
-  }
-  if (!zr_debug_trace_enabled(e->debug_trace, ZR_DEBUG_CAT_FRAME, ZR_DEBUG_SEV_INFO)) {
-    return;
-  }
-
-  zr_debug_trace_set_frame(e->debug_trace, frame_id);
-
-  zr_debug_frame_record_t rec;
-  memset(&rec, 0, sizeof(rec));
-  rec.frame_id = frame_id;
-  rec.cols = e->fb_next.cols;
-  rec.rows = e->fb_next.rows;
-  rec.diff_bytes_emitted = (uint32_t)out_len;
-  rec.dirty_lines = stats->dirty_lines;
-  rec.dirty_cells = stats->dirty_cells;
-  rec.damage_rects = stats->damage_rects;
-
-  (void)zr_debug_trace_frame(e->debug_trace, ZR_DEBUG_CODE_FRAME_PRESENT, zr_engine_now_us(), &rec);
-}
-
-static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len,
-                                     const zr_term_state_t* final_ts, const zr_diff_stats_t* stats) {
-  if (!e || !final_ts || !stats) {
-    return;
-  }
-
-  const uint64_t frame_id_presented = zr_engine_trace_frame_id(e);
-
-  if (presented_stage) {
-    zr_engine_fb_swap(&e->fb_prev, &e->fb_stage);
-  } else {
-    zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
-  }
-  e->term_state = *final_ts;
-
-  e->metrics.frame_index++;
-  e->metrics.bytes_emitted_total += (uint64_t)out_len;
-  e->metrics.bytes_emitted_last_frame = (uint32_t)out_len;
-  e->metrics.dirty_lines_last_frame = stats->dirty_lines;
-  e->metrics.dirty_cols_last_frame = stats->dirty_cells;
-  e->metrics.damage_rects_last_frame = stats->damage_rects;
-  e->metrics.damage_cells_last_frame = stats->damage_cells;
-  e->metrics.damage_full_frame = stats->damage_full_frame;
-  e->metrics._pad2[0] = 0u;
-  e->metrics._pad2[1] = 0u;
-  e->metrics._pad2[2] = 0u;
-
-  /* Update debug trace frame ID and record frame data. */
-  if (e->debug_trace) {
-    zr_engine_trace_frame(e, frame_id_presented, out_len, stats);
-    zr_debug_trace_set_frame(e->debug_trace, zr_engine_trace_frame_id(e));
-  }
-}
-
-/*
-  Render and flush the framebuffer diff to the platform backend.
-
-  Why: Enforces the single-flush-per-present contract by calling plat_write_output()
-  exactly once on success and never writing on failure.
-*/
-zr_result_t engine_present(zr_engine_t* e) {
-  if (!e || !e->plat) {
-    return ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  /* Enforced contract: the per-frame arena is reset exactly once per present. */
-  zr_arena_reset(&e->arena_frame);
-
-  if (e->cfg_runtime.wait_for_output_drain != 0u) {
-    const int32_t timeout_ms = zr_engine_output_wait_timeout_ms(&e->cfg_runtime);
-    zr_result_t rc = plat_wait_output_writable(e->plat, timeout_ms);
-    if (rc != ZR_OK) {
-      return rc;
-    }
-  }
-
-  size_t out_len = 0u;
-  zr_term_state_t final_ts;
-  zr_diff_stats_t stats;
-  const zr_fb_t* present_fb = NULL;
-  bool presented_stage = false;
-
-  zr_result_t rc = zr_engine_present_pick_fb(e, &present_fb, &presented_stage);
-  if (rc != ZR_OK) {
-    return rc;
-  }
-
-  rc = zr_engine_present_render(e, present_fb, &out_len, &final_ts, &stats);
-  if (rc != ZR_OK) {
-    return rc;
-  }
-  rc = zr_engine_present_write(e, out_len);
-  if (rc != ZR_OK) {
-    return rc;
-  }
-
-  zr_engine_present_commit(e, presented_stage, out_len, &final_ts, &stats);
-  return ZR_OK;
-}
-
-static int zr_engine_poll_wait_and_fill(zr_engine_t* e, int timeout_ms) {
-  if (!e || !e->plat) {
-    return (int)ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  if (zr_event_queue_count(&e->evq) != 0u) {
-    return 1;
-  }
-
-  const int32_t w = plat_wait(e->plat, (int32_t)timeout_ms);
-  if (w < 0) {
-    return (int)w;
-  }
-  const uint32_t time_ms = zr_engine_now_ms_u32();
-  if (w == 0) {
-    /*
-      Resizes must be detectable even when SIGWINCH delivery is disrupted
-      (e.g. runtimes that install their own SIGWINCH handlers).
-
-      With timeout_ms==0, plat_wait() may return 0 even if the terminal has
-      resized, because there is no wake signal to make poll() ready.
-
-      Fix: always perform a best-effort size check on timeout. This keeps
-      non-blocking poll semantics while ensuring resize events are still
-      generated and framebuffers resized.
-    */
-    zr_result_t rc = zr_engine_try_handle_resize(e, time_ms);
-    if (rc != ZR_OK) {
-      return (int)rc;
-    }
-    zr_engine_input_flush_pending(e, time_ms);
-    return 0;
-  }
-
-  zr_result_t rc = zr_engine_try_handle_resize(e, time_ms);
-  if (rc != ZR_OK) {
-    return (int)rc;
-  }
-  rc = zr_engine_drain_platform_input(e, time_ms);
-  if (rc != ZR_OK) {
-    return (int)rc;
-  }
-  return 1;
-}
-
-static int zr_engine_poll_pack(zr_engine_t* e, uint8_t* out_buf, int out_cap) {
-  if (!e) {
-    return (int)ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  zr_evpack_writer_t w;
-  zr_result_t rc = zr_evpack_begin(&w, out_buf, (size_t)out_cap);
-  if (rc != ZR_OK) {
-    return (int)rc;
-  }
-
-  zr_event_t ev;
-  while (zr_event_queue_peek(&e->evq, &ev)) {
-    if (!zr_engine_pack_one_event(&w, &e->evq, &ev)) {
-      break;
-    }
-    (void)zr_event_queue_pop(&e->evq, &ev);
-  }
-
-  const size_t bytes_written = zr_evpack_finish(&w);
-  e->metrics.events_out_last_poll = w.event_count;
-  e->metrics.events_dropped_total = e->evq.dropped_total;
-
-  if (bytes_written > (size_t)INT_MAX) {
-    return (int)ZR_ERR_LIMIT;
-  }
-  return (int)bytes_written;
-}
-
-/*
-  Poll input/events and pack a batch for the caller.
-
-  Why: Waits only when the internal queue is empty, then emits a packed batch
-  with success-mode truncation and no writes on errors.
-*/
-int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out_cap) {
-  if (!e || !e->plat) {
-    return (int)ZR_ERR_INVALID_ARGUMENT;
-  }
-  if (timeout_ms < 0) {
-    return (int)ZR_ERR_INVALID_ARGUMENT;
-  }
-  if (out_cap < 0) {
-    return (int)ZR_ERR_INVALID_ARGUMENT;
-  }
-  if (out_cap > 0 && !out_buf) {
-    return (int)ZR_ERR_INVALID_ARGUMENT;
-  }
-
-  uint32_t time_ms = zr_engine_now_ms_u32();
-
-  int wait_ms = timeout_ms;
-  if (zr_event_queue_count(&e->evq) == 0u && wait_ms > 0) {
-    const uint32_t until_tick_ms = zr_engine_tick_until_due_ms(e, time_ms);
-    if (until_tick_ms == 0u) {
-      wait_ms = 0;
-    } else if (until_tick_ms < (uint32_t)wait_ms) {
-      wait_ms = (int)until_tick_ms;
-    }
-  }
-
-  const int ready = zr_engine_poll_wait_and_fill(e, wait_ms);
-  if (ready < 0) {
-    return ready;
-  }
-
-  time_ms = zr_engine_now_ms_u32();
-  zr_engine_maybe_enqueue_tick(e, time_ms);
-
-  if (zr_event_queue_count(&e->evq) == 0u) {
-    return 0;
-  }
-  return zr_engine_poll_pack(e, out_buf, out_cap);
-}
+#include "core/zr_engine_poll.inc"
 
 /* Queue a user event and best-effort wake the platform wait. */
 zr_result_t engine_post_user_event(zr_engine_t* e, uint32_t tag, const uint8_t* payload, int payload_len) {

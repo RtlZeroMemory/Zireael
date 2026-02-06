@@ -40,3 +40,4 @@ If code conflicts with these docs, fix the code.
 ## Reference
 
 - Wrapper/FFI integration notes: `docs/ABI_REFERENCE.md`
+- Canonical wrapper thread/API contract: `docs/abi/c-abi-reference.md` + `include/zr/zr_engine.h`

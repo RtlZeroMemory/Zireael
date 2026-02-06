@@ -50,10 +50,29 @@ Rules:
 
 - Fuzz targets MUST be deterministic (fixed seeds when self-generating input).
 - Targets must validate progress guarantees (no infinite loops).
+- Smoke budgets are configurable via environment for CI/nightly scaling:
+  - `ZR_FUZZ_ITERS` (default `1000`)
+  - `ZR_FUZZ_MAX_SIZE` (default `512`)
 
 Location:
 
 - `tests/fuzz/`
+
+## Coverage-guided fuzzing (optional)
+
+Purpose:
+
+- Use libFuzzer-guided corpus mutation for deeper parser exploration than fixed
+  smoke seeds can provide.
+
+Build contract:
+
+- Enable with `-DZIREAEL_BUILD_LIBFUZZER=ON` (Clang-only).
+- Harness binaries are built under `out/build/<preset>/tests/`:
+  - `zireael_libfuzz_drawlist_parser`
+  - `zireael_libfuzz_input_parser`
+  - `zireael_libfuzz_utf8_decode`
+  - `zireael_libfuzz_grapheme_iter`
 
 ## Integration tests
 

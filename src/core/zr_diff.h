@@ -20,12 +20,12 @@
 
 typedef struct zr_term_state_t {
   /* 0-based cursor position in character cells. */
-  uint32_t   cursor_x;
-  uint32_t   cursor_y;
-  uint8_t    cursor_visible; /* 0/1 */
-  uint8_t    cursor_shape;   /* zr_cursor_shape_t values */
-  uint8_t    cursor_blink;   /* 0/1 */
-  uint8_t    _pad0;
+  uint32_t cursor_x;
+  uint32_t cursor_y;
+  uint8_t cursor_visible; /* 0/1 */
+  uint8_t cursor_shape;   /* zr_cursor_shape_t values */
+  uint8_t cursor_blink;   /* 0/1 */
+  uint8_t _pad0;
   zr_style_t style;
 } zr_term_state_t;
 
@@ -34,10 +34,23 @@ typedef struct zr_diff_stats_t {
   uint32_t dirty_cells;
   uint32_t damage_rects;
   uint32_t damage_cells;
-  uint8_t  damage_full_frame;
-  uint8_t  _pad0[3];
-  size_t   bytes_emitted;
+  uint8_t damage_full_frame;
+  uint8_t _pad0[3];
+  size_t bytes_emitted;
 } zr_diff_stats_t;
+
+typedef struct zr_diff_scratch_t {
+  /*
+    Optional per-line scratch caches.
+
+    Why: Lets callers supply engine-owned storage so the diff path can avoid
+    per-frame allocations while caching row fingerprints/dirty-line hints.
+  */
+  uint64_t* prev_row_hashes;
+  uint64_t* next_row_hashes;
+  uint8_t* dirty_rows;
+  uint32_t row_cap;
+} zr_diff_scratch_t;
 
 /*
   zr_diff_render:
@@ -53,19 +66,22 @@ typedef struct zr_diff_stats_t {
         - zeroes out_final_term_state and out_stats
         - out_buf contents are unspecified (caller must respect *out_len)
 */
-zr_result_t zr_diff_render(const zr_fb_t* prev,
-                           const zr_fb_t* next,
-                           const plat_caps_t* caps,
-                           const zr_term_state_t* initial_term_state,
-                           const zr_cursor_state_t* desired_cursor_state,
-                           const zr_limits_t* lim,
-                           zr_damage_rect_t* scratch_damage_rects,
-                           uint32_t scratch_damage_rect_cap,
-                           uint8_t enable_scroll_optimizations,
-                           uint8_t* out_buf,
-                           size_t out_cap,
-                           size_t* out_len,
-                           zr_term_state_t* out_final_term_state,
+zr_result_t zr_diff_render(const zr_fb_t* prev, const zr_fb_t* next, const plat_caps_t* caps,
+                           const zr_term_state_t* initial_term_state, const zr_cursor_state_t* desired_cursor_state,
+                           const zr_limits_t* lim, zr_damage_rect_t* scratch_damage_rects,
+                           uint32_t scratch_damage_rect_cap, uint8_t enable_scroll_optimizations, uint8_t* out_buf,
+                           size_t out_cap, size_t* out_len, zr_term_state_t* out_final_term_state,
                            zr_diff_stats_t* out_stats);
+
+/*
+  Extended entrypoint for engine-internal callsites that can provide
+  optional per-line scratch storage.
+*/
+zr_result_t zr_diff_render_ex(const zr_fb_t* prev, const zr_fb_t* next, const plat_caps_t* caps,
+                              const zr_term_state_t* initial_term_state, const zr_cursor_state_t* desired_cursor_state,
+                              const zr_limits_t* lim, zr_damage_rect_t* scratch_damage_rects,
+                              uint32_t scratch_damage_rect_cap, zr_diff_scratch_t* scratch,
+                              uint8_t enable_scroll_optimizations, uint8_t* out_buf, size_t out_cap, size_t* out_len,
+                              zr_term_state_t* out_final_term_state, zr_diff_stats_t* out_stats);
 
 #endif /* ZR_CORE_ZR_DIFF_H_INCLUDED */

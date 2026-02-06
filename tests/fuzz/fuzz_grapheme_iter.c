@@ -6,9 +6,11 @@
 */
 
 #include "unicode/zr_grapheme.h"
+#include "zr_fuzz_config.h"
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 static void zr_fuzz_trap(void) {
   volatile int* p = (volatile int*)0;
@@ -60,17 +62,31 @@ static void zr_fuzz_one(const uint8_t* data, size_t size) {
 }
 
 int main(void) {
-  enum { kIters = 1000, kMaxSize = 512 };
-  uint32_t seed = 0xC0FFEEu;
-  uint8_t buf[kMaxSize];
+  enum {
+    ZR_FUZZ_DEFAULT_ITERS = 1000,
+    ZR_FUZZ_DEFAULT_MAX_SIZE = 512,
+    ZR_FUZZ_MAX_ITERS = 2000000,
+    ZR_FUZZ_MAX_INPUT_SIZE = 65536,
+  };
 
-  for (int i = 0; i < kIters; i++) {
-    const size_t sz = (size_t)(zr_xorshift32(&seed) % (uint32_t)kMaxSize);
+  const int iters = zr_fuzz_env_int("ZR_FUZZ_ITERS", ZR_FUZZ_DEFAULT_ITERS, 1, ZR_FUZZ_MAX_ITERS);
+  const int max_size_i = zr_fuzz_env_int("ZR_FUZZ_MAX_SIZE", ZR_FUZZ_DEFAULT_MAX_SIZE, 1, ZR_FUZZ_MAX_INPUT_SIZE);
+  const size_t max_size = (size_t)max_size_i;
+
+  uint32_t seed = 0xC0FFEEu;
+  uint8_t* buf = (uint8_t*)malloc(max_size);
+  if (!buf) {
+    return 2;
+  }
+
+  for (int i = 0; i < iters; i++) {
+    const size_t sz = (size_t)(zr_xorshift32(&seed) % (uint32_t)max_size_i);
     for (size_t j = 0; j < sz; j++) {
       buf[j] = (uint8_t)(zr_xorshift32(&seed) & 0xFFu);
     }
     zr_fuzz_one(buf, sz);
   }
 
+  free(buf);
   return 0;
 }

@@ -127,7 +127,7 @@ jobs:
         run: cmake --build --preset posix-clang-asan-ubsan
       - name: Test
         env:
-          ASAN_OPTIONS: detect_leaks=0
+          ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: print_stacktrace=1
         run: ctest --test-dir out/build/posix-clang-asan-ubsan --no-tests=ignore --output-on-failure
       - name: Upload test logs (on failure)
@@ -138,6 +138,46 @@ jobs:
           path: |
             out/build/posix-clang-asan-ubsan/Testing/Temporary/**
             out/build/posix-clang-asan-ubsan/CMakeCache.txt
+
+  linux-clang-fuzz-extended:
+    name: linux / clang / fuzz extended
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: >-
+          cmake --preset posix-clang-debug
+          -DZIREAEL_WARNINGS_AS_ERRORS=ON
+          -DZIREAEL_BUILD_EXAMPLES=OFF
+          -DZIREAEL_BUILD_LIBFUZZER=ON
+      - name: Build
+        run: cmake --build --preset posix-clang-debug
+      - name: Deterministic Fuzz (Extended Budget)
+        env:
+          ZR_FUZZ_ITERS: 20000
+          ZR_FUZZ_MAX_SIZE: 2048
+        run: >-
+          ctest --test-dir out/build/posix-clang-debug
+          --no-tests=ignore
+          --output-on-failure
+          -R '^zireael\\.fuzz\\.'
+      - name: libFuzzer Smoke (Coverage-Guided)
+        run: |
+          set -euo pipefail
+          out/build/posix-clang-debug/tests/zireael_libfuzz_drawlist_parser -runs=10000 >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_input_parser -runs=10000 >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_utf8_decode -runs=10000 >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_grapheme_iter -runs=10000 >/dev/null
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-linux-clang-fuzz-extended
+          path: |
+            out/build/posix-clang-debug/Testing/Temporary/**
+            out/build/posix-clang-debug/CMakeCache.txt
 
   linux-clang-tsan:
     name: linux / clang / Debug + TSan

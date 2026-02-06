@@ -57,6 +57,11 @@ provide compatibility paths, but the public root is `include/zr/`).
 
 ## Threading model
 
+Canonical source:
+
+- `include/zr/zr_engine.h` (public header contract)
+- `docs/abi/c-abi-reference.md` (wrapper-facing contract)
+
 - The engine is single-threaded.
 - All `engine_*` calls are engine-thread only, except `engine_post_user_event()`.
 - `engine_post_user_event()` is thread-safe and wakes a blocking poll.

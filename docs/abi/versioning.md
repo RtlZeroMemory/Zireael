@@ -58,4 +58,5 @@ Breaking examples:
 
 - [ABI Policy](abi-policy.md)
 - [C ABI Reference](c-abi-reference.md)
+- [Release Model](../release-model.md)
 - [Internal Config + Versioning Spec](../modules/CONFIG_AND_ABI_VERSIONING.md)

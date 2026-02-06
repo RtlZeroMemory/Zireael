@@ -68,4 +68,5 @@ If contracts must change, they change behind explicit version bumps.
 
 - [Versioning](versioning.md)
 - [C ABI Reference](c-abi-reference.md)
+- [Release Model](../release-model.md)
 - [Internal ABI Notes](../ABI_REFERENCE.md)

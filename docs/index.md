@@ -38,7 +38,7 @@ It exposes a **small public C ABI** and two versioned binary protocols:
 
 - Wrapper authors: `docs/abi/*`, `docs/getting-started/*`, `docs/examples/*`
 - Engine contributors: `docs/dev/*`, `docs/CODE_STANDARDS.md`, `docs/SAFETY_RULESET.md`
-- Maintainers/releasers: `docs/maintainers.md`, `docs/VERSION_PINS.md`, `CHANGELOG.md`
+- Maintainers/releasers: `docs/maintainers.md`, `docs/release-model.md`, `docs/VERSION_PINS.md`, `CHANGELOG.md`
 
 ## Next Steps
 

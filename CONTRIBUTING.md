@@ -52,6 +52,18 @@ bash scripts/docs.sh build
 
 This runs strict MkDocs and generates Doxygen API docs when available.
 
+## Release And Versioning Model
+
+- Follow SemVer release tags: `vMAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH-<pre>`
+- Keep `include/zr/zr_version.h` and `CHANGELOG.md` aligned before tagging
+- See `docs/release-model.md` for release channels and policy details
+
+Release validation:
+
+```bash
+python3 scripts/check_release_tag.py vX.Y.Z
+```
+
 ## Code Style and Safety
 
 Required references:

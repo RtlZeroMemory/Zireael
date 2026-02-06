@@ -125,6 +125,7 @@ nav:
       - Debugging: dev/debugging.md
       - Maintaining Docs: maintainers.md
   - Reference:
+      - Release Model: release-model.md
       - Glossary: glossary.md
   - Internal Specs:
       - Wrapper/FFI Notes: ABI_REFERENCE.md

@@ -35,6 +35,7 @@ If code conflicts with these docs, fix the code.
 - `docs/abi/c-abi-reference.md`
 - `docs/abi/drawlist-format.md`
 - `docs/abi/event-batch-format.md`
+- `docs/release-model.md`
 
 ## Reference
 

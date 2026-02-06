@@ -135,6 +135,7 @@ if (rc != ZR_OK) {
 - Quickstart: <https://rtlzeromemory.github.io/Zireael/getting-started/quickstart/>
 - ABI policy: <https://rtlzeromemory.github.io/Zireael/abi/abi-policy/>
 - C ABI reference: <https://rtlzeromemory.github.io/Zireael/abi/c-abi-reference/>
+- Release model: <https://rtlzeromemory.github.io/Zireael/release-model/>
 - Internal normative docs index: `docs/00_INDEX.md`
 
 ## Versioning Snapshot

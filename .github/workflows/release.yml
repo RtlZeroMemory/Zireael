@@ -14,9 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate release tag, pins, and changelog
+        run: python3 scripts/check_release_tag.py "${{ github.ref_name }}"
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
 
   build:

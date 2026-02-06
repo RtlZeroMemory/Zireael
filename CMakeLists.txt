@@ -21,6 +21,7 @@ endif ()
 
 if (ZIREAEL_MSVC_LIKE)
     target_compile_options(zireael_build_settings INTERFACE /W4)
+    target_compile_definitions(zireael_build_settings INTERFACE _CRT_SECURE_NO_WARNINGS)
 else ()
     target_compile_options(zireael_build_settings INTERFACE -Wall -Wextra -Wpedantic)
 endif ()

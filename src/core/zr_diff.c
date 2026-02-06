@@ -1160,6 +1160,63 @@ static bool zr_diff_should_use_sweep(const zr_diff_ctx_t* ctx) {
   return dirty_scaled >= rows_scaled;
 }
 
+static bool zr_diff_span_overlaps_or_touches(const zr_damage_rect_t* r, uint32_t span_start, uint32_t span_end) {
+  if (!r) {
+    return false;
+  }
+  return (r->x0 <= span_end + 1u) && (r->x1 + 1u >= span_start);
+}
+
+/*
+  Merge one rectangle into the current row span, flushing first when disjoint.
+
+  Why: Both scan and indexed paths must preserve identical span flush order.
+*/
+static zr_result_t zr_diff_span_merge_or_flush(zr_diff_ctx_t* ctx, uint32_t y, const zr_damage_rect_t* r,
+                                               bool* inout_have_span, uint32_t* inout_span_start,
+                                               uint32_t* inout_span_end) {
+  if (!ctx || !ctx->next || !r || !inout_have_span || !inout_span_start || !inout_span_end) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  if (!*inout_have_span) {
+    *inout_span_start = r->x0;
+    *inout_span_end = r->x1;
+    *inout_have_span = true;
+    return ZR_OK;
+  }
+
+  if (zr_diff_span_overlaps_or_touches(r, *inout_span_start, *inout_span_end)) {
+    if (r->x0 < *inout_span_start) {
+      *inout_span_start = r->x0;
+    }
+    if (r->x1 > *inout_span_end) {
+      *inout_span_end = r->x1;
+    }
+    return ZR_OK;
+  }
+
+  const zr_result_t rc = zr_diff_render_span(ctx, y, *inout_span_start, *inout_span_end);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  *inout_span_start = r->x0;
+  *inout_span_end = r->x1;
+  return ZR_OK;
+}
+
+static zr_result_t zr_diff_span_flush(zr_diff_ctx_t* ctx, uint32_t y, bool have_span, uint32_t span_start,
+                                      uint32_t span_end) {
+  if (!ctx || !ctx->next) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!have_span) {
+    return ZR_OK;
+  }
+  return zr_diff_render_span(ctx, y, span_start, span_end);
+}
+
 static zr_result_t zr_diff_render_damage_coalesced_scan(zr_diff_ctx_t* ctx) {
   if (!ctx || !ctx->next) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1176,45 +1233,33 @@ static zr_result_t zr_diff_render_damage_coalesced_scan(zr_diff_ctx_t* ctx) {
         continue;
       }
 
-      if (!have_span) {
-        span_start = r->x0;
-        span_end = r->x1;
-        have_span = true;
-        continue;
-      }
-
-      /*
-        Rectangles may arrive out of x-order (vertical coalescing by damage list).
-        Merge only when intervals overlap/touch; otherwise flush current span.
-      */
-      const bool overlaps_or_touches = (r->x0 <= span_end + 1u) && (r->x1 + 1u >= span_start);
-      if (overlaps_or_touches) {
-        if (r->x0 < span_start) {
-          span_start = r->x0;
-        }
-        if (r->x1 > span_end) {
-          span_end = r->x1;
-        }
-        continue;
-      }
-
-      const zr_result_t rc = zr_diff_render_span(ctx, y, span_start, span_end);
+      const zr_result_t rc = zr_diff_span_merge_or_flush(ctx, y, r, &have_span, &span_start, &span_end);
       if (rc != ZR_OK) {
         return rc;
       }
-      span_start = r->x0;
-      span_end = r->x1;
     }
 
-    if (have_span) {
-      const zr_result_t rc = zr_diff_render_span(ctx, y, span_start, span_end);
-      if (rc != ZR_OK) {
-        return rc;
-      }
+    const zr_result_t rc = zr_diff_span_flush(ctx, y, have_span, span_start, span_end);
+    if (rc != ZR_OK) {
+      return rc;
     }
   }
 
   return ZR_OK;
+}
+
+static uint32_t zr_diff_row_head_get(const uint64_t* row_heads, uint32_t y) {
+  if (!row_heads) {
+    return ZR_DIFF_RECT_INDEX_NONE;
+  }
+  return (uint32_t)row_heads[y];
+}
+
+static void zr_diff_row_head_set(uint64_t* row_heads, uint32_t y, uint32_t value) {
+  if (!row_heads) {
+    return;
+  }
+  row_heads[y] = (uint64_t)value;
 }
 
 static void zr_diff_row_heads_reset(uint64_t* row_heads, uint32_t rows) {
@@ -1222,8 +1267,137 @@ static void zr_diff_row_heads_reset(uint64_t* row_heads, uint32_t rows) {
     return;
   }
   for (uint32_t y = 0u; y < rows; y++) {
-    row_heads[y] = (uint64_t)ZR_DIFF_RECT_INDEX_NONE;
+    zr_diff_row_head_set(row_heads, y, ZR_DIFF_RECT_INDEX_NONE);
   }
+}
+
+/*
+  Use rect.y0 as a temporary intrusive "next" index while coalescing.
+
+  Why: Indexed coalescing must stay allocation-free in the present hot path.
+  Damage rectangles are frame-local scratch, so temporary link reuse is safe.
+*/
+static uint32_t zr_diff_rect_link_get(const zr_damage_rect_t* r) {
+  if (!r) {
+    return ZR_DIFF_RECT_INDEX_NONE;
+  }
+  return r->y0;
+}
+
+static void zr_diff_rect_link_set(zr_damage_rect_t* r, uint32_t next_idx) {
+  if (!r) {
+    return;
+  }
+  r->y0 = next_idx;
+}
+
+typedef struct zr_diff_active_rects_t {
+  uint32_t head;
+  uint32_t tail;
+} zr_diff_active_rects_t;
+
+static void zr_diff_active_rects_init(zr_diff_active_rects_t* active) {
+  if (!active) {
+    return;
+  }
+  active->head = ZR_DIFF_RECT_INDEX_NONE;
+  active->tail = ZR_DIFF_RECT_INDEX_NONE;
+}
+
+static void zr_diff_active_rects_append(zr_diff_ctx_t* ctx, zr_diff_active_rects_t* active, uint32_t idx) {
+  if (!ctx || !active || idx == ZR_DIFF_RECT_INDEX_NONE) {
+    return;
+  }
+  zr_diff_rect_link_set(&ctx->damage.rects[idx], ZR_DIFF_RECT_INDEX_NONE);
+  if (active->tail == ZR_DIFF_RECT_INDEX_NONE) {
+    active->head = idx;
+    active->tail = idx;
+    return;
+  }
+  zr_diff_rect_link_set(&ctx->damage.rects[active->tail], idx);
+  active->tail = idx;
+}
+
+static void zr_diff_active_rects_remove(zr_diff_ctx_t* ctx, zr_diff_active_rects_t* active, uint32_t prev_idx,
+                                        uint32_t idx, uint32_t next_idx) {
+  if (!ctx || !active || idx == ZR_DIFF_RECT_INDEX_NONE) {
+    return;
+  }
+  if (prev_idx == ZR_DIFF_RECT_INDEX_NONE) {
+    active->head = next_idx;
+  } else {
+    zr_diff_rect_link_set(&ctx->damage.rects[prev_idx], next_idx);
+  }
+  if (active->tail == idx) {
+    active->tail = prev_idx;
+  }
+  zr_diff_rect_link_set(&ctx->damage.rects[idx], ZR_DIFF_RECT_INDEX_NONE);
+}
+
+/* Index rectangle starts by y0 while preserving ascending rectangle order. */
+static void zr_diff_indexed_build_row_heads(zr_diff_ctx_t* ctx, uint64_t* row_heads, uint32_t rows) {
+  if (!ctx || !row_heads) {
+    return;
+  }
+
+  for (uint32_t i = ctx->damage.rect_count; i > 0u; i--) {
+    const uint32_t idx = i - 1u;
+    zr_damage_rect_t* r = &ctx->damage.rects[idx];
+    const uint32_t start_y = r->y0;
+    if (start_y >= rows) {
+      continue;
+    }
+    const uint32_t head = zr_diff_row_head_get(row_heads, start_y);
+    zr_diff_rect_link_set(r, head);
+    zr_diff_row_head_set(row_heads, start_y, idx);
+  }
+}
+
+static void zr_diff_indexed_activate_row(zr_diff_ctx_t* ctx, const uint64_t* row_heads, uint32_t y,
+                                         zr_diff_active_rects_t* active) {
+  if (!ctx || !row_heads || !active) {
+    return;
+  }
+
+  uint32_t start_idx = zr_diff_row_head_get(row_heads, y);
+  while (start_idx != ZR_DIFF_RECT_INDEX_NONE) {
+    zr_damage_rect_t* r = &ctx->damage.rects[start_idx];
+    const uint32_t next_start = zr_diff_rect_link_get(r);
+    zr_diff_active_rects_append(ctx, active, start_idx);
+    start_idx = next_start;
+  }
+}
+
+static zr_result_t zr_diff_indexed_render_row(zr_diff_ctx_t* ctx, uint32_t y, zr_diff_active_rects_t* active) {
+  if (!ctx || !ctx->next || !active) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  uint32_t span_start = 0u;
+  uint32_t span_end = 0u;
+  bool have_span = false;
+
+  uint32_t prev_idx = ZR_DIFF_RECT_INDEX_NONE;
+  uint32_t idx = active->head;
+  while (idx != ZR_DIFF_RECT_INDEX_NONE) {
+    zr_damage_rect_t* r = &ctx->damage.rects[idx];
+    const uint32_t next_idx = zr_diff_rect_link_get(r);
+
+    const zr_result_t rc = zr_diff_span_merge_or_flush(ctx, y, r, &have_span, &span_start, &span_end);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+
+    if (r->y1 == y) {
+      zr_diff_active_rects_remove(ctx, active, prev_idx, idx, next_idx);
+    } else {
+      prev_idx = idx;
+    }
+
+    idx = next_idx;
+  }
+
+  return zr_diff_span_flush(ctx, y, have_span, span_start, span_end);
 }
 
 static zr_result_t zr_diff_render_damage_coalesced_indexed(zr_diff_ctx_t* ctx) {
@@ -1234,98 +1408,16 @@ static zr_result_t zr_diff_render_damage_coalesced_indexed(zr_diff_ctx_t* ctx) {
   const uint32_t rows = ctx->next->rows;
   uint64_t* row_heads = ctx->prev_row_hashes;
   zr_diff_row_heads_reset(row_heads, rows);
+  zr_diff_indexed_build_row_heads(ctx, row_heads, rows);
 
-  /*
-    Build per-row rectangle-start lists in index order.
-
-    Why: Reverse insertion keeps each start-list in ascending rectangle index,
-    preserving the same span flush order as the legacy row*rect_count scan.
-  */
-  for (uint32_t i = ctx->damage.rect_count; i > 0u; i--) {
-    const uint32_t idx = i - 1u;
-    zr_damage_rect_t* r = &ctx->damage.rects[idx];
-    const uint32_t start_y = r->y0;
-    if (start_y >= rows) {
-      continue;
-    }
-    const uint32_t head = (uint32_t)row_heads[start_y];
-    r->y0 = head;
-    row_heads[start_y] = (uint64_t)idx;
-  }
-
-  uint32_t active_head = ZR_DIFF_RECT_INDEX_NONE;
-  uint32_t active_tail = ZR_DIFF_RECT_INDEX_NONE;
+  zr_diff_active_rects_t active;
+  zr_diff_active_rects_init(&active);
 
   for (uint32_t y = 0u; y < rows; y++) {
-    uint32_t start_idx = (uint32_t)row_heads[y];
-    while (start_idx != ZR_DIFF_RECT_INDEX_NONE) {
-      zr_damage_rect_t* r = &ctx->damage.rects[start_idx];
-      const uint32_t next_start = r->y0;
-      r->y0 = ZR_DIFF_RECT_INDEX_NONE;
-      if (active_tail == ZR_DIFF_RECT_INDEX_NONE) {
-        active_head = start_idx;
-        active_tail = start_idx;
-      } else {
-        ctx->damage.rects[active_tail].y0 = start_idx;
-        active_tail = start_idx;
-      }
-      start_idx = next_start;
-    }
-
-    uint32_t span_start = 0u;
-    uint32_t span_end = 0u;
-    bool have_span = false;
-
-    uint32_t prev_active = ZR_DIFF_RECT_INDEX_NONE;
-    uint32_t idx = active_head;
-    while (idx != ZR_DIFF_RECT_INDEX_NONE) {
-      zr_damage_rect_t* r = &ctx->damage.rects[idx];
-      const uint32_t next_active = r->y0;
-
-      if (!have_span) {
-        span_start = r->x0;
-        span_end = r->x1;
-        have_span = true;
-      } else {
-        const bool overlaps_or_touches = (r->x0 <= span_end + 1u) && (r->x1 + 1u >= span_start);
-        if (overlaps_or_touches) {
-          if (r->x0 < span_start) {
-            span_start = r->x0;
-          }
-          if (r->x1 > span_end) {
-            span_end = r->x1;
-          }
-        } else {
-          const zr_result_t rc = zr_diff_render_span(ctx, y, span_start, span_end);
-          if (rc != ZR_OK) {
-            return rc;
-          }
-          span_start = r->x0;
-          span_end = r->x1;
-        }
-      }
-
-      if (r->y1 == y) {
-        if (prev_active == ZR_DIFF_RECT_INDEX_NONE) {
-          active_head = next_active;
-        } else {
-          ctx->damage.rects[prev_active].y0 = next_active;
-        }
-        if (active_tail == idx) {
-          active_tail = prev_active;
-        }
-      } else {
-        prev_active = idx;
-      }
-
-      idx = next_active;
-    }
-
-    if (have_span) {
-      const zr_result_t rc = zr_diff_render_span(ctx, y, span_start, span_end);
-      if (rc != ZR_OK) {
-        return rc;
-      }
+    zr_diff_indexed_activate_row(ctx, row_heads, y, &active);
+    const zr_result_t rc = zr_diff_indexed_render_row(ctx, y, &active);
+    if (rc != ZR_OK) {
+      return rc;
     }
   }
 

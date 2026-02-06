@@ -11,23 +11,43 @@
 
 #include <string.h>
 
+enum {
+  ZR_CSI_MOD_PARAM_BASE = 1u,
+  ZR_CSI_MOD_SHIFT_BIT = 1u << 0,
+  ZR_CSI_MOD_ALT_BIT = 1u << 1,
+  ZR_CSI_MOD_CTRL_BIT = 1u << 2,
+  ZR_CSI_MOD_META_BIT = 1u << 3,
+
+  ZR_XTERM_BTN_BASE_MASK = 0x03u,
+  ZR_XTERM_BTN_SHIFT_BIT = 1u << 2,
+  ZR_XTERM_BTN_ALT_BIT = 1u << 3,
+  ZR_XTERM_BTN_CTRL_BIT = 1u << 4,
+  ZR_XTERM_BTN_MOTION_BIT = 1u << 5,
+  ZR_XTERM_BTN_WHEEL_BIT = 1u << 6,
+
+  ZR_XTERM_WHEEL_UP = 0u,
+  ZR_XTERM_WHEEL_DOWN = 1u,
+  ZR_XTERM_WHEEL_RIGHT = 2u,
+  ZR_XTERM_WHEEL_LEFT = 3u,
+};
+
 static uint32_t zr__mods_from_csi_param(uint32_t mod_param) {
   uint32_t mods = 0u;
-  if (mod_param < 2u) {
+  if (mod_param <= ZR_CSI_MOD_PARAM_BASE) {
     return 0u;
   }
 
-  const uint32_t bits = mod_param - 1u;
-  if ((bits & 1u) != 0u) {
+  const uint32_t bits = mod_param - ZR_CSI_MOD_PARAM_BASE;
+  if ((bits & ZR_CSI_MOD_SHIFT_BIT) != 0u) {
     mods |= ZR_MOD_SHIFT;
   }
-  if ((bits & 2u) != 0u) {
+  if ((bits & ZR_CSI_MOD_ALT_BIT) != 0u) {
     mods |= ZR_MOD_ALT;
   }
-  if ((bits & 4u) != 0u) {
+  if ((bits & ZR_CSI_MOD_CTRL_BIT) != 0u) {
     mods |= ZR_MOD_CTRL;
   }
-  if ((bits & 8u) != 0u) {
+  if ((bits & ZR_CSI_MOD_META_BIT) != 0u) {
     mods |= ZR_MOD_META;
   }
   return mods;
@@ -395,13 +415,13 @@ static bool zr__parse_ss3_key(const uint8_t* bytes, size_t len, size_t i, zr_key
 
 static uint32_t zr__mods_from_xterm_btn(uint32_t b) {
   uint32_t mods = 0u;
-  if ((b & 4u) != 0u) {
+  if ((b & ZR_XTERM_BTN_SHIFT_BIT) != 0u) {
     mods |= ZR_MOD_SHIFT;
   }
-  if ((b & 8u) != 0u) {
+  if ((b & ZR_XTERM_BTN_ALT_BIT) != 0u) {
     mods |= ZR_MOD_ALT;
   }
-  if ((b & 16u) != 0u) {
+  if ((b & ZR_XTERM_BTN_CTRL_BIT) != 0u) {
     mods |= ZR_MOD_CTRL;
   }
   return mods;
@@ -412,6 +432,75 @@ static uint32_t zr__buttons_mask_from_base(uint32_t base) {
     return 0u;
   }
   return 1u << base;
+}
+
+static int32_t zr__term_coord_to_i32(uint32_t coord) {
+  if (coord == 0u || coord > (uint32_t)INT32_MAX) {
+    return 0;
+  }
+  return (int32_t)(coord - 1u);
+}
+
+/*
+  Classify an xterm SGR mouse packet into engine event fields.
+
+  Why: Button bitfields are dense and easy to misread; keeping the policy in one
+  helper avoids drift between press/release/motion/wheel paths.
+*/
+static void zr__decode_sgr_mouse_event(uint32_t button_code, uint8_t terminator, uint32_t* out_kind,
+                                       uint32_t* out_buttons, int32_t* out_wheel_x, int32_t* out_wheel_y) {
+  if (!out_kind || !out_buttons || !out_wheel_x || !out_wheel_y) {
+    return;
+  }
+
+  const uint32_t base = button_code & ZR_XTERM_BTN_BASE_MASK;
+  const bool is_motion = (button_code & ZR_XTERM_BTN_MOTION_BIT) != 0u;
+  const bool is_wheel = (button_code & ZR_XTERM_BTN_WHEEL_BIT) != 0u;
+
+  *out_kind = (uint32_t)ZR_MOUSE_MOVE;
+  *out_buttons = 0u;
+  *out_wheel_x = 0;
+  *out_wheel_y = 0;
+
+  if (is_wheel) {
+    *out_kind = (uint32_t)ZR_MOUSE_WHEEL;
+    if (base == ZR_XTERM_WHEEL_UP) {
+      *out_wheel_y = 1;
+    } else if (base == ZR_XTERM_WHEEL_DOWN) {
+      *out_wheel_y = -1;
+    } else if (base == ZR_XTERM_WHEEL_RIGHT) {
+      *out_wheel_x = 1;
+    } else {
+      *out_wheel_x = -1;
+    }
+    return;
+  }
+
+  if (is_motion) {
+    /*
+      In any-event tracking, motion with no buttons pressed is encoded as
+      base=3 plus motion bit. Preserve that as MOVE (not button up).
+    */
+    if (base != 3u) {
+      *out_buttons = zr__buttons_mask_from_base(base);
+    }
+    *out_kind = (*out_buttons != 0u) ? (uint32_t)ZR_MOUSE_DRAG : (uint32_t)ZR_MOUSE_MOVE;
+    return;
+  }
+
+  if (terminator == (uint8_t)'m') {
+    *out_kind = (uint32_t)ZR_MOUSE_UP;
+    *out_buttons = zr__buttons_mask_from_base(base);
+    return;
+  }
+
+  if (base == 3u) {
+    *out_kind = (uint32_t)ZR_MOUSE_MOVE;
+    return;
+  }
+
+  *out_kind = (uint32_t)ZR_MOUSE_DOWN;
+  *out_buttons = zr__buttons_mask_from_base(base);
 }
 
 static bool zr__parse_sgr_mouse(const uint8_t* bytes, size_t len, size_t i, uint32_t time_ms, zr_event_queue_t* q,
@@ -457,56 +546,15 @@ static bool zr__parse_sgr_mouse(const uint8_t* bytes, size_t len, size_t i, uint
     return false;
   }
 
-  /* Term coordinates are 1-based; clamp to 0-based int32. */
-  const int32_t xi = (x > 0u && x <= (uint32_t)INT32_MAX) ? (int32_t)(x - 1u) : 0;
-  const int32_t yi = (y > 0u && y <= (uint32_t)INT32_MAX) ? (int32_t)(y - 1u) : 0;
-
+  const int32_t xi = zr__term_coord_to_i32(x);
+  const int32_t yi = zr__term_coord_to_i32(y);
   const uint32_t mods = zr__mods_from_xterm_btn(b);
-  const uint32_t base = b & 3u;
-  const uint32_t is_motion = (b & 32u) != 0u ? 1u : 0u;
-  const uint32_t is_wheel = (b & 64u) != 0u ? 1u : 0u;
 
-  uint32_t kind = (uint32_t)ZR_MOUSE_MOVE;
+  uint32_t kind = 0u;
   uint32_t buttons = 0u;
   int32_t wheel_x = 0;
   int32_t wheel_y = 0;
-
-  if (is_wheel) {
-    kind = (uint32_t)ZR_MOUSE_WHEEL;
-    /*
-      SGR wheel encoding:
-        64 = wheel up, 65 = wheel down, 66 = wheel right, 67 = wheel left.
-    */
-    if (base == 0u) {
-      wheel_y = 1;
-    } else if (base == 1u) {
-      wheel_y = -1;
-    } else if (base == 2u) {
-      wheel_x = 1;
-    } else {
-      wheel_x = -1;
-    }
-  } else if (is_motion) {
-    /*
-      In any-event mouse tracking (DECSET 1003), motion with no buttons pressed
-      is encoded as base=3 with the motion bit set (e.g. b=35). Treat that as a
-      MOVE, not as a button release.
-    */
-    if (base != 3u) {
-      buttons = zr__buttons_mask_from_base(base);
-    }
-    kind = buttons != 0u ? (uint32_t)ZR_MOUSE_DRAG : (uint32_t)ZR_MOUSE_MOVE;
-  } else if (term == (uint8_t)'m') {
-    kind = (uint32_t)ZR_MOUSE_UP;
-    buttons = zr__buttons_mask_from_base(base);
-  } else if (base == 3u) {
-    /* No-buttons report (hover/move). Avoid spurious UP events. */
-    kind = (uint32_t)ZR_MOUSE_MOVE;
-    buttons = 0u;
-  } else {
-    kind = (uint32_t)ZR_MOUSE_DOWN;
-    buttons = zr__buttons_mask_from_base(base);
-  }
+  zr__decode_sgr_mouse_event(b, term, &kind, &buttons, &wheel_x, &wheel_y);
 
   zr__push_mouse(q, time_ms, xi, yi, kind, mods, buttons, wheel_x, wheel_y);
   *out_consumed = (j + 1u) - i;

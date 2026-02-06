@@ -100,6 +100,79 @@ static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_af
   return true;
 }
 
+typedef struct zr_grapheme_cp_t {
+  uint8_t size;
+  zr_gcb_class_t gcb_class;
+  bool is_extended_pictographic;
+} zr_grapheme_cp_t;
+
+typedef struct zr_grapheme_break_state_t {
+  zr_gcb_class_t prev_class;
+  uint32_t ri_run;
+  bool last_non_extend_is_ep;
+  bool prev_zwj_after_ep;
+} zr_grapheme_break_state_t;
+
+/* Decode one scalar at byte offset and project it to grapheme boundary inputs. */
+static bool zr_grapheme_decode_cp(const zr_grapheme_iter_t* it, size_t off, zr_grapheme_cp_t* out_cp) {
+  if (!it || !out_cp) {
+    return false;
+  }
+  if (off >= it->len || !it->bytes) {
+    return false;
+  }
+
+  const zr_utf8_decode_result_t dec = zr_utf8_decode_one(it->bytes + off, it->len - off);
+  if (dec.size == 0u) {
+    return false;
+  }
+
+  out_cp->size = dec.size;
+  out_cp->gcb_class = zr_unicode_gcb_class(dec.scalar);
+  out_cp->is_extended_pictographic = zr_unicode_is_extended_pictographic(dec.scalar);
+  return true;
+}
+
+/*
+  Initialize GB11/RI tracking for the first scalar of a cluster.
+
+  Why: The boundary predicate is stateless; this object carries the minimal
+  context needed to evaluate the next boundary deterministically.
+*/
+static void zr_grapheme_state_init(zr_grapheme_break_state_t* state, const zr_grapheme_cp_t* first) {
+  if (!state || !first) {
+    return;
+  }
+
+  state->prev_class = first->gcb_class;
+  state->ri_run = (first->gcb_class == ZR_GCB_REGIONAL_INDICATOR) ? 1u : 0u;
+  state->last_non_extend_is_ep = (first->gcb_class != ZR_GCB_EXTEND) ? first->is_extended_pictographic : false;
+  state->prev_zwj_after_ep = (first->gcb_class == ZR_GCB_ZWJ) ? state->last_non_extend_is_ep : false;
+}
+
+/* Advance GB11/RI tracking after accepting one more scalar into the cluster. */
+static void zr_grapheme_state_advance(zr_grapheme_break_state_t* state, const zr_grapheme_cp_t* cp) {
+  if (!state || !cp) {
+    return;
+  }
+
+  if (cp->gcb_class == ZR_GCB_REGIONAL_INDICATOR) {
+    state->ri_run++;
+  } else {
+    state->ri_run = 0u;
+  }
+
+  state->prev_zwj_after_ep = false;
+  if (cp->gcb_class == ZR_GCB_ZWJ) {
+    state->prev_zwj_after_ep = state->last_non_extend_is_ep;
+  }
+  if (cp->gcb_class != ZR_GCB_EXTEND) {
+    state->last_non_extend_is_ep = cp->is_extended_pictographic;
+  }
+
+  state->prev_class = cp->gcb_class;
+}
+
 void zr_grapheme_iter_init(zr_grapheme_iter_t* it, const uint8_t* bytes, size_t len) {
   if (!it) {
     return;
@@ -123,76 +196,28 @@ bool zr_grapheme_next(zr_grapheme_iter_t* it, zr_grapheme_t* out) {
 
   const size_t start = it->off;
 
-  zr_utf8_decode_result_t prev_dec = zr_utf8_decode_one(it->bytes + it->off, it->len - it->off);
-  if (prev_dec.size == 0u) {
+  zr_grapheme_cp_t first_cp;
+  if (!zr_grapheme_decode_cp(it, it->off, &first_cp)) {
     return false;
   }
-  it->off += (size_t)prev_dec.size;
+  it->off += (size_t)first_cp.size;
 
-  zr_gcb_class_t prev_class = zr_unicode_gcb_class(prev_dec.scalar);
-  bool          prev_is_ep = zr_unicode_is_extended_pictographic(prev_dec.scalar);
-
-  uint32_t ri_run = (prev_class == ZR_GCB_REGIONAL_INDICATOR) ? 1u : 0u;
-
-  /*
-   * GB11 state tracking (emoji ZWJ sequences):
-   *
-   * Rule GB11: ExtPict Extend* ZWJ × ExtPict
-   *   "Don't break between ZWJ and Extended_Pictographic when the ZWJ
-   *    is preceded by Extended_Pictographic (ignoring Extend chars)."
-   *
-   * We track:
-   *   - last_non_extend_is_ep: Was the last non-Extend codepoint an ExtPict?
-   *   - prev_zwj_after_ep: Is the previous char ZWJ that came after ExtPict?
-   *
-   * Example: 👨 + Extend + ZWJ + 👩 → single grapheme cluster
-   */
-  bool last_non_extend_is_ep = false;
-  if (prev_class != ZR_GCB_EXTEND) {
-    last_non_extend_is_ep = prev_is_ep;
-  }
-
-  bool prev_zwj_after_ep = false;
-  if (prev_class == ZR_GCB_ZWJ) {
-    prev_zwj_after_ep = last_non_extend_is_ep;
-  }
+  zr_grapheme_break_state_t state;
+  zr_grapheme_state_init(&state, &first_cp);
 
   while (it->off < it->len) {
-    const size_t next_off = it->off;
-    zr_utf8_decode_result_t next_dec = zr_utf8_decode_one(it->bytes + next_off, it->len - next_off);
-    if (next_dec.size == 0u) {
+    zr_grapheme_cp_t next_cp;
+    if (!zr_grapheme_decode_cp(it, it->off, &next_cp)) {
       break;
     }
 
-    const zr_gcb_class_t next_class = zr_unicode_gcb_class(next_dec.scalar);
-    const bool next_is_ep = zr_unicode_is_extended_pictographic(next_dec.scalar);
-
-    if (zr_grapheme_should_break(prev_class, prev_zwj_after_ep, ri_run, next_class, next_is_ep)) {
+    if (zr_grapheme_should_break(state.prev_class, state.prev_zwj_after_ep, state.ri_run, next_cp.gcb_class,
+                                 next_cp.is_extended_pictographic)) {
       break;
     }
 
-    it->off += (size_t)next_dec.size;
-
-    if (next_class == ZR_GCB_REGIONAL_INDICATOR) {
-      ri_run++;
-    } else {
-      ri_run = 0u;
-    }
-
-    /*
-      Update GB11 state:
-        - prev_zwj_after_ep is a property of the "prev" codepoint when it is ZWJ.
-        - last_non_extend_is_ep tracks whether the last non-Extend codepoint was EP.
-    */
-    prev_zwj_after_ep = false;
-    if (next_class == ZR_GCB_ZWJ) {
-      prev_zwj_after_ep = last_non_extend_is_ep;
-    }
-    if (next_class != ZR_GCB_EXTEND) {
-      last_non_extend_is_ep = next_is_ep;
-    }
-
-    prev_class = next_class;
+    it->off += (size_t)next_cp.size;
+    zr_grapheme_state_advance(&state, &next_cp);
   }
 
   out->offset = start;

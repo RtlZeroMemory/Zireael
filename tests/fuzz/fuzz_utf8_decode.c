@@ -41,9 +41,9 @@ static void zr_fuzz_one(const uint8_t* data, size_t size) {
 }
 
 int main(void) {
-  enum { kIters = 200, kMaxSize = 256 };
+  enum { kIters = 1000, kMaxSize = 512 };
   uint32_t seed = 0xC0FFEEu;
-  uint8_t  buf[kMaxSize];
+  uint8_t buf[kMaxSize];
 
   for (int i = 0; i < kIters; i++) {
     const size_t sz = (size_t)(zr_xorshift32(&seed) % (uint32_t)kMaxSize);
@@ -55,4 +55,3 @@ int main(void) {
 
   return 0;
 }
-

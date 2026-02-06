@@ -83,6 +83,7 @@ To support optional frame pacing, the platform interface exposes an output-writa
 - Process-wide singleton: SIGWINCH handler and wake fd are global state
 - Second `plat_create` fails with `ZR_ERR_PLATFORM`
 - Uses self-pipe for signal-safe wake
+- Chains to any previously installed `SIGWINCH` handler and restores it on destroy
 - `plat_wait_output_writable`: uses `poll(POLLOUT)` on stdout fd
 
 ### Windows

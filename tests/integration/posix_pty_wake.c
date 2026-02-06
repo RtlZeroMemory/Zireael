@@ -88,10 +88,17 @@ static int zr_make_pty_pair(int* out_master_fd, int* out_slave_fd) {
 }
 
 typedef struct zr_wait_thread_args_t {
-  plat_t*  plat;
-  int32_t  timeout_ms;
-  int32_t  result;
+  plat_t* plat;
+  int32_t timeout_ms;
+  int32_t result;
 } zr_wait_thread_args_t;
+
+static volatile sig_atomic_t g_prev_sigwinch_count = 0;
+
+static void zr_prev_sigwinch_handler(int signo) {
+  (void)signo;
+  g_prev_sigwinch_count++;
+}
 
 static void* zr_wait_thread(void* user) {
   zr_wait_thread_args_t* args = (zr_wait_thread_args_t*)user;
@@ -167,6 +174,20 @@ int main(void) {
     slave_fd = -1;
   }
 
+  struct sigaction saved_sigwinch;
+  memset(&saved_sigwinch, 0, sizeof(saved_sigwinch));
+
+  struct sigaction sa_prev;
+  memset(&sa_prev, 0, sizeof(sa_prev));
+  sa_prev.sa_handler = zr_prev_sigwinch_handler;
+  sigemptyset(&sa_prev.sa_mask);
+  sa_prev.sa_flags = 0;
+  if (sigaction(SIGWINCH, &sa_prev, &saved_sigwinch) != 0) {
+    fprintf(stderr, "sigaction(SIGWINCH install) failed: errno=%d\n", errno);
+    (void)close(master_fd);
+    return 2;
+  }
+
   plat_t* plat = NULL;
   plat_config_t cfg;
   memset(&cfg, 0, sizeof(cfg));
@@ -187,7 +208,8 @@ int main(void) {
   plat_t* plat2 = NULL;
   r = plat_create(&plat2, &cfg);
   if (r != ZR_ERR_PLATFORM || plat2 != NULL) {
-    fprintf(stderr, "expected second plat_create() to fail with ZR_ERR_PLATFORM (r=%d plat2=%p)\n", (int)r, (void*)plat2);
+    fprintf(stderr, "expected second plat_create() to fail with ZR_ERR_PLATFORM (r=%d plat2=%p)\n", (int)r,
+            (void*)plat2);
     if (plat2) {
       plat_destroy(plat2);
     }
@@ -245,21 +267,45 @@ int main(void) {
   if (pthread_create(&th, NULL, zr_wait_thread, &args) != 0) {
     fprintf(stderr, "pthread_create() failed (signal test)\n");
     plat_destroy(plat);
+    (void)sigaction(SIGWINCH, &saved_sigwinch, NULL);
     (void)close(master_fd);
     return 2;
   }
 
+  const sig_atomic_t sig_count_before = g_prev_sigwinch_count;
   zr_sleep_ms(50);
   (void)kill(getpid(), SIGWINCH);
   (void)pthread_join(th, NULL);
   if (args.result != 1) {
     fprintf(stderr, "plat_wait() did not wake on SIGWINCH (result=%d)\n", (int)args.result);
     plat_destroy(plat);
+    (void)sigaction(SIGWINCH, &saved_sigwinch, NULL);
+    (void)close(master_fd);
+    return 2;
+  }
+  if (g_prev_sigwinch_count != (sig_count_before + 1)) {
+    fprintf(stderr, "SIGWINCH previous handler did not chain (before=%d after=%d)\n", (int)sig_count_before,
+            (int)g_prev_sigwinch_count);
+    plat_destroy(plat);
+    (void)sigaction(SIGWINCH, &saved_sigwinch, NULL);
     (void)close(master_fd);
     return 2;
   }
 
   plat_destroy(plat);
+
+  /* plat_destroy() must restore the prior SIGWINCH handler we installed. */
+  const sig_atomic_t restore_before = g_prev_sigwinch_count;
+  (void)kill(getpid(), SIGWINCH);
+  if (g_prev_sigwinch_count != (restore_before + 1)) {
+    fprintf(stderr, "SIGWINCH handler was not restored on destroy (before=%d after=%d)\n", (int)restore_before,
+            (int)g_prev_sigwinch_count);
+    (void)sigaction(SIGWINCH, &saved_sigwinch, NULL);
+    (void)close(master_fd);
+    return 2;
+  }
+
+  (void)sigaction(SIGWINCH, &saved_sigwinch, NULL);
   (void)close(master_fd);
   return 0;
 }

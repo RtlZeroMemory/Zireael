@@ -1,26 +1,61 @@
-# Input model
+# Input Model
 
-Terminal input bytes are parsed and normalized into engine events, then packed into a versioned **event batch**.
+Zireael reads terminal input bytes, normalizes them into structured events, and packs them into a versioned event batch for wrappers.
 
-## Event batches
+## Event Flow
 
-- `engine_poll_events()` writes a packed event batch into a caller-provided buffer.
-- Wrappers parse it and translate to their own event model.
-- `ZR_EV_TEXT` records carry decoded Unicode codepoints from UTF-8 input bytes.
-  Malformed UTF-8 input is normalized to `U+FFFD` deterministically.
+1. Platform backend reads raw terminal input bytes.
+2. Core parser decodes supported key/mouse/paste/control sequences.
+3. Events are queued in engine-owned structures.
+4. `engine_poll_events()` serializes queued events into caller buffer.
 
-See: [ABI → Event Batch Format](../abi/event-batch-format.md).
+## Event Batch Contract
 
-## Bracketed paste
+- packed little-endian format (`zr_event.h`)
+- record framing by explicit size
+- 4-byte record alignment
+- forward-compatible skipping of unknown record types
 
-When enabled by the platform backend, terminal bracketed paste input is emitted as `ZR_EV_PASTE` records. Paste payloads are UTF-8 bytes and can be larger than “normal” key/text events, so wrappers should size their event buffer accordingly and handle truncation.
+See [ABI -> Event Batch Format](../abi/event-batch-format.md).
 
-## Threading
+## Timeout and Tick Behavior
 
-Only `engine_post_user_event()` is intended to be thread-safe (used to wake an engine blocked in `engine_poll_events()`).
+`engine_poll_events(timeout_ms, ...)`:
 
-## Next steps
+- may block up to `timeout_ms` when queue is empty
+- may return `0` on timeout
+- may include periodic `ZR_EV_TICK` records for cadence
 
-- [ABI → Event Batch Format](../abi/event-batch-format.md)
-- [Internal Specs → Events + Packed ABI](../modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md)
-- [Examples → Input Echo](../examples/input-echo.md)
+## Resize Behavior
+
+- Engine enqueues an initial `ZR_EV_RESIZE` during create.
+- Resize changes are emitted as `ZR_EV_RESIZE` records when detected.
+
+Wrappers should treat resize as authoritative viewport signal.
+
+## Bracketed Paste
+
+When enabled/supported:
+
+- paste content is emitted as `ZR_EV_PASTE`
+- payload includes declared byte length + UTF-8 bytes
+- wrapper must validate payload size before reading
+
+## User Events and Wakeups
+
+`engine_post_user_event()` allows wrappers/other threads to enqueue app-defined events.
+
+- payload is copied by engine
+- engine performs best-effort wake for blocked poll
+
+## Buffer Sizing Guidance
+
+- start with at least 4 KiB event buffer
+- increase for paste-heavy or mouse-heavy workloads
+- monitor `ZR_EV_BATCH_TRUNCATED` to detect pressure
+
+## Next Steps
+
+- [ABI -> Event Batch Format](../abi/event-batch-format.md)
+- [Examples -> Input Echo](../examples/input-echo.md)
+- [Internal -> Event System + ABI](../modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md)

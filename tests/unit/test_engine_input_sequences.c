@@ -20,7 +20,9 @@
 #include <stddef.h>
 #include <string.h>
 
-static uint32_t zr_u32le_at(const uint8_t* p) { return zr_load_u32le(p); }
+static uint32_t zr_u32le_at(const uint8_t* p) {
+  return zr_load_u32le(p);
+}
 
 static void zr_drain_initial_resize(zr_test_ctx_t* ctx, zr_engine_t* e) {
   uint8_t out0[128];
@@ -68,6 +70,162 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_arrow_with_params) {
 
   const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 0u), (uint32_t)ZR_KEY_UP);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 4u), (uint32_t)ZR_MOD_CTRL);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 8u), (uint32_t)ZR_KEY_ACTION_DOWN);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_poll_events_parses_csi_shift_tab) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'Z'};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128];
+  memset(out, 0, sizeof(out));
+
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);
+  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_KEY);
+  const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 0u), (uint32_t)ZR_KEY_TAB);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 4u), (uint32_t)ZR_MOD_SHIFT);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 8u), (uint32_t)ZR_KEY_ACTION_DOWN);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_poll_events_emits_text_scalars_from_utf8_and_invalid_bytes) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  /* U+20AC (Euro sign) followed by invalid byte 0xFF -> U+FFFD replacement. */
+  const uint8_t in[] = {0xE2u, 0x82u, 0xACu, 0xFFu};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128];
+  memset(out, 0, sizeof(out));
+
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  const uint32_t event_count = zr_u32le_at(out + 12u);
+  ZR_ASSERT_TRUE(event_count >= 2u);
+
+  size_t off = sizeof(zr_evbatch_header_t);
+  uint32_t text_seen = 0u;
+  uint32_t cps[2] = {0u, 0u};
+
+  for (uint32_t i = 0u; i < event_count; i++) {
+    ZR_ASSERT_TRUE((off + sizeof(zr_ev_record_header_t)) <= (size_t)n);
+
+    const uint32_t rec_type = zr_u32le_at(out + off + 0u);
+    const uint32_t rec_size = zr_u32le_at(out + off + 4u);
+    ZR_ASSERT_TRUE(rec_size >= (uint32_t)sizeof(zr_ev_record_header_t));
+    ZR_ASSERT_TRUE((off + (size_t)rec_size) <= (size_t)n);
+
+    if (rec_type == (uint32_t)ZR_EV_TEXT) {
+      ZR_ASSERT_TRUE(rec_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t)));
+      if (text_seen < 2u) {
+        cps[text_seen] = zr_u32le_at(out + off + sizeof(zr_ev_record_header_t) + 0u);
+      }
+      text_seen++;
+    }
+
+    off += (size_t)rec_size;
+  }
+
+  ZR_ASSERT_EQ_U32(text_seen, 2u);
+  ZR_ASSERT_EQ_U32(cps[0], 0x20ACu);
+  ZR_ASSERT_EQ_U32(cps[1], 0xFFFDu);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_poll_events_does_not_buffer_impossible_utf8_prefix) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  /*
+    E0 80 is an impossible UTF-8 prefix (E0 requires second byte A0..BF).
+    Prefix parsing must not defer this input as "incomplete".
+  */
+  const uint8_t in[] = {0xE0u, 0x80u};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128];
+  memset(out, 0, sizeof(out));
+
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  const uint32_t event_count = zr_u32le_at(out + 12u);
+  ZR_ASSERT_TRUE(event_count >= 2u);
+
+  size_t off = sizeof(zr_evbatch_header_t);
+  uint32_t text_seen = 0u;
+  uint32_t cps[2] = {0u, 0u};
+
+  for (uint32_t i = 0u; i < event_count; i++) {
+    ZR_ASSERT_TRUE((off + sizeof(zr_ev_record_header_t)) <= (size_t)n);
+
+    const uint32_t rec_type = zr_u32le_at(out + off + 0u);
+    const uint32_t rec_size = zr_u32le_at(out + off + 4u);
+    ZR_ASSERT_TRUE(rec_size >= (uint32_t)sizeof(zr_ev_record_header_t));
+    ZR_ASSERT_TRUE((off + (size_t)rec_size) <= (size_t)n);
+
+    if (rec_type == (uint32_t)ZR_EV_TEXT) {
+      ZR_ASSERT_TRUE(rec_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t)));
+      if (text_seen < 2u) {
+        cps[text_seen] = zr_u32le_at(out + off + sizeof(zr_ev_record_header_t) + 0u);
+      }
+      text_seen++;
+    }
+
+    off += (size_t)rec_size;
+  }
+
+  ZR_ASSERT_EQ_U32(text_seen, 2u);
+  ZR_ASSERT_EQ_U32(cps[0], 0xFFFDu);
+  ZR_ASSERT_EQ_U32(cps[1], 0xFFFDu);
 
   engine_destroy(e);
 }
@@ -158,10 +316,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_ss3_function_keys) {
 
   /* Common SS3 function keys: F1..F4 as ESC O P/Q/R/S. */
   const uint8_t in[] = {
-    0x1Bu, (uint8_t)'O', (uint8_t)'P',
-    0x1Bu, (uint8_t)'O', (uint8_t)'Q',
-    0x1Bu, (uint8_t)'O', (uint8_t)'R',
-    0x1Bu, (uint8_t)'O', (uint8_t)'S',
+      0x1Bu, (uint8_t)'O', (uint8_t)'P', 0x1Bu, (uint8_t)'O', (uint8_t)'Q',
+      0x1Bu, (uint8_t)'O', (uint8_t)'R', 0x1Bu, (uint8_t)'O', (uint8_t)'S',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -204,10 +360,9 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_tilde_function_keys) {
 
   /* Common CSI ~ function keys: F5..F8. */
   const uint8_t in[] = {
-    0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'5', (uint8_t)'~',
-    0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'7', (uint8_t)'~',
-    0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'8', (uint8_t)'~',
-    0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'9', (uint8_t)'~',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'5', (uint8_t)'~', 0x1Bu,        (uint8_t)'[',
+      (uint8_t)'1', (uint8_t)'7', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'8',
+      (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'9', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -249,9 +404,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_down_up) {
   zr_drain_initial_resize(ctx, e);
 
   /* Left button down then up at (x=10,y=5) (1-based in SGR). */
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'0', (uint8_t)';', (uint8_t)'1', (uint8_t)'0',
-                        (uint8_t)';', (uint8_t)'5', (uint8_t)'M', 0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'0',
-                        (uint8_t)';', (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'m'};
+  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'0', (uint8_t)';',
+                        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
+                        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'0', (uint8_t)';',
+                        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'m'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[256];
@@ -265,8 +421,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_down_up) {
   const size_t off_rec0 = sizeof(zr_evbatch_header_t);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_MOUSE);
   const size_t off_payload0 = off_rec0 + sizeof(zr_ev_record_header_t);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 0u), 9u);  /* x: 10 -> 9 */
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 4u), 4u);  /* y: 5 -> 4 */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 0u), 9u); /* x: 10 -> 9 */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 4u), 4u); /* y: 5 -> 4 */
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 8u), (uint32_t)ZR_MOUSE_DOWN);
 
   const size_t rec0_bytes = sizeof(zr_ev_record_header_t) + sizeof(zr_ev_mouse_t);
@@ -294,8 +450,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel) {
   zr_drain_initial_resize(ctx, e);
 
   /* Wheel up at (x=10,y=5): b=64 => wheel up. */
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'6', (uint8_t)'4', (uint8_t)';', (uint8_t)'1',
-                        (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M'};
+  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'6', (uint8_t)'4', (uint8_t)';',
+                        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[256];
@@ -309,8 +465,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel) {
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_MOUSE);
   const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 8u), (uint32_t)ZR_MOUSE_WHEEL);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 20u), 0u);          /* wheel_x */
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 24u), 1u);          /* wheel_y */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 20u), 0u); /* wheel_x */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 24u), 1u); /* wheel_y */
 
   engine_destroy(e);
 }
@@ -336,8 +492,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_motion_without_buttons_as_move) {
       - base=3 (no buttons)
       => b=35
   */
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'3', (uint8_t)'5', (uint8_t)';', (uint8_t)'1',
-                        (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M'};
+  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'3', (uint8_t)'5', (uint8_t)';',
+                        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[256];
@@ -372,9 +528,9 @@ ZR_TEST_UNIT(engine_poll_events_emits_bracketed_paste_as_single_event) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'e', (uint8_t)'l', (uint8_t)'l', (uint8_t)'o',
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
+      (uint8_t)'h', (uint8_t)'e', (uint8_t)'l', (uint8_t)'l', (uint8_t)'o', 0x1Bu,
+      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -421,9 +577,8 @@ ZR_TEST_UNIT(engine_poll_events_paste_payload_does_not_emit_key_events) {
   */
   const uint8_t payload[] = {0x1Bu, (uint8_t)'[', (uint8_t)'A'};
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      payload[0], payload[1], payload[2],
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      0x1Bu,      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', payload[0],   payload[1],
+      payload[2], 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -464,10 +619,9 @@ ZR_TEST_UNIT(engine_poll_events_paste_then_arrow_emits_two_events) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'i',
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
-      0x1Bu, (uint8_t)'[', (uint8_t)'A',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
+      (uint8_t)'h', (uint8_t)'i', 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0',
+      (uint8_t)'1', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'A',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -518,14 +672,12 @@ ZR_TEST_UNIT(engine_poll_events_paste_payload_includes_end_marker_prefix_bytes) 
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t payload[] = {
-      (uint8_t)'A',
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'X',
-      (uint8_t)'B',
+      (uint8_t)'A', 0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'X', (uint8_t)'B',
   };
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      payload[0], payload[1], payload[2], payload[3], payload[4], payload[5], payload[6], payload[7],
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      0x1Bu,      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', payload[0],
+      payload[1], payload[2],   payload[3],   payload[4],   payload[5],   payload[6],   payload[7],
+      0x1Bu,      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -566,8 +718,7 @@ ZR_TEST_UNIT(engine_poll_events_flushes_incomplete_paste_on_idle) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'i',
+      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'i',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -633,118 +784,6 @@ ZR_TEST_UNIT(engine_poll_events_flushes_bare_esc_on_idle_poll) {
   ZR_ASSERT_EQ_U32(zr_u32le_at(out1 + off_rec0 + 0u), (uint32_t)ZR_EV_KEY);
   const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out1 + off_payload + 0u), (uint32_t)ZR_KEY_ESCAPE);
-
-  engine_destroy(e);
-}
-
-ZR_TEST_UNIT(engine_poll_events_decodes_utf8_text_codepoints) {
-  mock_plat_reset();
-  mock_plat_set_size(10u, 4u);
-  mock_plat_set_now_ms(1000u);
-
-  zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.target_fps = 20u;
-  cfg.limits.out_max_bytes_per_frame = 4096u;
-
-  zr_engine_t* e = NULL;
-  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
-  ZR_ASSERT_TRUE(e != NULL);
-
-  zr_drain_initial_resize(ctx, e);
-
-  const uint8_t in[] = {(uint8_t)'A', 0xC3u, 0xA9u, 0xF0u, 0x9Fu, 0x99u, 0x82u};
-  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
-
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
-  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
-  ZR_ASSERT_TRUE(n > 0);
-
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 3u);
-
-  const size_t rec_bytes = sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t);
-  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
-  for (size_t i = 0; i < 3u; i++) {
-    const size_t off_rec = off_rec0 + (rec_bytes * i);
-    ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec + 0u), (uint32_t)ZR_EV_TEXT);
-  }
-
-  const size_t off_payload0 = off_rec0 + sizeof(zr_ev_record_header_t);
-  const size_t off_payload1 = off_payload0 + rec_bytes;
-  const size_t off_payload2 = off_payload1 + rec_bytes;
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 0u), 0x0041u);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload1 + 0u), 0x00E9u);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload2 + 0u), 0x1F642u);
-
-  engine_destroy(e);
-}
-
-ZR_TEST_UNIT(engine_poll_events_decodes_split_utf8_sequence) {
-  mock_plat_reset();
-  mock_plat_set_read_max(1u);
-  mock_plat_set_size(10u, 4u);
-  mock_plat_set_now_ms(1000u);
-
-  zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.target_fps = 20u;
-  cfg.limits.out_max_bytes_per_frame = 4096u;
-
-  zr_engine_t* e = NULL;
-  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
-  ZR_ASSERT_TRUE(e != NULL);
-
-  zr_drain_initial_resize(ctx, e);
-
-  const uint8_t euro[] = {0xE2u, 0x82u, 0xACu}; /* U+20AC */
-  ZR_ASSERT_EQ_U32(mock_plat_push_input(euro, sizeof(euro)), ZR_OK);
-
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
-  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
-  ZR_ASSERT_TRUE(n > 0);
-
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);
-  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_TEXT);
-  const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 0u), 0x20ACu);
-
-  engine_destroy(e);
-}
-
-ZR_TEST_UNIT(engine_poll_events_flushes_incomplete_utf8_as_replacement) {
-  mock_plat_reset();
-  mock_plat_set_read_max(1u);
-  mock_plat_set_size(10u, 4u);
-  mock_plat_set_now_ms(1000u);
-
-  zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.target_fps = 20u;
-  cfg.limits.out_max_bytes_per_frame = 4096u;
-
-  zr_engine_t* e = NULL;
-  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
-  ZR_ASSERT_TRUE(e != NULL);
-
-  zr_drain_initial_resize(ctx, e);
-
-  const uint8_t in[] = {0xC3u};
-  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
-
-  uint8_t out0[128];
-  memset(out0, 0, sizeof(out0));
-  ZR_ASSERT_TRUE(engine_poll_events(e, 0, out0, (int)sizeof(out0)) == 0);
-
-  uint8_t out1[128];
-  memset(out1, 0, sizeof(out1));
-  const int n = engine_poll_events(e, 0, out1, (int)sizeof(out1));
-  ZR_ASSERT_TRUE(n > 0);
-
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out1 + 12u), 1u);
-  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out1 + off_rec0 + 0u), (uint32_t)ZR_EV_TEXT);
-  const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out1 + off_payload + 0u), 0xFFFDu);
 
   engine_destroy(e);
 }

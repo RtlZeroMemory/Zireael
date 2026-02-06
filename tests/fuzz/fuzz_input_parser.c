@@ -40,30 +40,28 @@ static uint32_t zr_xorshift32(uint32_t* state) {
 static bool zr_pack_event(zr_evpack_writer_t* w, const zr_event_queue_t* q, const zr_event_t* ev) {
   (void)q;
   switch (ev->type) {
-    case ZR_EV_KEY:
-      return zr_evpack_append_record(w, ZR_EV_KEY, ev->time_ms, ev->flags, &ev->u.key, sizeof(ev->u.key));
-    case ZR_EV_TEXT:
-      return zr_evpack_append_record(w, ZR_EV_TEXT, ev->time_ms, ev->flags, &ev->u.text, sizeof(ev->u.text));
-    case ZR_EV_MOUSE:
-      return zr_evpack_append_record(w, ZR_EV_MOUSE, ev->time_ms, ev->flags, &ev->u.mouse,
-                                     sizeof(ev->u.mouse));
-    case ZR_EV_RESIZE:
-      return zr_evpack_append_record(w, ZR_EV_RESIZE, ev->time_ms, ev->flags, &ev->u.resize,
-                                     sizeof(ev->u.resize));
-    case ZR_EV_TICK:
-      return zr_evpack_append_record(w, ZR_EV_TICK, ev->time_ms, ev->flags, &ev->u.tick, sizeof(ev->u.tick));
-    case ZR_EV_USER: {
-      const uint8_t* payload = NULL;
-      uint32_t payload_len = 0u;
-      if (!zr_event_queue_user_payload_view(q, ev, &payload, &payload_len)) {
-        return false;
-      }
-      return zr_evpack_append_record2(w, ZR_EV_USER, ev->time_ms, ev->flags, &ev->u.user.hdr,
-                                      sizeof(ev->u.user.hdr), payload, (size_t)payload_len);
+  case ZR_EV_KEY:
+    return zr_evpack_append_record(w, ZR_EV_KEY, ev->time_ms, ev->flags, &ev->u.key, sizeof(ev->u.key));
+  case ZR_EV_TEXT:
+    return zr_evpack_append_record(w, ZR_EV_TEXT, ev->time_ms, ev->flags, &ev->u.text, sizeof(ev->u.text));
+  case ZR_EV_MOUSE:
+    return zr_evpack_append_record(w, ZR_EV_MOUSE, ev->time_ms, ev->flags, &ev->u.mouse, sizeof(ev->u.mouse));
+  case ZR_EV_RESIZE:
+    return zr_evpack_append_record(w, ZR_EV_RESIZE, ev->time_ms, ev->flags, &ev->u.resize, sizeof(ev->u.resize));
+  case ZR_EV_TICK:
+    return zr_evpack_append_record(w, ZR_EV_TICK, ev->time_ms, ev->flags, &ev->u.tick, sizeof(ev->u.tick));
+  case ZR_EV_USER: {
+    const uint8_t* payload = NULL;
+    uint32_t payload_len = 0u;
+    if (!zr_event_queue_user_payload_view(q, ev, &payload, &payload_len)) {
+      return false;
     }
-    default:
-      /* Unknown types are deterministically ignored by the smoke target. */
-      return true;
+    return zr_evpack_append_record2(w, ZR_EV_USER, ev->time_ms, ev->flags, &ev->u.user.hdr, sizeof(ev->u.user.hdr),
+                                    payload, (size_t)payload_len);
+  }
+  default:
+    /* Unknown types are deterministically ignored by the smoke target. */
+    return true;
   }
 }
 
@@ -127,7 +125,7 @@ static void zr_fuzz_one(const uint8_t* data, size_t size) {
 }
 
 int main(void) {
-  enum { kIters = 500, kMaxSize = 256 };
+  enum { kIters = 1000, kMaxSize = 512 };
   uint32_t seed = 0x1A2B3C4Du;
   uint8_t buf[kMaxSize];
 

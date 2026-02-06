@@ -278,8 +278,8 @@ static bool zr_evq_can_enqueue_paste_locked(const zr_event_queue_t* q, uint32_t 
   return zr_evq_user_alloc_locked(&tmp, byte_len, &off_tmp);
 }
 
-zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_t events_cap,
-                                uint8_t* user_bytes, uint32_t user_bytes_cap) {
+zr_result_t zr_event_queue_init(zr_event_queue_t* q, zr_event_t* events, uint32_t events_cap, uint8_t* user_bytes,
+                                uint32_t user_bytes_cap) {
   if (!q || !events || events_cap == 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -350,8 +350,8 @@ zr_result_t zr_event_queue_try_push_no_drop(zr_event_queue_t* q, const zr_event_
 }
 
 /* Post a user-defined event with optional payload; returns ZR_ERR_LIMIT if no space. */
-zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag,
-                                     const uint8_t* payload, uint32_t payload_len) {
+zr_result_t zr_event_queue_post_user(zr_event_queue_t* q, uint32_t time_ms, uint32_t tag, const uint8_t* payload,
+                                     uint32_t payload_len) {
   if (!q || !q->events || q->cap == 0u || (!payload && payload_len != 0u)) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -493,9 +493,22 @@ bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev) {
   return true;
 }
 
+/* Return a synchronized snapshot of queue depth for concurrent poll/post usage. */
+uint32_t zr_event_queue_count(const zr_event_queue_t* q) {
+  if (!q || !q->events || q->cap == 0u) {
+    return 0u;
+  }
+
+  zr_event_queue_t* mutable_q = (zr_event_queue_t*)q;
+  zr_evq_lock(mutable_q);
+  const uint32_t count = mutable_q->count;
+  zr_evq_unlock(mutable_q);
+  return count;
+}
+
 /* Get a read-only view into a user event's payload bytes; valid until event is popped. */
-bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
-                                      const uint8_t** out_bytes, uint32_t* out_len) {
+bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev, const uint8_t** out_bytes,
+                                      uint32_t* out_len) {
   if (!q || !q->events || q->cap == 0u || !ev || !out_bytes || !out_len) {
     return false;
   }
@@ -524,8 +537,8 @@ bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_
 }
 
 /* Get a read-only view into a paste event's payload bytes; valid until event is popped. */
-bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
-                                       const uint8_t** out_bytes, uint32_t* out_len) {
+bool zr_event_queue_paste_payload_view(const zr_event_queue_t* q, const zr_event_t* ev, const uint8_t** out_bytes,
+                                       uint32_t* out_len) {
   if (!q || !q->events || q->cap == 0u || !ev || !out_bytes || !out_len) {
     return false;
   }

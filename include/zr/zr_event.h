@@ -110,8 +110,8 @@ typedef struct zr_ev_key_t {
 
 typedef struct zr_ev_text_t {
   /*
-    Unicode scalar value (U+0000..U+10FFFF).
-    Invalid UTF-8 input is normalized to U+FFFD by the engine's pinned policy.
+    Unicode scalar value (U+0000..U+10FFFF, excluding surrogates).
+    Engine input parsing decodes UTF-8 and emits U+FFFD for invalid sequences.
   */
   uint32_t codepoint;
   uint32_t reserved0;

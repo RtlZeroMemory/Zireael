@@ -11,16 +11,27 @@ option(ZIREAEL_SANITIZE_UNDEFINED "Enable UndefinedBehaviorSanitizer (Clang/GCC 
 
 add_library(zireael_build_settings INTERFACE)
 
-target_compile_options(zireael_build_settings INTERFACE
-        $<$<C_COMPILER_ID:MSVC>:/W4>
-        $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
-)
+set(ZIREAEL_MSVC_LIKE OFF)
+if (MSVC)
+    set(ZIREAEL_MSVC_LIKE ON)
+elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
+    # clang-cl uses the MSVC frontend/diagnostic model.
+    set(ZIREAEL_MSVC_LIKE ON)
+endif ()
+
+if (ZIREAEL_MSVC_LIKE)
+    target_compile_options(zireael_build_settings INTERFACE /W4)
+    target_compile_definitions(zireael_build_settings INTERFACE _CRT_SECURE_NO_WARNINGS)
+else ()
+    target_compile_options(zireael_build_settings INTERFACE -Wall -Wextra -Wpedantic)
+endif ()
 
 if (ZIREAEL_WARNINGS_AS_ERRORS)
-    target_compile_options(zireael_build_settings INTERFACE
-            $<$<C_COMPILER_ID:MSVC>:/WX>
-            $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Werror>
-    )
+    if (ZIREAEL_MSVC_LIKE)
+        target_compile_options(zireael_build_settings INTERFACE /WX)
+    else ()
+        target_compile_options(zireael_build_settings INTERFACE -Werror)
+    endif ()
 endif ()
 
 if (ZIREAEL_SANITIZE_ADDRESS OR ZIREAEL_SANITIZE_UNDEFINED)

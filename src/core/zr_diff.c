@@ -1,5 +1,8 @@
 /*
   src/core/zr_diff.c — Pure framebuffer diff renderer implementation.
+
+  Why: Emits minimal VT output by diffing previous/next framebuffers while
+  preserving grapheme/style correctness and deterministic terminal state.
 */
 
 #include "core/zr_diff.h"
@@ -15,18 +18,18 @@
 /* RGB color format: 0x00RRGGBB (red in bits 16-23, green 8-15, blue 0-7). */
 #define ZR_RGB_R_SHIFT 16u
 #define ZR_RGB_G_SHIFT 8u
-#define ZR_RGB_MASK    0xFFu
+#define ZR_RGB_MASK 0xFFu
 
 /* xterm 256-color cube: 6 levels per channel (indices 16-231). */
 static const uint8_t ZR_XTERM256_LEVELS[6] = {0u, 95u, 135u, 175u, 215u, 255u};
 #define ZR_XTERM256_CUBE_START 16u
-#define ZR_XTERM256_CUBE_SIZE  6u
+#define ZR_XTERM256_CUBE_SIZE 6u
 
 /* xterm 256-color grayscale ramp: 24 shades (indices 232-255). */
 #define ZR_XTERM256_GRAY_START 232u
 #define ZR_XTERM256_GRAY_COUNT 24u
-#define ZR_XTERM256_GRAY_BASE  8u  /* First gray level value */
-#define ZR_XTERM256_GRAY_STEP  10u /* Increment per gray level */
+#define ZR_XTERM256_GRAY_BASE 8u  /* First gray level value */
+#define ZR_XTERM256_GRAY_STEP 10u /* Increment per gray level */
 
 /* xterm-compatible 16-color palette (ANSI colors 0-15). */
 static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
@@ -51,29 +54,29 @@ static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
 };
 
 /* SGR (Select Graphic Rendition) codes. */
-#define ZR_SGR_RESET          0u
-#define ZR_SGR_BOLD           1u
-#define ZR_SGR_ITALIC         3u
-#define ZR_SGR_UNDERLINE      4u
-#define ZR_SGR_REVERSE        7u
-#define ZR_SGR_STRIKETHROUGH  9u
-#define ZR_SGR_FG_256         38u /* Extended foreground color */
-#define ZR_SGR_BG_256         48u /* Extended background color */
-#define ZR_SGR_COLOR_MODE_256 5u  /* 256-color mode selector */
-#define ZR_SGR_COLOR_MODE_RGB 2u  /* RGB color mode selector */
+#define ZR_SGR_RESET 0u
+#define ZR_SGR_BOLD 1u
+#define ZR_SGR_ITALIC 3u
+#define ZR_SGR_UNDERLINE 4u
+#define ZR_SGR_REVERSE 7u
+#define ZR_SGR_STRIKETHROUGH 9u
+#define ZR_SGR_FG_256 38u        /* Extended foreground color */
+#define ZR_SGR_BG_256 48u        /* Extended background color */
+#define ZR_SGR_COLOR_MODE_256 5u /* 256-color mode selector */
+#define ZR_SGR_COLOR_MODE_RGB 2u /* RGB color mode selector */
 
 /* ANSI 16-color SGR base codes. */
-#define ZR_SGR_FG_BASE   30u  /* FG colors 0-7: 30-37 */
+#define ZR_SGR_FG_BASE 30u    /* FG colors 0-7: 30-37 */
 #define ZR_SGR_FG_BRIGHT 90u  /* FG colors 8-15: 90-97 */
-#define ZR_SGR_BG_BASE   40u  /* BG colors 0-7: 40-47 */
+#define ZR_SGR_BG_BASE 40u    /* BG colors 0-7: 40-47 */
 #define ZR_SGR_BG_BRIGHT 100u /* BG colors 8-15: 100-107 */
 
 /* Style attribute bits (v1). */
-#define ZR_STYLE_ATTR_BOLD      (1u << 0)
-#define ZR_STYLE_ATTR_ITALIC    (1u << 1)
+#define ZR_STYLE_ATTR_BOLD (1u << 0)
+#define ZR_STYLE_ATTR_ITALIC (1u << 1)
 #define ZR_STYLE_ATTR_UNDERLINE (1u << 2)
-#define ZR_STYLE_ATTR_REVERSE   (1u << 3)
-#define ZR_STYLE_ATTR_STRIKE    (1u << 4)
+#define ZR_STYLE_ATTR_REVERSE (1u << 3)
+#define ZR_STYLE_ATTR_STRIKE (1u << 4)
 
 static bool zr_style_eq(zr_style_t a, zr_style_t b) {
   return a.fg_rgb == b.fg_rgb && a.bg_rgb == b.bg_rgb && a.attrs == b.attrs && a.reserved == b.reserved;
@@ -124,9 +127,15 @@ static uint8_t zr_cell_width_in_next(const zr_fb_t* fb, uint32_t x, uint32_t y) 
   return 1u;
 }
 
-static uint8_t zr_rgb_r(uint32_t rgb) { return (uint8_t)((rgb >> ZR_RGB_R_SHIFT) & ZR_RGB_MASK); }
-static uint8_t zr_rgb_g(uint32_t rgb) { return (uint8_t)((rgb >> ZR_RGB_G_SHIFT) & ZR_RGB_MASK); }
-static uint8_t zr_rgb_b(uint32_t rgb) { return (uint8_t)(rgb & ZR_RGB_MASK); }
+static uint8_t zr_rgb_r(uint32_t rgb) {
+  return (uint8_t)((rgb >> ZR_RGB_R_SHIFT) & ZR_RGB_MASK);
+}
+static uint8_t zr_rgb_g(uint32_t rgb) {
+  return (uint8_t)((rgb >> ZR_RGB_G_SHIFT) & ZR_RGB_MASK);
+}
+static uint8_t zr_rgb_b(uint32_t rgb) {
+  return (uint8_t)(rgb & ZR_RGB_MASK);
+}
 
 /* Compute squared Euclidean distance between two RGB colors. */
 static uint32_t zr_dist2_u8(uint8_t ar, uint8_t ag, uint8_t ab, uint8_t br, uint8_t bg, uint8_t bb) {
@@ -168,8 +177,7 @@ static uint8_t zr_rgb_to_xterm256(uint32_t rgb) {
   const uint8_t cr = ZR_XTERM256_LEVELS[ri];
   const uint8_t cg = ZR_XTERM256_LEVELS[gi];
   const uint8_t cb = ZR_XTERM256_LEVELS[bi];
-  const uint8_t cube_idx = (uint8_t)(ZR_XTERM256_CUBE_START +
-                                     (ZR_XTERM256_CUBE_SIZE * ZR_XTERM256_CUBE_SIZE) * ri +
+  const uint8_t cube_idx = (uint8_t)(ZR_XTERM256_CUBE_START + (ZR_XTERM256_CUBE_SIZE * ZR_XTERM256_CUBE_SIZE) * ri +
                                      ZR_XTERM256_CUBE_SIZE * gi + bi);
   const uint32_t cube_d = zr_dist2_u8(r, g, b, cr, cg, cb);
 
@@ -206,8 +214,7 @@ static uint8_t zr_rgb_to_ansi16(uint32_t rgb) {
   uint8_t best = 0u;
   uint32_t best_d = 0xFFFFFFFFu;
   for (uint8_t i = 0u; i < 16u; i++) {
-    const uint32_t d = zr_dist2_u8(r, g, b, ZR_ANSI16_PALETTE[i][0], ZR_ANSI16_PALETTE[i][1],
-                                   ZR_ANSI16_PALETTE[i][2]);
+    const uint32_t d = zr_dist2_u8(r, g, b, ZR_ANSI16_PALETTE[i][0], ZR_ANSI16_PALETTE[i][1], ZR_ANSI16_PALETTE[i][2]);
     if (d < best_d) {
       best_d = d;
       best = i;
@@ -276,8 +283,8 @@ static bool zr_emit_cup(zr_sb_t* sb, zr_term_state_t* ts, uint32_t x, uint32_t y
   if (!zr_sb_write_u8(sb, esc) || !zr_sb_write_u8(sb, (uint8_t)'[')) {
     return false;
   }
-  if (!zr_sb_write_u32_dec(sb, y + 1u) || !zr_sb_write_u8(sb, (uint8_t)';') ||
-      !zr_sb_write_u32_dec(sb, x + 1u) || !zr_sb_write_u8(sb, (uint8_t)'H')) {
+  if (!zr_sb_write_u32_dec(sb, y + 1u) || !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, x + 1u) ||
+      !zr_sb_write_u8(sb, (uint8_t)'H')) {
     return false;
   }
   ts->cursor_x = x;
@@ -317,10 +324,7 @@ static uint32_t zr_cursor_shape_ps(uint8_t shape, uint8_t blink) {
   return (blink != 0u) ? 1u : 2u;
 }
 
-static bool zr_emit_cursor_shape(zr_sb_t* sb,
-                                 zr_term_state_t* ts,
-                                 uint8_t shape,
-                                 uint8_t blink,
+static bool zr_emit_cursor_shape(zr_sb_t* sb, zr_term_state_t* ts, uint8_t shape, uint8_t blink,
                                  const plat_caps_t* caps) {
   if (!sb || !ts || !caps) {
     return false;
@@ -359,11 +363,8 @@ static uint32_t zr_clamp_u32_from_i32(int32_t v, uint32_t lo, uint32_t hi) {
   return (uint32_t)v;
 }
 
-static bool zr_emit_cursor_desired(zr_sb_t* sb,
-                                   zr_term_state_t* ts,
-                                   const zr_cursor_state_t* desired,
-                                   const zr_fb_t* next,
-                                   const plat_caps_t* caps) {
+static bool zr_emit_cursor_desired(zr_sb_t* sb, zr_term_state_t* ts, const zr_cursor_state_t* desired,
+                                   const zr_fb_t* next, const plat_caps_t* caps) {
   if (!sb || !ts || !next || !caps) {
     return false;
   }
@@ -483,8 +484,8 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     const uint32_t bg_code =
         (bg_idx < 8u) ? (ZR_SGR_BG_BASE + (uint32_t)bg_idx) : (ZR_SGR_BG_BRIGHT + (uint32_t)(bg_idx - 8u));
 
-    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, fg_code) ||
-        !zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, bg_code)) {
+    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, fg_code) || !zr_sb_write_u8(sb, (uint8_t)';') ||
+        !zr_sb_write_u32_dec(sb, bg_code)) {
       return false;
     }
   }
@@ -532,8 +533,8 @@ typedef struct zr_diff_ctx_t {
 } zr_diff_ctx_t;
 
 typedef struct zr_scroll_plan_t {
-  bool     active;
-  bool     up;
+  bool active;
+  bool up;
   uint32_t top;
   uint32_t bottom;
   uint32_t lines;
@@ -552,19 +553,13 @@ static void zr_diff_zero_outputs(size_t* out_len, zr_term_state_t* out_final_ter
   }
 }
 
-static zr_result_t zr_diff_validate_args(const zr_fb_t* prev,
-                                        const zr_fb_t* next,
-                                        const plat_caps_t* caps,
-                                        const zr_term_state_t* initial_term_state,
-                                        const zr_cursor_state_t* desired_cursor_state,
-                                        const zr_limits_t* lim,
-                                        zr_damage_rect_t* scratch_damage_rects,
-                                        uint32_t scratch_damage_rect_cap,
-                                        uint8_t enable_scroll_optimizations,
-                                        const uint8_t* out_buf,
-                                        const size_t* out_len,
-                                        const zr_term_state_t* out_final_term_state,
-                                        const zr_diff_stats_t* out_stats) {
+static zr_result_t zr_diff_validate_args(const zr_fb_t* prev, const zr_fb_t* next, const plat_caps_t* caps,
+                                         const zr_term_state_t* initial_term_state,
+                                         const zr_cursor_state_t* desired_cursor_state, const zr_limits_t* lim,
+                                         zr_damage_rect_t* scratch_damage_rects, uint32_t scratch_damage_rect_cap,
+                                         uint8_t enable_scroll_optimizations, const uint8_t* out_buf,
+                                         const size_t* out_len, const zr_term_state_t* out_final_term_state,
+                                         const zr_diff_stats_t* out_stats) {
   (void)enable_scroll_optimizations;
   (void)desired_cursor_state;
   if (!prev || !next || !caps || !initial_term_state || !lim || !out_buf || !out_len || !out_final_term_state ||
@@ -651,13 +646,8 @@ static bool zr_scroll_saved_enough(uint32_t moved_lines, uint32_t cols) {
 }
 
 /* Evaluate a contiguous run of row matches as a scroll-region candidate. */
-static void zr_scroll_plan_consider_run(zr_scroll_plan_t* best,
-                                       uint32_t cols,
-                                       uint32_t rows,
-                                       bool up,
-                                       uint32_t run_start,
-                                       uint32_t run_len,
-                                       uint32_t delta) {
+static void zr_scroll_plan_consider_run(zr_scroll_plan_t* best, uint32_t cols, uint32_t rows, bool up,
+                                        uint32_t run_start, uint32_t run_len, uint32_t delta) {
   if (!best || run_len == 0u || delta == 0u) {
     return;
   }
@@ -684,10 +674,7 @@ static void zr_scroll_plan_consider_run(zr_scroll_plan_t* best,
 }
 
 /* Scan for the longest run of shifted-equal rows for a given delta + direction. */
-static void zr_scroll_scan_delta_dir(const zr_fb_t* prev,
-                                     const zr_fb_t* next,
-                                     uint32_t delta,
-                                     bool up,
+static void zr_scroll_scan_delta_dir(const zr_fb_t* prev, const zr_fb_t* next, uint32_t delta, bool up,
                                      zr_scroll_plan_t* inout_best) {
   if (!prev || !next || !inout_best) {
     return;
@@ -908,10 +895,8 @@ static uint32_t zr_u32_mul_clamp(uint32_t a, uint32_t b) {
   return (prod > (size_t)0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)prod;
 }
 
-static zr_result_t zr_diff_build_damage(zr_diff_ctx_t* ctx,
-                                       const zr_limits_t* lim,
-                                       zr_damage_rect_t* scratch,
-                                       uint32_t scratch_cap) {
+static zr_result_t zr_diff_build_damage(zr_diff_ctx_t* ctx, const zr_limits_t* lim, zr_damage_rect_t* scratch,
+                                        uint32_t scratch_cap) {
   if (!ctx || !ctx->prev || !ctx->next || !lim || !scratch) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1013,7 +998,7 @@ static zr_result_t zr_diff_render_line(zr_diff_ctx_t* ctx, uint32_t y) {
  * so the normal per-row diff can skip it entirely.
  */
 static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, uint32_t* out_skip_top,
-                                         uint32_t* out_skip_bottom) {
+                                          uint32_t* out_skip_bottom) {
   if (!ctx || !out_skip || !out_skip_top || !out_skip_bottom) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1068,19 +1053,11 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
 }
 
-zr_result_t zr_diff_render(const zr_fb_t* prev,
-                           const zr_fb_t* next,
-                           const plat_caps_t* caps,
-                           const zr_term_state_t* initial_term_state,
-                           const zr_cursor_state_t* desired_cursor_state,
-                           const zr_limits_t* lim,
-                           zr_damage_rect_t* scratch_damage_rects,
-                           uint32_t scratch_damage_rect_cap,
-                           uint8_t enable_scroll_optimizations,
-                           uint8_t* out_buf,
-                           size_t out_cap,
-                           size_t* out_len,
-                           zr_term_state_t* out_final_term_state,
+zr_result_t zr_diff_render(const zr_fb_t* prev, const zr_fb_t* next, const plat_caps_t* caps,
+                           const zr_term_state_t* initial_term_state, const zr_cursor_state_t* desired_cursor_state,
+                           const zr_limits_t* lim, zr_damage_rect_t* scratch_damage_rects,
+                           uint32_t scratch_damage_rect_cap, uint8_t enable_scroll_optimizations, uint8_t* out_buf,
+                           size_t out_cap, size_t* out_len, zr_term_state_t* out_final_term_state,
                            zr_diff_stats_t* out_stats) {
   /*
    * Render the difference between two framebuffers as VT/ANSI escape sequences.
@@ -1094,10 +1071,9 @@ zr_result_t zr_diff_render(const zr_fb_t* prev,
    */
   zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
 
-  const zr_result_t arg_rc = zr_diff_validate_args(prev, next, caps, initial_term_state, desired_cursor_state, lim,
-                                                  scratch_damage_rects, scratch_damage_rect_cap,
-                                                  enable_scroll_optimizations, out_buf, out_len, out_final_term_state,
-                                                  out_stats);
+  const zr_result_t arg_rc = zr_diff_validate_args(
+      prev, next, caps, initial_term_state, desired_cursor_state, lim, scratch_damage_rects, scratch_damage_rect_cap,
+      enable_scroll_optimizations, out_buf, out_len, out_final_term_state, out_stats);
   if (arg_rc != ZR_OK) {
     return arg_rc;
   }

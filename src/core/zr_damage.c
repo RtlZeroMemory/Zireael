@@ -1,5 +1,8 @@
 /*
   src/core/zr_damage.c — Engine-internal damage rectangle tracking.
+
+  Why: Tracks changed framebuffer regions in bounded storage so diff rendering
+  can skip unchanged cells without violating no-partial-effects guarantees.
 */
 
 #include "core/zr_damage.h"

@@ -13,10 +13,23 @@
 
 #include "unit/mock_platform.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 extern const uint8_t zr_test_dl_fixture1[];
 extern const size_t zr_test_dl_fixture1_len;
+
+static bool zr_contains_bytes(const uint8_t* hay, size_t hay_len, const uint8_t* needle, size_t needle_len) {
+  if (!hay || !needle || needle_len == 0u || needle_len > hay_len) {
+    return false;
+  }
+  for (size_t i = 0u; i + needle_len <= hay_len; i++) {
+    if (memcmp(hay + i, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
 
 ZR_TEST_UNIT(engine_present_single_flush_on_success) {
   mock_plat_reset();
@@ -36,6 +49,54 @@ ZR_TEST_UNIT(engine_present_single_flush_on_success) {
 
   ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
   ZR_ASSERT_TRUE(mock_plat_bytes_written_total() != 0u);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_present_emits_debug_overlay_when_enabled) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.enable_debug_overlay = 1u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_TRUE(engine_create(&e, &cfg) == ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  mock_plat_clear_writes();
+  ZR_ASSERT_TRUE(engine_present(e) == ZR_OK);
+  ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
+
+  uint8_t out[8192];
+  const size_t out_len = mock_plat_last_write_copy(out, sizeof(out));
+  static const uint8_t needle[] = "FPS:";
+  ZR_ASSERT_TRUE(zr_contains_bytes(out, out_len, needle, sizeof(needle) - 1u));
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_present_does_not_emit_debug_overlay_when_disabled) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.enable_debug_overlay = 0u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_TRUE(engine_create(&e, &cfg) == ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  mock_plat_clear_writes();
+  ZR_ASSERT_TRUE(engine_present(e) == ZR_OK);
+  ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
+
+  uint8_t out[8192];
+  const size_t out_len = mock_plat_last_write_copy(out, sizeof(out));
+  static const uint8_t needle[] = "FPS:";
+  ZR_ASSERT_TRUE(!zr_contains_bytes(out, out_len, needle, sizeof(needle) - 1u));
 
   engine_destroy(e);
 }

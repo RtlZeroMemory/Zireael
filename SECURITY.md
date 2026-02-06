@@ -8,36 +8,43 @@
 
 ## Reporting Vulnerabilities
 
-**Preferred:** Use [GitHub Security Advisories](https://github.com/RtlZeroMemory/Zireael/security/advisories/new)
+Preferred path:
 
-**Alternative:** Open a GitHub issue requesting private contact if you cannot use Security Advisories.
+- [GitHub Security Advisories](https://github.com/RtlZeroMemory/Zireael/security/advisories/new)
 
-## Response Timeline
+If you cannot use advisories, open an issue requesting a private contact path.
 
-- Acknowledgment within 48 hours
-- Initial assessment within 7 days
-- Fix timeline depends on severity and complexity
+## Response Targets
 
-## Scope
+- acknowledgment: within 48 hours
+- initial triage: within 7 days
+- remediation timeline: severity and complexity dependent
 
-Security issues in Zireael include:
+## In-Scope Issues
 
-- Buffer overflows in drawlist/event parsing
-- Memory corruption in core engine
-- Input validation bypasses
-- Denial of service via malformed input
+- parser overflows / memory corruption
+- malformed drawlist/event input leading to undefined behavior
+- bounds-check bypasses
+- denial-of-service vectors via malformed payloads or unbounded paths
 
-Out of scope:
+## Out-Of-Scope Issues
 
-- Issues in example code (not production)
-- Terminal emulator vulnerabilities
-- Wrapper/binding issues (separate projects)
+- vulnerabilities in third-party terminal emulators
+- vulnerabilities in external wrappers/bindings hosted in other repos
+- non-production example-code misuse
 
-## Security Design
+## Security Design Principles
 
-Zireael treats all wrapper-provided input as untrusted:
+- all wrapper-provided binary input is untrusted
+- bounds checks run before pointer derivation
+- parser failures avoid partial side effects
+- deterministic limits cap memory/work behavior
+- strict platform boundary reduces accidental OS-surface leakage
 
-- Drawlist bytes are validated before execution
-- Event buffers use bounded writes
-- No partial effects on validation failure
-- Fixed resource limits prevent exhaustion
+## Security Testing Expectations
+
+Security-relevant changes should include at least one of:
+
+- unit regression coverage
+- fuzz-target coverage extension
+- integration test coverage (when backend behavior is involved)

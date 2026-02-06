@@ -15,6 +15,7 @@
 
 #include "core/zr_drawlist.h"
 #include "core/zr_framebuffer.h"
+#include "unicode/zr_width.h"
 
 /* Fixtures defined in test_drawlist_validate.c */
 extern const uint8_t zr_test_dl_fixture1[];
@@ -66,7 +67,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture1_text_written) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
 
   /* --- Assert: Correct glyphs at expected positions --- */
   const zr_cell_t* c1 = zr_fb_cell_const(&fb, 1u, 0u);
@@ -112,7 +113,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture2_clip_applies) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
 
   /* --- Assert: Cells inside clip region have filled style --- */
   const zr_cell_t* in0 = zr_fb_cell_const(&fb, 1u, 1u);
@@ -157,7 +158,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture3_text_run_segments) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
 
   /* --- Assert: Correct glyphs with segment-specific styles --- */
   const zr_cell_t* a = zr_fb_cell_const(&fb, 0u, 0u);
@@ -200,7 +201,7 @@ ZR_TEST_UNIT(drawlist_execute_clip_does_not_change_wide_cursor_advance) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
 
   /*
    * The clip only includes x==1. The drawlist places a wide glyph starting at x==0
@@ -236,7 +237,7 @@ ZR_TEST_UNIT(drawlist_execute_v2_set_cursor_updates_cursor_state) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
   ZR_ASSERT_TRUE(cursor.x == 3);
   ZR_ASSERT_TRUE(cursor.y == 4);
   ZR_ASSERT_EQ_U32(cursor.shape, 2u);
@@ -265,13 +266,36 @@ ZR_TEST_UNIT(drawlist_execute_v1_draw_text_slices_share_string_bytes) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
 
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 0u, 0u), (uint8_t)'H');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 1u, 0u), (uint8_t)'e');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 2u, 0u), (uint8_t)'l');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 3u, 0u), (uint8_t)'l');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 4u, 0u), (uint8_t)'o');
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(drawlist_execute_rejects_invalid_text_policy_arguments) {
+  zr_limits_t lim = zr_limits_default();
+  zr_dl_view_t v;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture1, zr_test_dl_fixture1_len, &lim, &v), ZR_OK);
+
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 2u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
+
+  zr_cursor_state_t cursor = {0};
+  cursor.x = -1;
+  cursor.y = -1;
+  cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
+  cursor.visible = 0u;
+  cursor.blink = 0u;
+  cursor.reserved0 = 0u;
+
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 0u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, 999u, &cursor), ZR_ERR_INVALID_ARGUMENT);
 
   zr_fb_release(&fb);
 }

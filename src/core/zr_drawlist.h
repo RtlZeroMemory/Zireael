@@ -48,13 +48,15 @@ typedef struct zr_dl_view_t {
   size_t blobs_count;
   const uint8_t* blobs_bytes;
   size_t blobs_bytes_len;
+
+  struct {
+    uint32_t tab_width;
+    uint32_t width_policy;
+  } text;
 } zr_dl_view_t;
 
-zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limits_t* lim,
-                           zr_dl_view_t* out_view);
-zr_result_t zr_dl_execute(const zr_dl_view_t* v,
-                          zr_fb_t* dst,
-                          const zr_limits_t* lim,
-                          zr_cursor_state_t* inout_cursor_state);
+zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limits_t* lim, zr_dl_view_t* out_view);
+zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim, uint32_t tab_width,
+                          uint32_t width_policy, zr_cursor_state_t* inout_cursor_state);
 
 #endif /* ZR_CORE_ZR_DRAWLIST_H_INCLUDED */

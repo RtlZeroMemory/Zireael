@@ -1,8 +1,8 @@
 /*
-  include/zr/zr_caps.h — Deterministic default limits and validation.
+  include/zr/zr_caps.h - Deterministic limits defaults and validation.
 
-  Why: Centralizes cap defaults and validation so wrappers can configure
-  bounded resource usage deterministically.
+  Why: Centralizes cap defaults and validation so wrappers can reason about
+  bounded memory/work behavior explicitly.
 */
 
 #ifndef ZR_ZR_CAPS_H_INCLUDED
@@ -13,25 +13,21 @@
 #include <stdint.h>
 
 /*
-  zr_limits_t:
-    - Fields are deterministic caps that must be non-zero.
-    - Validation rejects zeros and obvious invalid ranges.
+  Deterministic resource limits.
 
-  Note: This struct is expected to grow as new modules land.
+  Contract:
+    - Fields must be non-zero unless explicitly documented otherwise.
+    - Validation rejects invalid ranges and inconsistent budgets.
 */
 typedef struct zr_limits_t {
+  /* Arena budgets (bytes). */
   uint32_t arena_max_total_bytes;
   uint32_t arena_initial_bytes;
 
-  /*
-    out_max_bytes_per_frame:
-      - Maximum bytes the engine may emit in a single engine_present() call.
-      - Enforced by allocating a fixed-size engine-owned output buffer and
-        building diff output into it before a single platform flush.
-  */
+  /* Maximum bytes emitted in one successful engine_present(). */
   uint32_t out_max_bytes_per_frame;
 
-  /* Drawlist (v1) caps. */
+  /* Drawlist caps. */
   uint32_t dl_max_total_bytes;
   uint32_t dl_max_cmds;
   uint32_t dl_max_strings;
@@ -39,11 +35,14 @@ typedef struct zr_limits_t {
   uint32_t dl_max_clip_depth;
   uint32_t dl_max_text_run_segments;
 
-  /* Diff renderer caps. */
+  /* Diff renderer cap. */
   uint32_t diff_max_damage_rects;
 } zr_limits_t;
 
+/* Return deterministic default limits. */
 zr_limits_t zr_limits_default(void);
+
+/* Validate limit values and relationships. */
 zr_result_t zr_limits_validate(const zr_limits_t* limits);
 
 #endif /* ZR_ZR_CAPS_H_INCLUDED */

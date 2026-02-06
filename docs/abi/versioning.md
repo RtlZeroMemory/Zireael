@@ -1,16 +1,19 @@
 # Versioning
 
-Zireael maintains separate version axes:
+Zireael keeps separate version axes for API and wire formats.
 
-- **Engine ABI version** (C function surface and struct layouts)
-- **Drawlist format version**
-- **Event batch format version**
+## Version Axes
 
-Wrappers select requested versions at `engine_create()`.
+- **Library version** - release identifier
+- **Engine ABI version** - public C ABI compatibility
+- **Drawlist format version** - wrapper -> engine wire format
+- **Event batch format version** - engine -> wrapper wire format
 
-## Source of truth
+Wrappers negotiate requested versions during `engine_create()`.
 
-Public version pins are defined in `include/zr/zr_version.h`.
+## Source Of Truth
+
+Pinned macros live in `include/zr/zr_version.h`.
 
 Current pins:
 
@@ -19,14 +22,40 @@ Current pins:
 - Drawlist formats: v1 and v2
 - Event batch format: v1
 
-## Compatibility expectations
+## Compatibility Expectations
 
-- A wrapper that requests `(ABI v1.1.0, drawlist v1, event v1)` must behave identically across builds using those pins.
-- New functionality is introduced via:
-  - ABI minor bumps (new functions / new config fields in a version-safe way)
-  - new drawlist/event versions
+If a wrapper requests pinned versions exactly, behavior should remain consistent across builds of that same pin set.
 
-## Next steps
+Negotiation rules (v1 line):
 
+- engine ABI request must match pinned ABI exactly
+- event batch version must match pinned event version exactly
+- drawlist request must be one of supported drawlist versions
+
+Unsupported requests fail with `ZR_ERR_UNSUPPORTED`.
+
+## Safe Evolution Model
+
+Non-breaking examples:
+
+- new API function in ABI minor bump
+- new drawlist opcode introduced in a new drawlist format version
+- new event record type that remains skippable-by-size
+
+Breaking examples:
+
+- changing existing struct field meaning without version gating
+- changing existing wire layout in place
+- changing result semantics for existing function contract
+
+## Wrapper Guidance
+
+- Load pin constants from generated bindings or header mirrors.
+- Reject unknown versions explicitly.
+- Keep binary parsing strict (bounds/size checks on every record).
+
+## Related Docs
+
+- [ABI Policy](abi-policy.md)
 - [C ABI Reference](c-abi-reference.md)
-- [Internal Specs → Config + ABI Versioning](../modules/CONFIG_AND_ABI_VERSIONING.md)
+- [Internal Config + Versioning Spec](../modules/CONFIG_AND_ABI_VERSIONING.md)

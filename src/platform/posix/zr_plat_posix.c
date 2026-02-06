@@ -16,6 +16,7 @@
 #endif
 
 #include "platform/zr_platform.h"
+#include "platform/posix/zr_plat_posix_test.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -43,6 +44,7 @@ struct plat_t {
 
   int wake_read_fd;
   int wake_write_fd;
+  int wake_slot_index;
 
   int stdin_flags_saved;
   bool stdin_flags_valid;
@@ -59,6 +61,8 @@ enum {
 };
 
 static _Atomic int g_posix_wake_fd_slots[ZR_POSIX_SIGWINCH_MAX_WAKE_FDS];
+static _Atomic int g_posix_wake_overflow_slots[ZR_POSIX_SIGWINCH_MAX_WAKE_FDS];
+static _Atomic int g_posix_test_force_sigwinch_overflow = 0;
 static atomic_flag g_posix_sigwinch_ctl_lock = ATOMIC_FLAG_INIT;
 static int g_posix_sigwinch_refcount = 0;
 static struct sigaction g_posix_sigwinch_prev;
@@ -86,6 +90,16 @@ static _Atomic int g_posix_prev_handler_kind = 0;
 static _Atomic(zr_posix_sa_handler_fn) g_posix_prev_sa_handler = NULL;
 static _Atomic(zr_posix_sa_sigaction_fn) g_posix_prev_sa_sigaction = NULL;
 
+/*
+  POSIX testing hook: force SIGWINCH overflow marker path.
+
+  Why: Integration tests need deterministic coverage for self-pipe overflow
+  handling without depending on kernel pipe-size behavior.
+*/
+void zr_posix_test_force_sigwinch_overflow(uint8_t enabled) {
+  atomic_store_explicit(&g_posix_test_force_sigwinch_overflow, enabled ? 1 : 0, memory_order_release);
+}
+
 static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext);
 
 static void zr_posix_sigwinch_ctl_lock_acquire(void) {
@@ -105,38 +119,69 @@ static int zr_posix_wake_fd_encode(int fd) {
   return fd + 1;
 }
 
-static bool zr_posix_wake_slot_register_fd(int wake_fd) {
+static bool zr_posix_wake_slot_register_fd(int wake_fd, int* out_slot_index) {
   const int encoded = zr_posix_wake_fd_encode(wake_fd);
   if (encoded == 0) {
     return false;
+  }
+  if (out_slot_index) {
+    *out_slot_index = -1;
   }
 
   for (uint32_t i = 0u; i < ZR_POSIX_SIGWINCH_MAX_WAKE_FDS; i++) {
     int expected = 0;
     if (atomic_compare_exchange_strong_explicit(&g_posix_wake_fd_slots[i], &expected, encoded, memory_order_acq_rel,
                                                 memory_order_acquire)) {
+      atomic_store_explicit(&g_posix_wake_overflow_slots[i], 0, memory_order_release);
+      if (out_slot_index) {
+        *out_slot_index = (int)i;
+      }
       return true;
     }
     if (expected == encoded) {
+      atomic_store_explicit(&g_posix_wake_overflow_slots[i], 0, memory_order_release);
+      if (out_slot_index) {
+        *out_slot_index = (int)i;
+      }
       return true;
     }
   }
   return false;
 }
 
-static void zr_posix_wake_slot_unregister_fd(int wake_fd) {
+static void zr_posix_wake_slot_unregister_fd(int wake_fd, int wake_slot_index) {
   const int encoded = zr_posix_wake_fd_encode(wake_fd);
   if (encoded == 0) {
     return;
+  }
+
+  if (wake_slot_index >= 0 && (uint32_t)wake_slot_index < ZR_POSIX_SIGWINCH_MAX_WAKE_FDS) {
+    const int current = atomic_load_explicit(&g_posix_wake_fd_slots[wake_slot_index], memory_order_acquire);
+    if (current == encoded) {
+      atomic_store_explicit(&g_posix_wake_fd_slots[wake_slot_index], 0, memory_order_release);
+      atomic_store_explicit(&g_posix_wake_overflow_slots[wake_slot_index], 0, memory_order_release);
+      return;
+    }
   }
 
   for (uint32_t i = 0u; i < ZR_POSIX_SIGWINCH_MAX_WAKE_FDS; i++) {
     int expected = encoded;
     if (atomic_compare_exchange_strong_explicit(&g_posix_wake_fd_slots[i], &expected, 0, memory_order_acq_rel,
                                                 memory_order_acquire)) {
+      atomic_store_explicit(&g_posix_wake_overflow_slots[i], 0, memory_order_release);
       return;
     }
   }
+}
+
+static bool zr_posix_wake_slot_consume_overflow(const plat_t* plat) {
+  if (!plat) {
+    return false;
+  }
+  if (plat->wake_slot_index < 0 || (uint32_t)plat->wake_slot_index >= ZR_POSIX_SIGWINCH_MAX_WAKE_FDS) {
+    return false;
+  }
+  return atomic_exchange_explicit(&g_posix_wake_overflow_slots[plat->wake_slot_index], 0, memory_order_acq_rel) != 0;
 }
 
 static const char* zr_posix_getenv_nonempty(const char* key) {
@@ -353,13 +398,37 @@ static void zr_posix_sigwinch_clear_previous(void) {
 static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext) {
   int saved_errno = errno;
   const uint8_t b = 0u;
+  const bool force_overflow = atomic_load_explicit(&g_posix_test_force_sigwinch_overflow, memory_order_acquire) != 0;
   for (uint32_t i = 0u; i < ZR_POSIX_SIGWINCH_MAX_WAKE_FDS; i++) {
     const int encoded = atomic_load_explicit(&g_posix_wake_fd_slots[i], memory_order_acquire);
     if (encoded == 0) {
       continue;
     }
+    if (force_overflow) {
+      atomic_store_explicit(&g_posix_wake_overflow_slots[i], 1, memory_order_release);
+      continue;
+    }
     const int wake_fd = encoded - 1;
-    (void)write(wake_fd, &b, 1u);
+    for (;;) {
+      ssize_t n = write(wake_fd, &b, 1u);
+      if (n == 1) {
+        break;
+      }
+      if (n < 0 && errno == EINTR) {
+        continue;
+      }
+      if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        /*
+          Preserve one wake when the self-pipe is saturated.
+
+          Why: A resize signal can race with a full wake pipe. Without this
+          overflow marker, draining the pipe could drop the wake edge and allow
+          a later wait to block indefinitely.
+        */
+        atomic_store_explicit(&g_posix_wake_overflow_slots[i], 1, memory_order_release);
+      }
+      break;
+    }
   }
   zr_posix_sigwinch_chain_previous(signo, info, ucontext);
   errno = saved_errno;
@@ -748,13 +817,16 @@ static zr_result_t zr_posix_install_sigwinch(plat_t* plat) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  if (!zr_posix_wake_slot_register_fd(plat->wake_write_fd)) {
+  int slot_index = -1;
+  if (!zr_posix_wake_slot_register_fd(plat->wake_write_fd, &slot_index)) {
     return ZR_ERR_PLATFORM;
   }
+  plat->wake_slot_index = slot_index;
 
   zr_result_t r = zr_posix_sigwinch_global_acquire();
   if (r != ZR_OK) {
-    zr_posix_wake_slot_unregister_fd(plat->wake_write_fd);
+    zr_posix_wake_slot_unregister_fd(plat->wake_write_fd, plat->wake_slot_index);
+    plat->wake_slot_index = -1;
     return r;
   }
 
@@ -780,6 +852,7 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->tty_fd_owned = -1;
   plat->wake_read_fd = -1;
   plat->wake_write_fd = -1;
+  plat->wake_slot_index = -1;
 
   zr_result_t r = zr_posix_create_bind_stdio_or_tty(plat);
   if (r != ZR_OK) {
@@ -815,7 +888,8 @@ void plat_destroy(plat_t* plat) {
   (void)plat_leave_raw(plat);
 
   if (plat->sigwinch_registered) {
-    zr_posix_wake_slot_unregister_fd(plat->wake_write_fd);
+    zr_posix_wake_slot_unregister_fd(plat->wake_write_fd, plat->wake_slot_index);
+    plat->wake_slot_index = -1;
     zr_posix_sigwinch_global_release();
     plat->sigwinch_registered = false;
   }
@@ -1001,6 +1075,10 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
   fds[1].revents = 0;
 
   for (;;) {
+    if (timeout_ms != 0 && zr_posix_wake_slot_consume_overflow(plat)) {
+      return 1;
+    }
+
     int poll_timeout = -1;
     if (timeout_ms >= 0) {
       uint64_t now_ms = plat_now_ms();
@@ -1012,6 +1090,9 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
     fds[1].revents = 0;
     int rc = poll(fds, 2u, poll_timeout);
     if (rc == 0) {
+      if (zr_posix_wake_slot_consume_overflow(plat)) {
+        return 1;
+      }
       return 0;
     }
     if (rc < 0) {

@@ -96,6 +96,7 @@ To support optional frame pacing, the platform interface exposes an output-writa
 - Multiple concurrent `plat_create` instances are supported
 - Registry capacity is bounded (currently 32 concurrent wake fds)
 - Uses self-pipe for signal-safe wake
+- Preserves one SIGWINCH wake via overflow marker when a wake pipe is saturated
 - Chains to any previously installed `SIGWINCH` handler
 - Restores the prior handler when the final POSIX platform instance is destroyed
 - `plat_wait_output_writable`: uses `poll(POLLOUT)` on stdout fd

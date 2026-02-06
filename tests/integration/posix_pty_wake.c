@@ -16,6 +16,7 @@
 #endif
 
 #include "platform/zr_platform.h"
+#include "platform/posix/zr_plat_posix_test.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -108,8 +109,6 @@ static void* zr_wait_thread(void* user) {
 }
 
 static int zr_clear_ready_best_effort(plat_t* plat) {
-  uint8_t tmp[256];
-
   for (int i = 0; i < 16; i++) {
     int32_t w = plat_wait(plat, 0);
     if (w == 0) {
@@ -119,7 +118,6 @@ static int zr_clear_ready_best_effort(plat_t* plat) {
       fprintf(stderr, "plat_wait(0) returned error while clearing: %d\n", (int)w);
       return -1;
     }
-    (void)plat_read_input(plat, tmp, (int32_t)sizeof(tmp));
   }
   fprintf(stderr, "plat_wait(0) never settled to timeout while clearing\n");
   return -1;
@@ -152,6 +150,56 @@ static int zr_expect_wake_drains_pipe(plat_t* plat) {
     indefinite ready status.
   */
   if (zr_clear_ready_best_effort(plat) != 0) {
+    return -1;
+  }
+  return 0;
+}
+
+static int zr_expect_sigwinch_wake_preserved_on_forced_overflow(plat_t* plat) {
+  if (!plat) {
+    return -1;
+  }
+  if (zr_clear_ready_best_effort(plat) != 0) {
+    return -1;
+  }
+
+  /*
+    Seed the wake pipe with one byte, then force the SIGWINCH handler down the
+    overflow-marker path. The next waits must observe: pipe wake, overflow wake,
+    then timeout.
+  */
+  zr_result_t r = plat_wake(plat);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_wake() failed before overflow test: r=%d\n", (int)r);
+    return -1;
+  }
+
+  const sig_atomic_t sig_count_before = g_prev_sigwinch_count;
+  zr_posix_test_force_sigwinch_overflow(1u);
+  (void)kill(getpid(), SIGWINCH);
+  zr_posix_test_force_sigwinch_overflow(0u);
+
+  if (g_prev_sigwinch_count != (sig_count_before + 1)) {
+    fprintf(stderr, "SIGWINCH previous handler did not chain during overflow test (before=%d after=%d)\n",
+            (int)sig_count_before, (int)g_prev_sigwinch_count);
+    return -1;
+  }
+
+  int32_t w = plat_wait(plat, 0);
+  if (w != 1) {
+    fprintf(stderr, "expected wake-pipe readiness before overflow marker (result=%d)\n", (int)w);
+    return -1;
+  }
+
+  w = plat_wait(plat, 0);
+  if (w != 1) {
+    fprintf(stderr, "lost SIGWINCH wake after wake-pipe drain (result=%d)\n", (int)w);
+    return -1;
+  }
+
+  w = plat_wait(plat, 0);
+  if (w != 0) {
+    fprintf(stderr, "overflow wake marker was not single-shot (result=%d)\n", (int)w);
     return -1;
   }
   return 0;
@@ -317,6 +365,11 @@ int main(void) {
   if (g_prev_sigwinch_count != (sig_count_mid + 1)) {
     fprintf(stderr, "SIGWINCH previous handler did not chain after first destroy (before=%d after=%d)\n",
             (int)sig_count_mid, (int)g_prev_sigwinch_count);
+    goto cleanup;
+  }
+
+  if (zr_expect_sigwinch_wake_preserved_on_forced_overflow(plat2) != 0) {
+    fprintf(stderr, "SIGWINCH wake was not preserved across forced overflow path\n");
     goto cleanup;
   }
 

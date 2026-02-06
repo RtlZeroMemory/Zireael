@@ -699,8 +699,9 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev, const zr_fb_t* nex
                                          const zr_term_state_t* initial_term_state,
                                          const zr_cursor_state_t* desired_cursor_state, const zr_limits_t* lim,
                                          zr_damage_rect_t* scratch_damage_rects, uint32_t scratch_damage_rect_cap,
-                                         zr_diff_scratch_t* scratch, uint8_t enable_scroll_optimizations, const uint8_t* out_buf,
-                                         const size_t* out_len, const zr_term_state_t* out_final_term_state,
+                                         zr_diff_scratch_t* scratch, uint8_t enable_scroll_optimizations,
+                                         const uint8_t* out_buf, const size_t* out_len,
+                                         const zr_term_state_t* out_final_term_state,
                                          const zr_diff_stats_t* out_stats) {
   (void)enable_scroll_optimizations;
   (void)desired_cursor_state;

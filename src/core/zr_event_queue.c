@@ -493,6 +493,19 @@ bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev) {
   return true;
 }
 
+/* Return a synchronized snapshot of queue depth for concurrent poll/post usage. */
+uint32_t zr_event_queue_count(const zr_event_queue_t* q) {
+  if (!q || !q->events || q->cap == 0u) {
+    return 0u;
+  }
+
+  zr_event_queue_t* mutable_q = (zr_event_queue_t*)q;
+  zr_evq_lock(mutable_q);
+  const uint32_t count = mutable_q->count;
+  zr_evq_unlock(mutable_q);
+  return count;
+}
+
 /* Get a read-only view into a user event's payload bytes; valid until event is popped. */
 bool zr_event_queue_user_payload_view(const zr_event_queue_t* q, const zr_event_t* ev,
                                       const uint8_t** out_bytes, uint32_t* out_len) {

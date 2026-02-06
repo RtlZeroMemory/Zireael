@@ -99,9 +99,13 @@ zr_result_t zr_event_queue_post_paste(zr_event_queue_t* q, uint32_t time_ms, con
 bool zr_event_queue_peek(const zr_event_queue_t* q, zr_event_t* out_ev);
 bool zr_event_queue_pop(zr_event_queue_t* q, zr_event_t* out_ev);
 
-static inline uint32_t zr_event_queue_count(const zr_event_queue_t* q) {
-  return q ? q->count : 0u;
-}
+/*
+  Return a thread-safe snapshot of queued event count.
+
+  Why: engine_poll_events() may run concurrently with engine_post_user_event().
+  Reading q->count without synchronization is a data race under C11.
+*/
+uint32_t zr_event_queue_count(const zr_event_queue_t* q);
 
 /*
   Returns a borrowed pointer to the user payload bytes for a ZR_EV_USER event.

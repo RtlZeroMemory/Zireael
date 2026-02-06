@@ -791,6 +791,15 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
     goto cleanup;
   }
 
+  /*
+    Fail early when wait_for_output_drain is requested but the backend cannot
+    support it. This avoids repeated per-frame ZR_ERR_UNSUPPORTED failures.
+  */
+  if (e->cfg_runtime.wait_for_output_drain != 0u && e->caps.supports_output_wait_writable == 0u) {
+    rc = ZR_ERR_UNSUPPORTED;
+    goto cleanup;
+  }
+
   rc = zr_engine_resize_framebuffers(e, e->size.cols, e->size.rows);
   if (rc != ZR_OK) {
     goto cleanup;
@@ -1475,6 +1484,15 @@ zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* 
   }
 
   if (memcmp(&cfg->plat, &e->cfg_runtime.plat, sizeof(cfg->plat)) != 0) {
+    return ZR_ERR_UNSUPPORTED;
+  }
+
+  /*
+    Reject enabling wait_for_output_drain when the backend does not support it.
+    This mirrors the engine_create() early check and prevents repeated per-frame
+    ZR_ERR_UNSUPPORTED failures from engine_present().
+  */
+  if (cfg->wait_for_output_drain != 0u && e->caps.supports_output_wait_writable == 0u) {
     return ZR_ERR_UNSUPPORTED;
   }
 

@@ -26,8 +26,15 @@ static const uint8_t ZR_WIN32_SEQ_CURSOR_SHOW[] = "\x1b[?25h";
 static const uint8_t ZR_WIN32_SEQ_WRAP_ENABLE[] = "\x1b[?7h";
 static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_ENABLE[] = "\x1b[?2004h";
 static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_DISABLE[] = "\x1b[?2004l";
-static const uint8_t ZR_WIN32_SEQ_MOUSE_ENABLE[] = "\x1b[?1000h\x1b[?1006h";
-static const uint8_t ZR_WIN32_SEQ_MOUSE_DISABLE[] = "\x1b[?1006l\x1b[?1000l";
+/*
+  Mouse tracking sequences (locked, parity with POSIX backend):
+    - ?1000h: report button press/release
+    - ?1002h: report drag motion
+    - ?1003h: report any motion (hover)
+    - ?1006h: SGR encoding (needed for >223 coords and modern terminals)
+*/
+static const uint8_t ZR_WIN32_SEQ_MOUSE_ENABLE[] = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
+static const uint8_t ZR_WIN32_SEQ_MOUSE_DISABLE[] = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l";
 static const uint32_t ZR_WIN32_UTF16_HIGH_SURROGATE_MIN = 0xD800u;
 static const uint32_t ZR_WIN32_UTF16_HIGH_SURROGATE_MAX = 0xDBFFu;
 static const uint32_t ZR_WIN32_UTF16_LOW_SURROGATE_MIN = 0xDC00u;
@@ -564,7 +571,7 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
 static void zr_win32_emit_enter_sequences_best_effort(plat_t* plat) {
   /*
     Locked ordering for enter:
-      ?1049h, ?25l, ?7h, ?2004h, ?1000h?1006h (when enabled by config/caps)
+      ?1049h, ?25l, ?7h, ?2004h, ?1000h?1002h?1003h?1006h (when enabled by config/caps)
   */
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_ALT_SCREEN_ENTER, sizeof(ZR_WIN32_SEQ_ALT_SCREEN_ENTER));
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_CURSOR_HIDE, sizeof(ZR_WIN32_SEQ_CURSOR_HIDE));

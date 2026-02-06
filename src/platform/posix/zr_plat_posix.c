@@ -26,6 +26,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,9 +58,29 @@ struct plat_t {
 };
 
 static volatile sig_atomic_t g_posix_sigwinch_pending = 0;
-static int g_posix_wake_write_fd = -1;
-static struct sigaction g_posix_sigwinch_prev_action;
-static volatile sig_atomic_t g_posix_sigwinch_prev_valid = 0;
+static volatile sig_atomic_t g_posix_wake_write_fd = -1;
+typedef void (*zr_posix_sa_handler_fn)(int);
+typedef void (*zr_posix_sa_sigaction_fn)(int, siginfo_t*, void*);
+
+/*
+  Signal-safe previous-handler state.
+
+  Why: The SIGWINCH handler must only touch signal-safe state. Plain global
+  function-pointer loads from a signal handler are undefined in strict C.
+  We store handler pointers in lock-free atomic function-pointer slots and gate
+  reads with a lock-free atomic kind field.
+
+  g_posix_prev_handler_kind:
+    0 = no previous handler (or SIG_IGN/SIG_DFL)
+    1 = previous handler is sa_handler (traditional)
+    2 = previous handler is sa_sigaction (SA_SIGINFO)
+*/
+#if (ATOMIC_INT_LOCK_FREE != 2) || (ATOMIC_POINTER_LOCK_FREE != 2)
+#error "POSIX signal chaining requires lock-free int/pointer atomics."
+#endif
+static _Atomic int g_posix_prev_handler_kind = 0;
+static _Atomic(zr_posix_sa_handler_fn) g_posix_prev_sa_handler = NULL;
+static _Atomic(zr_posix_sa_sigaction_fn) g_posix_prev_sa_sigaction = NULL;
 
 static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext);
 
@@ -128,35 +149,33 @@ static uint8_t zr_posix_detect_sync_update(void) {
 
   Why: Host runtimes may rely on their own SIGWINCH hooks. Chaining preserves
   process behavior while still waking the engine's self-pipe.
+
+  Signal-safety: reads only lock-free atomics from signal context.
 */
 static void zr_posix_sigwinch_chain_previous(int signo, siginfo_t* info, void* ucontext) {
-  if (g_posix_sigwinch_prev_valid == 0) {
-    return;
-  }
-
-  if ((g_posix_sigwinch_prev_action.sa_flags & SA_SIGINFO) != 0) {
-    if (g_posix_sigwinch_prev_action.sa_handler == SIG_IGN || g_posix_sigwinch_prev_action.sa_handler == SIG_DFL) {
-      return;
-    }
-    void (*prev)(int, siginfo_t*, void*) = g_posix_sigwinch_prev_action.sa_sigaction;
-    if (prev && prev != zr_posix_sigwinch_handler) {
+  const int kind = atomic_load_explicit(&g_posix_prev_handler_kind, memory_order_acquire);
+  if (kind == 2) {
+    zr_posix_sa_sigaction_fn prev = atomic_load_explicit(&g_posix_prev_sa_sigaction, memory_order_relaxed);
+    if (prev) {
       prev(signo, info, ucontext);
     }
     return;
   }
-
-  void (*prev)(int) = g_posix_sigwinch_prev_action.sa_handler;
-  if (prev && prev != SIG_IGN && prev != SIG_DFL) {
-    prev(signo);
+  if (kind == 1) {
+    zr_posix_sa_handler_fn prev = atomic_load_explicit(&g_posix_prev_sa_handler, memory_order_relaxed);
+    if (prev) {
+      prev(signo);
+    }
   }
 }
 
 static void zr_posix_sigwinch_handler(int signo, siginfo_t* info, void* ucontext) {
   int saved_errno = errno;
   g_posix_sigwinch_pending = 1;
-  if (g_posix_wake_write_fd >= 0) {
+  const int wake_fd = (int)g_posix_wake_write_fd;
+  if (wake_fd >= 0) {
     const uint8_t b = 0u;
-    (void)write(g_posix_wake_write_fd, &b, 1u);
+    (void)write(wake_fd, &b, 1u);
   }
   zr_posix_sigwinch_chain_previous(signo, info, ucontext);
   errno = saved_errno;
@@ -489,7 +508,15 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
     goto cleanup;
   }
 
-  g_posix_wake_write_fd = plat->wake_write_fd;
+  /*
+    Store wake fd in sig_atomic_t for signal-handler reads.
+    Defensive range guard avoids implementation-defined narrowing.
+  */
+  if (plat->wake_write_fd > (int)SIG_ATOMIC_MAX) {
+    r = ZR_ERR_PLATFORM;
+    goto cleanup;
+  }
+  g_posix_wake_write_fd = (sig_atomic_t)plat->wake_write_fd;
 
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
@@ -500,15 +527,48 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
     r = ZR_ERR_PLATFORM;
     goto cleanup;
   }
-  g_posix_sigwinch_prev_action = plat->sigwinch_prev;
-  g_posix_sigwinch_prev_valid = 1;
+
+  /*
+    Snapshot previous handler into atomic globals.
+
+    Order matters:
+      - write pointer slots first
+      - publish kind with release-store
+    The handler acquires kind before reading handler pointers.
+  */
+  {
+    const struct sigaction* prev = &plat->sigwinch_prev;
+    atomic_store_explicit(&g_posix_prev_sa_handler, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_posix_prev_sa_sigaction, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_posix_prev_handler_kind, 0, memory_order_relaxed);
+    if ((prev->sa_flags & SA_SIGINFO) != 0) {
+      /*
+        SA_SIGINFO set: the kernel dispatches via sa_sigaction. Guard against
+        SIG_DFL/SIG_IGN stored as sa_handler in the union (POSIX allows
+        implementations to alias the two members).
+      */
+      if (prev->sa_handler != SIG_IGN && prev->sa_handler != SIG_DFL) {
+        void (*fn)(int, siginfo_t*, void*) = prev->sa_sigaction;
+        if (fn && fn != zr_posix_sigwinch_handler) {
+          atomic_store_explicit(&g_posix_prev_sa_sigaction, fn, memory_order_relaxed);
+          atomic_store_explicit(&g_posix_prev_handler_kind, 2, memory_order_release);
+        }
+      }
+    } else {
+      void (*fn)(int) = prev->sa_handler;
+      if (fn && fn != SIG_IGN && fn != SIG_DFL) {
+        atomic_store_explicit(&g_posix_prev_sa_handler, fn, memory_order_relaxed);
+        atomic_store_explicit(&g_posix_prev_handler_kind, 1, memory_order_release);
+      }
+    }
+  }
   plat->sigwinch_installed = true;
 
   *out_plat = plat;
   return ZR_OK;
 
 cleanup:
-  if (g_posix_wake_write_fd == plat->wake_write_fd) {
+  if (g_posix_wake_write_fd == (sig_atomic_t)plat->wake_write_fd) {
     g_posix_wake_write_fd = -1;
   }
 
@@ -542,13 +602,14 @@ void plat_destroy(plat_t* plat) {
       With the singleton create guard, we should always own the global wake fd
       while SIGWINCH is installed.
     */
-    ZR_ASSERT(g_posix_wake_write_fd == -1 || g_posix_wake_write_fd == plat->wake_write_fd);
-    if (g_posix_wake_write_fd == plat->wake_write_fd) {
+    ZR_ASSERT(g_posix_wake_write_fd == -1 || g_posix_wake_write_fd == (sig_atomic_t)plat->wake_write_fd);
+    if (g_posix_wake_write_fd == (sig_atomic_t)plat->wake_write_fd) {
       g_posix_wake_write_fd = -1;
     }
     (void)sigaction(SIGWINCH, &plat->sigwinch_prev, NULL);
-    g_posix_sigwinch_prev_valid = 0;
-    memset(&g_posix_sigwinch_prev_action, 0, sizeof(g_posix_sigwinch_prev_action));
+    atomic_store_explicit(&g_posix_prev_handler_kind, 0, memory_order_release);
+    atomic_store_explicit(&g_posix_prev_sa_handler, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_posix_prev_sa_sigaction, NULL, memory_order_relaxed);
     plat->sigwinch_installed = false;
   }
 

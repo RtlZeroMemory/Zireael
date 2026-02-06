@@ -58,6 +58,21 @@
       }
     },
     {
+      "name": "posix-clang-fuzz",
+      "displayName": "POSIX (clang) Debug + libFuzzer Targets",
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "ZIREAEL_BUILD_LIBFUZZER": "ON"
+      }
+    },
+    {
       "name": "posix-clang-asan-ubsan",
       "displayName": "POSIX (clang) Debug + ASan + UBSan",
       "inherits": "base",
@@ -145,6 +160,10 @@
       "configurePreset": "posix-clang-debug"
     },
     {
+      "name": "posix-clang-fuzz",
+      "configurePreset": "posix-clang-fuzz"
+    },
+    {
       "name": "posix-clang-asan-ubsan",
       "configurePreset": "posix-clang-asan-ubsan"
     },
@@ -187,6 +206,11 @@
       "name": "posix-clang-debug",
       "inherits": "ctest-base",
       "configurePreset": "posix-clang-debug"
+    },
+    {
+      "name": "posix-clang-fuzz",
+      "inherits": "ctest-base",
+      "configurePreset": "posix-clang-fuzz"
     },
     {
       "name": "posix-clang-asan-ubsan",

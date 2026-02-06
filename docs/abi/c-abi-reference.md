@@ -42,6 +42,9 @@ Special case:
 
 ## Threading Contract
 
+This section is the wrapper-facing threading source of truth and must stay
+aligned with `include/zr/zr_engine.h`.
+
 - Engine is single-threaded by default.
 - Call engine APIs from one engine thread.
 - `engine_post_user_event()` is intended for cross-thread wake/event injection.

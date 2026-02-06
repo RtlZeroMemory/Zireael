@@ -45,6 +45,8 @@ Special case:
 - Engine is single-threaded by default.
 - Call engine APIs from one engine thread.
 - `engine_post_user_event()` is intended for cross-thread wake/event injection.
+- During teardown, `engine_post_user_event()` may return `ZR_ERR_INVALID_ARGUMENT`.
+- Wrappers should quiesce posting threads before `engine_destroy()`.
 
 ## Lifecycle
 
@@ -78,6 +80,7 @@ Common failures:
 
 - Safe with `NULL`.
 - Leaves raw mode best-effort, destroys platform state, releases all engine-owned memory.
+- Should be called after post threads are quiesced.
 
 ### `int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out_cap)`
 
@@ -102,6 +105,7 @@ Behavior notes:
 - Appends a wrapper-defined user event (`ZR_EV_USER`) to the queue.
 - Best-effort wakes blocked platform wait.
 - Payload is copied during call.
+- Returns `ZR_ERR_INVALID_ARGUMENT` when teardown has started.
 
 ### `zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int bytes_len)`
 

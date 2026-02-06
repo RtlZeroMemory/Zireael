@@ -117,6 +117,19 @@ if (WIN32)
     target_link_libraries(zireael_integration_win32_conpty_wake PRIVATE zireael)
     add_test(NAME zireael.integration.win32.conpty.wake COMMAND zireael_integration_win32_conpty_wake)
     set_tests_properties(zireael.integration.win32.conpty.wake PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+    add_executable(zireael_integration_win32_conpty_engine_post_user_event
+            integration/win32_conpty_engine_post_user_event.c
+            ${PROJECT_SOURCE_DIR}/src/platform/win32/zr_win32_conpty_test.c
+    )
+    target_include_directories(zireael_integration_win32_conpty_engine_post_user_event PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(zireael_integration_win32_conpty_engine_post_user_event PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_win32_conpty_engine_post_user_event PRIVATE zireael)
+    add_test(NAME zireael.integration.win32.conpty.engine.post_user_event
+            COMMAND zireael_integration_win32_conpty_engine_post_user_event)
+    set_tests_properties(zireael.integration.win32.conpty.engine.post_user_event PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
 else ()
     find_package(Threads REQUIRED)
 
@@ -142,6 +155,18 @@ else ()
     target_link_libraries(zireael_integration_posix_pty_wake PRIVATE Threads::Threads)
     add_test(NAME zireael.integration.posix.pty.wake COMMAND zireael_integration_posix_pty_wake)
     set_tests_properties(zireael.integration.posix.pty.wake PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+    add_executable(zireael_integration_posix_engine_post_user_event
+            integration/posix_engine_post_user_event.c
+    )
+    target_include_directories(zireael_integration_posix_engine_post_user_event PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(zireael_integration_posix_engine_post_user_event PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_posix_engine_post_user_event PRIVATE zireael)
+    target_link_libraries(zireael_integration_posix_engine_post_user_event PRIVATE Threads::Threads)
+    add_test(NAME zireael.integration.posix.engine.post_user_event COMMAND zireael_integration_posix_engine_post_user_event)
+    set_tests_properties(zireael.integration.posix.engine.post_user_event PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
 
     add_executable(zireael_integration_posix_create_fd_leak
             integration/posix_create_fd_leak.c

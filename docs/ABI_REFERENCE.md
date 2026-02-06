@@ -60,6 +60,8 @@ provide compatibility paths, but the public root is `include/zr/`).
 - The engine is single-threaded.
 - All `engine_*` calls are engine-thread only, except `engine_post_user_event()`.
 - `engine_post_user_event()` is thread-safe and wakes a blocking poll.
+- During teardown, `engine_post_user_event()` may return `ZR_ERR_INVALID_ARGUMENT`.
+- Wrappers should stop post threads before calling `engine_destroy()`.
 
 ## Binary format rules (binding-critical)
 

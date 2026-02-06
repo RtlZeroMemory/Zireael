@@ -139,6 +139,30 @@ jobs:
             out/build/posix-clang-asan-ubsan/Testing/Temporary/**
             out/build/posix-clang-asan-ubsan/CMakeCache.txt
 
+  linux-clang-tsan:
+    name: linux / clang / Debug + TSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build
+      - name: Configure
+        run: cmake --preset posix-clang-tsan -DZIREAEL_WARNINGS_AS_ERRORS=ON -DZIREAEL_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build --preset posix-clang-tsan
+      - name: Test
+        env:
+          TSAN_OPTIONS: halt_on_error=1 second_deadlock_stack=1
+        run: ctest --test-dir out/build/posix-clang-tsan --no-tests=ignore --output-on-failure
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-linux-clang-tsan
+          path: |
+            out/build/posix-clang-tsan/Testing/Temporary/**
+            out/build/posix-clang-tsan/CMakeCache.txt
+
   macos-appleclang-debug:
     name: macos / AppleClang / Debug
     runs-on: macos-latest

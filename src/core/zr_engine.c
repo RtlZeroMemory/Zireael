@@ -28,6 +28,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -76,6 +77,8 @@ struct zr_engine_t {
   uint32_t ev_cap;
   uint8_t* user_bytes;
   uint32_t user_bytes_cap;
+  _Atomic uint32_t post_user_inflight;
+  _Atomic uint8_t destroy_started;
 
   /* --- Input buffering (escape + bracketed paste) --- */
   uint8_t input_pending[ZR_ENGINE_INPUT_PENDING_CAP];
@@ -121,6 +124,36 @@ static void zr_engine_debug_free(zr_engine_t* e);
 
 static const uint8_t ZR_SYNC_BEGIN[] = "\x1b[?2026h";
 static const uint8_t ZR_SYNC_END[] = "\x1b[?2026l";
+
+/*
+  Cross-thread post guard.
+
+  Why: engine_post_user_event() is callable from non-engine threads. During
+  teardown we must prevent new post entries and wait for in-flight calls to
+  finish before freeing queue/platform memory.
+*/
+static bool zr_engine_post_user_enter(zr_engine_t* e) {
+  if (!e) {
+    return false;
+  }
+  if (atomic_load_explicit(&e->destroy_started, memory_order_acquire) != 0u) {
+    return false;
+  }
+
+  atomic_fetch_add_explicit(&e->post_user_inflight, 1u, memory_order_acq_rel);
+  if (atomic_load_explicit(&e->destroy_started, memory_order_acquire) != 0u) {
+    (void)atomic_fetch_sub_explicit(&e->post_user_inflight, 1u, memory_order_release);
+    return false;
+  }
+  return true;
+}
+
+static void zr_engine_post_user_leave(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+  (void)atomic_fetch_sub_explicit(&e->post_user_inflight, 1u, memory_order_release);
+}
 
 static uint32_t zr_engine_now_ms_u32(void) {
   /* v1: time_ms is u32; truncation is deterministic and acceptable for telemetry. */
@@ -747,6 +780,59 @@ static zr_result_t zr_engine_init_platform(zr_engine_t* e) {
   return plat_get_size(e->plat, &e->size);
 }
 
+static zr_result_t zr_engine_init_runtime_state(zr_engine_t* e) {
+  if (!e) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_result_t rc = zr_engine_alloc_out_buf(e);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_engine_alloc_damage_rects(e);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_engine_init_arenas(e);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_engine_init_event_queue(e);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_engine_init_platform(e);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (e->cfg_runtime.wait_for_output_drain != 0u && e->caps.supports_output_wait_writable == 0u) {
+    return ZR_ERR_UNSUPPORTED;
+  }
+  rc = zr_engine_resize_framebuffers(e, e->size.cols, e->size.rows);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  e->last_tick_ms = zr_engine_now_ms_u32();
+  return ZR_OK;
+}
+
+static void zr_engine_enqueue_initial_resize(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+
+  zr_event_t ev;
+  memset(&ev, 0, sizeof(ev));
+  ev.type = ZR_EV_RESIZE;
+  ev.time_ms = e->last_tick_ms;
+  ev.flags = 0u;
+  ev.u.resize.cols = e->size.cols;
+  ev.u.resize.rows = e->size.rows;
+  ev.u.resize.reserved0 = 0u;
+  ev.u.resize.reserved1 = 0u;
+  (void)zr_event_queue_push(&e->evq, &ev);
+}
+
 /* Create an engine instance and enter raw mode on the configured platform backend. */
 zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cfg) {
   if (!out_engine || !cfg) {
@@ -770,43 +856,10 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
   zr_engine_runtime_from_create_cfg(e, cfg);
   zr_engine_metrics_init(e, cfg);
 
-  rc = zr_engine_alloc_out_buf(e);
+  rc = zr_engine_init_runtime_state(e);
   if (rc != ZR_OK) {
     goto cleanup;
   }
-  rc = zr_engine_alloc_damage_rects(e);
-  if (rc != ZR_OK) {
-    goto cleanup;
-  }
-  rc = zr_engine_init_arenas(e);
-  if (rc != ZR_OK) {
-    goto cleanup;
-  }
-  rc = zr_engine_init_event_queue(e);
-  if (rc != ZR_OK) {
-    goto cleanup;
-  }
-  rc = zr_engine_init_platform(e);
-  if (rc != ZR_OK) {
-    goto cleanup;
-  }
-
-  /*
-    Fail early when wait_for_output_drain is requested but the backend cannot
-    support it. This avoids repeated per-frame ZR_ERR_UNSUPPORTED failures.
-  */
-  if (e->cfg_runtime.wait_for_output_drain != 0u && e->caps.supports_output_wait_writable == 0u) {
-    rc = ZR_ERR_UNSUPPORTED;
-    goto cleanup;
-  }
-
-  rc = zr_engine_resize_framebuffers(e, e->size.cols, e->size.rows);
-  if (rc != ZR_OK) {
-    goto cleanup;
-  }
-
-  /* Re-seed after backend init in case creation time was far from polling time. */
-  e->last_tick_ms = zr_engine_now_ms_u32();
 
   /*
     Emit an initial resize event.
@@ -816,18 +869,7 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
     engine itself will not emit a resize event until the size changes. Enqueue
     the initial size so callers can render the full framebuffer immediately.
   */
-  {
-    zr_event_t ev;
-    memset(&ev, 0, sizeof(ev));
-    ev.type = ZR_EV_RESIZE;
-    ev.time_ms = e->last_tick_ms;
-    ev.flags = 0u;
-    ev.u.resize.cols = e->size.cols;
-    ev.u.resize.rows = e->size.rows;
-    ev.u.resize.reserved0 = 0u;
-    ev.u.resize.reserved1 = 0u;
-    (void)zr_event_queue_push(&e->evq, &ev);
-  }
+  zr_engine_enqueue_initial_resize(e);
 
   *out_engine = e;
   return ZR_OK;
@@ -838,15 +880,19 @@ cleanup:
 }
 
 /* Destroy an engine instance and restore best-effort platform state. */
-void engine_destroy(zr_engine_t* e) {
+static void zr_engine_wait_posts_drained(zr_engine_t* e) {
   if (!e) {
     return;
   }
+  atomic_store_explicit(&e->destroy_started, 1u, memory_order_release);
+  while (atomic_load_explicit(&e->post_user_inflight, memory_order_acquire) != 0u) {
+    /* spin */
+  }
+}
 
-  if (e->plat) {
-    (void)plat_leave_raw(e->plat);
-    plat_destroy(e->plat);
-    e->plat = NULL;
+static void zr_engine_release_heap_state(zr_engine_t* e) {
+  if (!e) {
+    return;
   }
 
   zr_fb_release(&e->fb_prev);
@@ -884,7 +930,22 @@ void engine_destroy(zr_engine_t* e) {
   e->input_pending_len = 0u;
 
   zr_engine_debug_free(e);
+}
 
+void engine_destroy(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+
+  zr_engine_wait_posts_drained(e);
+
+  if (e->plat) {
+    (void)plat_leave_raw(e->plat);
+    plat_destroy(e->plat);
+    e->plat = NULL;
+  }
+
+  zr_engine_release_heap_state(e);
   free(e);
 }
 
@@ -1292,7 +1353,7 @@ int engine_poll_events(zr_engine_t* e, int timeout_ms, uint8_t* out_buf, int out
 
 /* Queue a user event and best-effort wake the platform wait. */
 zr_result_t engine_post_user_event(zr_engine_t* e, uint32_t tag, const uint8_t* payload, int payload_len) {
-  if (!e || !e->plat) {
+  if (!e) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
   if (payload_len < 0) {
@@ -1301,16 +1362,27 @@ zr_result_t engine_post_user_event(zr_engine_t* e, uint32_t tag, const uint8_t* 
   if (payload_len != 0 && !payload) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  if (!zr_engine_post_user_enter(e)) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
 
+  zr_result_t rc = ZR_OK;
+  if (!e->plat) {
+    rc = ZR_ERR_INVALID_ARGUMENT;
+    goto cleanup;
+  }
   const uint32_t time_ms = zr_engine_now_ms_u32();
-  zr_result_t rc = zr_event_queue_post_user(&e->evq, time_ms, tag, payload, (uint32_t)payload_len);
+  rc = zr_event_queue_post_user(&e->evq, time_ms, tag, payload, (uint32_t)payload_len);
   if (rc != ZR_OK) {
-    return rc;
+    goto cleanup;
   }
 
   /* Best-effort wake (thread-safe), but do not introduce partial failures. */
   (void)plat_wake(e->plat);
-  return ZR_OK;
+
+cleanup:
+  zr_engine_post_user_leave(e);
+  return rc;
 }
 
 /* Copy out a stable metrics snapshot for telemetry/debug. */

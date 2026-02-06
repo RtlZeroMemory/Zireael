@@ -3,6 +3,7 @@
 
   Why: Allows the engine to emit log messages without stdio/printf and without
   owning I/O resources. If no sink is set, logging is a no-op.
+  Sink install/write paths are synchronized for cross-thread safety.
 */
 
 #ifndef ZR_UTIL_ZR_LOG_H_INCLUDED
@@ -16,4 +17,3 @@ void zr_log_set_sink(zr_log_sink_fn_t sink, void* user);
 void zr_log_write(zr_string_view_t msg);
 
 #endif /* ZR_UTIL_ZR_LOG_H_INCLUDED */
-

@@ -94,11 +94,15 @@ static uint64_t zr_mean_u64(const uint64_t* values, size_t n) {
     return 0u;
   }
 
-  __uint128_t sum = 0u;
+  const uint64_t n_u64 = (uint64_t)n;
+  uint64_t quot_sum = 0u;
+  uint64_t rem_sum = 0u;
   for (size_t i = 0u; i < n; i++) {
-    sum += (__uint128_t)values[i];
+    quot_sum += values[i] / n_u64;
+    rem_sum += values[i] % n_u64;
   }
-  return (uint64_t)(sum / (__uint128_t)n);
+  quot_sum += rem_sum / n_u64;
+  return quot_sum;
 }
 
 static void zr_fill_clear(zr_fb_t* fb, zr_style_t style) {
@@ -210,7 +214,8 @@ static int zr_run_case(const zr_bench_case_t* bench_case, zr_bench_metrics_t* ou
 
   zr_fb_t fb_a = {0u, 0u, NULL};
   zr_fb_t fb_b = {0u, 0u, NULL};
-  if (zr_fb_init(&fb_a, ZR_BENCH_COLS, ZR_BENCH_ROWS) != ZR_OK || zr_fb_init(&fb_b, ZR_BENCH_COLS, ZR_BENCH_ROWS) != ZR_OK) {
+  if (zr_fb_init(&fb_a, ZR_BENCH_COLS, ZR_BENCH_ROWS) != ZR_OK ||
+      zr_fb_init(&fb_b, ZR_BENCH_COLS, ZR_BENCH_ROWS) != ZR_OK) {
     zr_fb_release(&fb_a);
     zr_fb_release(&fb_b);
     return 1;
@@ -227,8 +232,8 @@ static int zr_run_case(const zr_bench_case_t* bench_case, zr_bench_metrics_t* ou
   uint64_t* diff_ns = (uint64_t*)calloc((size_t)ZR_BENCH_SAMPLE_ITERS, sizeof(uint64_t));
   uint64_t* write_ns = (uint64_t*)calloc((size_t)ZR_BENCH_SAMPLE_ITERS, sizeof(uint64_t));
   uint64_t* bytes = (uint64_t*)calloc((size_t)ZR_BENCH_SAMPLE_ITERS, sizeof(uint64_t));
-  if (!damage || !prev_row_hashes || !next_row_hashes || !dirty_rows || !out_buf || !write_buf || !diff_ns || !write_ns ||
-      !bytes) {
+  if (!damage || !prev_row_hashes || !next_row_hashes || !dirty_rows || !out_buf || !write_buf || !diff_ns ||
+      !write_ns || !bytes) {
     zr_fb_release(&fb_a);
     zr_fb_release(&fb_b);
     free(damage);
@@ -269,9 +274,9 @@ static int zr_run_case(const zr_bench_case_t* bench_case, zr_bench_metrics_t* ou
     zr_diff_stats_t stats;
 
     const uint64_t diff_t0 = zr_now_ns();
-    const zr_result_t rc = zr_diff_render_ex(src, dst, &caps, &ts, NULL, &lim, damage, lim.diff_max_damage_rects,
-                                             &scratch, bench_case->enable_scroll, out_buf, (size_t)ZR_BENCH_OUT_CAP,
-                                             &out_len, &final_ts, &stats);
+    const zr_result_t rc =
+        zr_diff_render_ex(src, dst, &caps, &ts, NULL, &lim, damage, lim.diff_max_damage_rects, &scratch,
+                          bench_case->enable_scroll, out_buf, (size_t)ZR_BENCH_OUT_CAP, &out_len, &final_ts, &stats);
     const uint64_t diff_t1 = zr_now_ns();
 
     if (rc != ZR_OK) {
@@ -344,8 +349,8 @@ int main(void) {
       {"style_churn", 0u},
   };
 
-  printf("diff_hotpath_bench cols=%u rows=%u warmup=%u samples=%u\n", ZR_BENCH_COLS, ZR_BENCH_ROWS, ZR_BENCH_WARMUP_ITERS,
-         ZR_BENCH_SAMPLE_ITERS);
+  printf("diff_hotpath_bench cols=%u rows=%u warmup=%u samples=%u\n", ZR_BENCH_COLS, ZR_BENCH_ROWS,
+         ZR_BENCH_WARMUP_ITERS, ZR_BENCH_SAMPLE_ITERS);
   printf("%-14s %10s %10s %10s %10s %10s %10s %10s\n", "case", "diff_mean", "diff_p95", "diff_p99", "write_mean",
          "write_p95", "write_p99", "bytes_avg");
   printf("%-14s %10s %10s %10s %10s %10s %10s %10s\n", "--------------", "----------", "----------", "----------",
@@ -360,8 +365,7 @@ int main(void) {
       return 1;
     }
 
-    printf("%-14s %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64
-           "\n",
+    printf("%-14s %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 " %10" PRIu64 "\n",
            cases[i].name, zr_ns_to_us_rounded(m.diff_mean_ns), zr_ns_to_us_rounded(m.diff_p95_ns),
            zr_ns_to_us_rounded(m.diff_p99_ns), zr_ns_to_us_rounded(m.write_mean_ns),
            zr_ns_to_us_rounded(m.write_p95_ns), zr_ns_to_us_rounded(m.write_p99_ns), m.bytes_mean);

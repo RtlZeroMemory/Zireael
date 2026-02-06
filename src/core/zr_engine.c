@@ -274,8 +274,8 @@ static void zr_engine_free_diff_row_scratch(zr_engine_t* e) {
   e->diff_row_cap = 0u;
 }
 
-static zr_result_t zr_engine_alloc_diff_row_scratch(uint32_t rows, uint64_t** out_prev_hashes, uint64_t** out_next_hashes,
-                                                     uint8_t** out_dirty_rows) {
+static zr_result_t zr_engine_alloc_diff_row_scratch(uint32_t rows, uint64_t** out_prev_hashes,
+                                                    uint64_t** out_next_hashes, uint8_t** out_dirty_rows) {
   if (!out_prev_hashes || !out_next_hashes || !out_dirty_rows) {
     return ZR_ERR_INVALID_ARGUMENT;
   }

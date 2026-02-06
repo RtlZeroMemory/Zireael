@@ -37,11 +37,7 @@ static void zr_set_cell_ascii(zr_fb_t* fb, uint32_t x, uint8_t ch, zr_style_t st
   c->style = style;
 }
 
-static void zr_set_cell_utf8(zr_fb_t* fb,
-                             uint32_t x,
-                             const uint8_t glyph[4],
-                             uint8_t glyph_len,
-                             uint8_t width,
+static void zr_set_cell_utf8(zr_fb_t* fb, uint32_t x, const uint8_t glyph[4], uint8_t glyph_len, uint8_t width,
                              zr_style_t style) {
   zr_cell_t* c = zr_fb_cell(fb, x, 0u);
   if (!c) {
@@ -97,13 +93,11 @@ ZR_TEST_UNIT(diff_span_separates_and_uses_cup) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {
-      (uint8_t)'A',
-      0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'3', (uint8_t)'H',
-      (uint8_t)'B',
+      (uint8_t)'A', 0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'3', (uint8_t)'H', (uint8_t)'B',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
@@ -148,11 +142,11 @@ ZR_TEST_UNIT(diff_continuation_includes_lead) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
-  const uint8_t expected[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'2', (uint8_t)'H',
-                              0xF0u, 0x9Fu, 0x99u, 0x82u};
+  const uint8_t expected[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'2',
+                              (uint8_t)'H', 0xF0u,        0x9Fu,        0x99u,        0x82u};
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
 
@@ -192,7 +186,7 @@ ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {(uint8_t)'X'};
@@ -239,15 +233,14 @@ ZR_TEST_UNIT(diff_sgr_attr_clear_falls_back_to_reset) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';',
-      (uint8_t)'2', (uint8_t)';', (uint8_t)'1', (uint8_t)'7', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
-      (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'2',
-      (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)'m',
-      (uint8_t)'X',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';', (uint8_t)'2',
+      (uint8_t)';', (uint8_t)'1', (uint8_t)'7', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
+      (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';',
+      (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)'m', (uint8_t)'X',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
@@ -310,7 +303,7 @@ ZR_TEST_UNIT(diff_damage_coalescing_keeps_unsorted_spans) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   ZR_ASSERT_EQ_U32(zr_count_byte(out, out_len, (uint8_t)'A'), 2u);
@@ -351,7 +344,7 @@ ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   const uint8_t expected[] = {(uint8_t)'X'};
@@ -390,7 +383,7 @@ ZR_TEST_UNIT(diff_returns_limit_without_claiming_bytes) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_ERR_LIMIT);
   ZR_ASSERT_EQ_U32(out_len, 0u);
 

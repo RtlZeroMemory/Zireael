@@ -514,10 +514,9 @@ static bool zr_emit_sgr_color_param(zr_sb_t* sb, zr_style_t desired, const plat_
 
   /* 16-color (or unknown degraded to 16): desired.fg_rgb/bg_rgb are indices 0..15. */
   const uint8_t idx = (uint8_t)((foreground ? desired.fg_rgb : desired.bg_rgb) & 0x0Fu);
-  const uint32_t code = foreground ? ((idx < 8u) ? (ZR_SGR_FG_BASE + (uint32_t)idx)
-                                                 : (ZR_SGR_FG_BRIGHT + (uint32_t)(idx - 8u)))
-                                   : ((idx < 8u) ? (ZR_SGR_BG_BASE + (uint32_t)idx)
-                                                 : (ZR_SGR_BG_BRIGHT + (uint32_t)(idx - 8u)));
+  const uint32_t code =
+      foreground ? ((idx < 8u) ? (ZR_SGR_FG_BASE + (uint32_t)idx) : (ZR_SGR_FG_BRIGHT + (uint32_t)(idx - 8u)))
+                 : ((idx < 8u) ? (ZR_SGR_BG_BASE + (uint32_t)idx) : (ZR_SGR_BG_BRIGHT + (uint32_t)(idx - 8u)));
   return zr_sb_write_u32_dec(sb, code);
 }
 
@@ -700,8 +699,7 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev, const zr_fb_t* nex
                                          const zr_term_state_t* initial_term_state,
                                          const zr_cursor_state_t* desired_cursor_state, const zr_limits_t* lim,
                                          zr_damage_rect_t* scratch_damage_rects, uint32_t scratch_damage_rect_cap,
-                                         zr_diff_scratch_t* scratch, uint8_t enable_scroll_optimizations,
-                                         const uint8_t* out_buf,
+                                         zr_diff_scratch_t* scratch, uint8_t enable_scroll_optimizations, const uint8_t* out_buf,
                                          const size_t* out_len, const zr_term_state_t* out_final_term_state,
                                          const zr_diff_stats_t* out_stats) {
   (void)enable_scroll_optimizations;
@@ -717,8 +715,8 @@ static zr_result_t zr_diff_validate_args(const zr_fb_t* prev, const zr_fb_t* nex
     return ZR_ERR_INVALID_ARGUMENT;
   }
   if (scratch) {
-    const bool any = (scratch->prev_row_hashes != NULL) || (scratch->next_row_hashes != NULL) || (scratch->dirty_rows != NULL) ||
-                     (scratch->row_cap != 0u);
+    const bool any = (scratch->prev_row_hashes != NULL) || (scratch->next_row_hashes != NULL) ||
+                     (scratch->dirty_rows != NULL) || (scratch->row_cap != 0u);
     if (any) {
       if (!scratch->prev_row_hashes || !scratch->next_row_hashes || !scratch->dirty_rows) {
         return ZR_ERR_INVALID_ARGUMENT;
@@ -909,8 +907,8 @@ static void zr_scroll_scan_delta_dir(const zr_fb_t* prev, const zr_fb_t* next, c
  * to the newly exposed lines.
  */
 static zr_scroll_plan_t zr_diff_detect_scroll_fullwidth(const zr_fb_t* prev, const zr_fb_t* next,
-                                                         const uint64_t* prev_hashes, const uint64_t* next_hashes,
-                                                         uint32_t dirty_row_count) {
+                                                        const uint64_t* prev_hashes, const uint64_t* next_hashes,
+                                                        uint32_t dirty_row_count) {
   zr_scroll_plan_t best;
   memset(&best, 0, sizeof(best));
 
@@ -1295,7 +1293,8 @@ static void zr_diff_finalize_damage_stats_sweep(zr_diff_ctx_t* ctx) {
   ctx->stats._pad0[2] = 0u;
 }
 
-static zr_result_t zr_diff_render_sweep_rows(zr_diff_ctx_t* ctx, uint32_t skip_top, uint32_t skip_bottom, bool has_skip) {
+static zr_result_t zr_diff_render_sweep_rows(zr_diff_ctx_t* ctx, uint32_t skip_top, uint32_t skip_bottom,
+                                             bool has_skip) {
   if (!ctx || !ctx->next) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1331,8 +1330,8 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   *out_skip_bottom = 0u;
 
   const uint32_t dirty_row_count = ctx->has_row_cache ? ctx->dirty_row_count : ZR_DIFF_DIRTY_ROW_COUNT_UNKNOWN;
-  const zr_scroll_plan_t plan =
-      zr_diff_detect_scroll_fullwidth(ctx->prev, ctx->next, ctx->prev_row_hashes, ctx->next_row_hashes, dirty_row_count);
+  const zr_scroll_plan_t plan = zr_diff_detect_scroll_fullwidth(ctx->prev, ctx->next, ctx->prev_row_hashes,
+                                                                ctx->next_row_hashes, dirty_row_count);
   if (!plan.active) {
     return ZR_OK;
   }

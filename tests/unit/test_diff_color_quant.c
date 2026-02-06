@@ -59,14 +59,14 @@ ZR_TEST_UNIT(diff_xterm256_component_distance_is_symmetric) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
   /* Expected: ESC[38;5;88;48;5;16mX (no CUP, cursor starts at 0,0). */
   const uint8_t expected[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'3', (uint8_t)'8', (uint8_t)';', (uint8_t)'5', (uint8_t)';',
-      (uint8_t)'8', (uint8_t)'8', (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';',
-      (uint8_t)'5', (uint8_t)';', (uint8_t)'1', (uint8_t)'6', (uint8_t)'m', (uint8_t)'X',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'3', (uint8_t)'8', (uint8_t)';', (uint8_t)'5', (uint8_t)';',
+      (uint8_t)'8', (uint8_t)'8', (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'5',
+      (uint8_t)';', (uint8_t)'1', (uint8_t)'6', (uint8_t)'m', (uint8_t)'X',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));

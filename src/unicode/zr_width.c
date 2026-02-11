@@ -99,9 +99,9 @@ uint8_t zr_width_grapheme_utf8(const uint8_t* bytes, size_t len, zr_width_policy
     return 0u;
   }
 
-  uint8_t  width = 0u;
-  size_t   off = 0u;
-  bool     has_emoji = false;
+  uint8_t width = 0u;
+  size_t off = 0u;
+  bool has_emoji = false;
   zr_width_keycap_state_t keycap_state = ZR_WIDTH_KEYCAP_STATE_START;
 
   while (off < len) {

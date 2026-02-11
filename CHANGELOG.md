@@ -5,10 +5,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.2.4 — 2026-02-11
+
 ### Changed
 
 - core: refactored drawlist `DRAW_TEXT_RUN` validation into focused helpers for span-table reads, blob framing checks, and per-segment slice validation (no behavior change).
 - docs: synchronized drawlist module/ABI pages with the deterministic three-phase `DRAW_TEXT_RUN` blob validation flow.
+
+### Fixed
+
+- unicode: treat keycap emoji sequences (`[0-9#*] U+FE0F? U+20E3`) as emoji in grapheme width policy so wide terminals stay cell-aligned.
 
 ## 1.2.3 — 2026-02-06
 

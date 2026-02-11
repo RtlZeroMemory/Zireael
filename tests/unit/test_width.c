@@ -31,6 +31,13 @@ ZR_TEST_UNIT(width_grapheme_emoji_policy_vectors) {
   ZR_ASSERT_EQ_U32(zr_width_grapheme_utf8(s, sizeof(s), ZR_WIDTH_EMOJI_NARROW), 1u);
 }
 
+ZR_TEST_UNIT(width_grapheme_keycap_sequence_uses_emoji_policy) {
+  /* U+0031 U+FE0F U+20E3 ("1️⃣"). */
+  const uint8_t keycap[] = {0x31u, 0xEFu, 0xB8u, 0x8Fu, 0xE2u, 0x83u, 0xA3u};
+  ZR_ASSERT_EQ_U32(zr_width_grapheme_utf8(keycap, sizeof(keycap), ZR_WIDTH_EMOJI_WIDE), 2u);
+  ZR_ASSERT_EQ_U32(zr_width_grapheme_utf8(keycap, sizeof(keycap), ZR_WIDTH_EMOJI_NARROW), 1u);
+}
+
 ZR_TEST_UNIT(width_grapheme_combining_sequence) {
   /* "e" + U+0301. */
   const uint8_t s[] = {0x65u, 0xCCu, 0x81u};

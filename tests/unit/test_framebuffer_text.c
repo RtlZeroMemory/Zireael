@@ -105,3 +105,30 @@ ZR_TEST_UNIT(framebuffer_draw_text_bytes_wide_clipped_renders_replacement_and_pr
 
   zr_fb_release(&fb);
 }
+
+ZR_TEST_UNIT(framebuffer_draw_text_bytes_keycap_sequence_writes_wide_pair) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
+
+  const zr_style_t s0 = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, &s0), ZR_OK);
+
+  zr_rect_t clip_stack[2];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, clip_stack, 2u), ZR_OK);
+
+  /* U+0031 U+FE0F U+20E3 ("1️⃣"). */
+  const uint8_t keycap[] = {0x31u, 0xEFu, 0xB8u, 0x8Fu, 0xE2u, 0x83u, 0xA3u};
+  ZR_ASSERT_EQ_U32(zr_fb_draw_text_bytes(&p, 1, 0, keycap, sizeof(keycap), &s0), ZR_OK);
+
+  const zr_cell_t* lead = zr_fb_cell_const(&fb, 1u, 0u);
+  const zr_cell_t* cont = zr_fb_cell_const(&fb, 2u, 0u);
+  ZR_ASSERT_TRUE(lead != NULL && cont != NULL);
+  ZR_ASSERT_EQ_U32(lead->width, 2u);
+  ZR_ASSERT_EQ_U32(lead->glyph_len, (uint8_t)sizeof(keycap));
+  ZR_ASSERT_MEMEQ(lead->glyph, keycap, sizeof(keycap));
+  ZR_ASSERT_EQ_U32(cont->width, 0u);
+  ZR_ASSERT_EQ_U32(cont->glyph_len, 0u);
+
+  zr_fb_release(&fb);
+}

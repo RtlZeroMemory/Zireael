@@ -5,6 +5,21 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.3 — 2026-02-12
+
+### Changed
+
+- core/init: added best-effort terminal restore hooks for assert-abort cleanup and process-exit paths in addition to normal destroy lifecycle.
+- platform/posix: output writes now suppress SIGPIPE termination and return `ZR_ERR_PLATFORM` on broken-pipe failures.
+- platform/posix: added explicit non-TTY mode (`ZIREAEL_POSIX_PIPE_MODE=1`) with deterministic raw-mode no-op behavior and fixed `80x24` size reporting.
+- platform/win32: output-writability capability/runtime behavior is now deterministic across handle classes and manual override states.
+
+### Added
+
+- tests: added `unit/test_engine_restore_hooks.c` to lock abort/exit restore wiring behavior.
+- tests: expanded POSIX integration coverage for broken-pipe output and explicit non-TTY pipe-mode scenarios.
+- tests: expanded Win32 capability integration coverage for output-writable parity across char/pipe/file handle classes.
+
 ## 1.3.2 — 2026-02-12
 
 ### Changed

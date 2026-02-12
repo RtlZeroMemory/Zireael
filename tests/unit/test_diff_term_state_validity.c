@@ -257,3 +257,60 @@ ZR_TEST_UNIT(diff_unknown_cursor_shape_emits_decsusr_when_showing_cursor) {
   zr_fb_release(&prev);
   zr_fb_release(&next);
 }
+
+ZR_TEST_UNIT(diff_hides_cursor_with_vt_sequence_when_requested) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 1u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&next, 1u, 1u), ZR_OK);
+
+  const zr_style_t base = zr_style_black_on_black();
+  (void)zr_fb_clear(&prev, &base);
+  (void)zr_fb_clear(&next, &base);
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.supports_cursor_shape = 1u;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.cursor_visible = 1u;
+  initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
+  initial.cursor_blink = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
+  initial.style = base;
+
+  zr_cursor_state_t desired;
+  desired.x = -1;
+  desired.y = -1;
+  desired.shape = ZR_CURSOR_SHAPE_BLOCK;
+  desired.visible = 0u;
+  desired.blink = 0u;
+  desired.reserved0 = 0u;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[128];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out,
+                                        sizeof(out), &out_len, &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  /* Expected: ESC[?25l (hide cursor only; no CUP needed because cursor pos is valid). */
+  const uint8_t expected[] = {
+      0x1Bu, (uint8_t)'[', (uint8_t)'?', (uint8_t)'2', (uint8_t)'5', (uint8_t)'l',
+  };
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}

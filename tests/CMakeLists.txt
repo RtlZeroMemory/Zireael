@@ -143,6 +143,18 @@ if (WIN32)
     add_test(NAME zireael.integration.win32.conpty.engine.post_user_event
             COMMAND zireael_integration_win32_conpty_engine_post_user_event)
     set_tests_properties(zireael.integration.win32.conpty.engine.post_user_event PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
+
+    add_executable(zireael_integration_win32_caps_overrides
+            integration/win32_caps_overrides.c
+            ${PROJECT_SOURCE_DIR}/src/platform/win32/zr_win32_conpty_test.c
+    )
+    target_include_directories(zireael_integration_win32_caps_overrides PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(zireael_integration_win32_caps_overrides PRIVATE zireael_build_settings)
+    target_link_libraries(zireael_integration_win32_caps_overrides PRIVATE zireael)
+    add_test(NAME zireael.integration.win32.caps.overrides COMMAND zireael_integration_win32_caps_overrides)
+    set_tests_properties(zireael.integration.win32.caps.overrides PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 10)
 else ()
     find_package(Threads REQUIRED)
 

@@ -11,10 +11,10 @@
 
 typedef struct zr_utf8_vec_t {
   const uint8_t* bytes;
-  size_t         len;
-  uint32_t       expect_scalar;
-  uint8_t        expect_size;
-  uint8_t        expect_valid;
+  size_t len;
+  uint32_t expect_scalar;
+  uint8_t expect_size;
+  uint8_t expect_valid;
 } zr_utf8_vec_t;
 
 static void zr_assert_utf8_vec(zr_test_ctx_t* ctx, zr_utf8_vec_t v) {
@@ -33,8 +33,8 @@ static void zr_assert_utf8_vec(zr_test_ctx_t* ctx, zr_utf8_vec_t v) {
 ZR_TEST_UNIT(utf8_decode_vectors) {
   /* Valid sequences. */
   const uint8_t a[] = {0x41u};
-  const uint8_t cent[] = {0xC2u, 0xA2u}; /* U+00A2 */
-  const uint8_t euro[] = {0xE2u, 0x82u, 0xACu}; /* U+20AC */
+  const uint8_t cent[] = {0xC2u, 0xA2u};                   /* U+00A2 */
+  const uint8_t euro[] = {0xE2u, 0x82u, 0xACu};            /* U+20AC */
   const uint8_t grinning[] = {0xF0u, 0x9Fu, 0x98u, 0x80u}; /* U+1F600 */
 
   zr_assert_utf8_vec(ctx, (zr_utf8_vec_t){a, sizeof(a), 0x0041u, 1u, 1u});
@@ -47,7 +47,7 @@ ZR_TEST_UNIT(utf8_decode_vectors) {
   const uint8_t overlong2[] = {0xC0u, 0xAFu};
   const uint8_t short3[] = {0xE2u, 0x82u};
   const uint8_t overlong3[] = {0xE0u, 0x80u, 0x80u};
-  const uint8_t surrogate[] = {0xEDu, 0xA0u, 0x80u}; /* U+D800 */
+  const uint8_t surrogate[] = {0xEDu, 0xA0u, 0x80u};       /* U+D800 */
   const uint8_t too_high[] = {0xF4u, 0x90u, 0x80u, 0x80u}; /* > U+10FFFF */
 
   zr_assert_utf8_vec(ctx, (zr_utf8_vec_t){cont, sizeof(cont), 0xFFFDu, 1u, 0u});
@@ -61,3 +61,31 @@ ZR_TEST_UNIT(utf8_decode_vectors) {
   zr_assert_utf8_vec(ctx, (zr_utf8_vec_t){NULL, 0u, 0xFFFDu, 0u, 0u});
 }
 
+ZR_TEST_UNIT(utf8_decode_mixed_invalid_valid_stream_progression) {
+  /*
+    Mixed stream:
+      0x80      -> invalid
+      'A'       -> valid ASCII
+      U+20AC    -> valid 3-byte scalar
+      0xC0 0xAF -> overlong lead then stray continuation (both invalid-by-byte)
+      'B'       -> valid ASCII
+  */
+  const uint8_t s[] = {0x80u, 0x41u, 0xE2u, 0x82u, 0xACu, 0xC0u, 0xAFu, 0x42u};
+
+  const uint32_t expect_scalar[] = {0xFFFDu, 0x0041u, 0x20ACu, 0xFFFDu, 0xFFFDu, 0x0042u};
+  const uint8_t expect_size[] = {1u, 1u, 3u, 1u, 1u, 1u};
+  const uint8_t expect_valid[] = {0u, 1u, 1u, 0u, 0u, 1u};
+
+  size_t off = 0u;
+  for (size_t i = 0u; i < sizeof(expect_size); i++) {
+    zr_utf8_decode_result_t r = zr_utf8_decode_one(s + off, sizeof(s) - off);
+    ZR_ASSERT_EQ_U32(r.scalar, expect_scalar[i]);
+    ZR_ASSERT_EQ_U32(r.size, expect_size[i]);
+    ZR_ASSERT_EQ_U32(r.valid, expect_valid[i]);
+    ZR_ASSERT_TRUE(r.size >= 1u);
+    off += (size_t)r.size;
+    ZR_ASSERT_TRUE(off <= sizeof(s));
+  }
+
+  ZR_ASSERT_EQ_U32(off, (uint32_t)sizeof(s));
+}

@@ -23,6 +23,7 @@ int main(void) {
 #include "platform/win32/zr_win32_conpty_test.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -69,13 +70,29 @@ static int zr_env_set_optional(const char* key, const char* value) {
     return -1;
   }
 
-  if (SetEnvironmentVariableA(key, value) != 0) {
-    return 0;
+  if (value) {
+    if (_putenv_s(key, value) != 0) {
+      fprintf(stderr, "_putenv_s(%s, %s) failed\n", key, value);
+      return -1;
+    }
+  } else {
+    if (_putenv_s(key, "") != 0) {
+      fprintf(stderr, "_putenv_s(%s, <unset>) failed\n", key);
+      return -1;
+    }
   }
 
-  fprintf(stderr, "SetEnvironmentVariableA(%s, %s) failed: gle=%lu\n", key, value ? value : "<null>",
-          (unsigned long)GetLastError());
-  return -1;
+  if (SetEnvironmentVariableA(key, value) == 0) {
+    const DWORD gle = GetLastError();
+    if (!value && gle == ERROR_ENVVAR_NOT_FOUND) {
+      return 0;
+    }
+    fprintf(stderr, "SetEnvironmentVariableA(%s, %s) failed: gle=%lu\n", key, value ? value : "<null>",
+            (unsigned long)gle);
+    return -1;
+  }
+
+  return 0;
 }
 
 /* Clear env markers used by Win32 modern-host/focus/SGR detection. */

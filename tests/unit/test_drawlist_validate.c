@@ -273,28 +273,14 @@ const size_t zr_test_dl_fixture4_len = sizeof(zr_test_dl_fixture4);
  */
 const uint8_t zr_test_dl_fixture5_v2_cursor[] = {
     /* zr_dl_header_t (16 u32) */
-    ZR_U32LE(0x4C44525Au),
-    ZR_U32LE(2u),
-    ZR_U32LE(64u),
-    ZR_U32LE(92u), /* magic/version/hdr/total */
-    ZR_U32LE(64u),
-    ZR_U32LE(28u),
-    ZR_U32LE(2u), /* cmd offset/bytes/count */
-    ZR_U32LE(0u),
-    ZR_U32LE(0u),
-    ZR_U32LE(0u),
-    ZR_U32LE(0u), /* strings empty */
-    ZR_U32LE(0u),
-    ZR_U32LE(0u),
-    ZR_U32LE(0u),
-    ZR_U32LE(0u), /* blobs empty */
-    ZR_U32LE(0u), /* reserved0 */
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(2u), ZR_U32LE(64u), ZR_U32LE(92u), /* magic/version/hdr/total */
+    ZR_U32LE(64u), ZR_U32LE(28u), ZR_U32LE(2u),                        /* cmd offset/bytes/count */
+    ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u),            /* strings empty */
+    ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u),            /* blobs empty */
+    ZR_U32LE(0u),                                                      /* reserved0 */
 
     /* cmd stream @ 64 */
-    ZR_DL_CMD_HDR(ZR_DL_OP_CLEAR, 8u),
-    ZR_DL_CMD_HDR(ZR_DL_OP_SET_CURSOR, 20u),
-    ZR_I32LE(3),
-    ZR_I32LE(4), /* x,y */
+    ZR_DL_CMD_HDR(ZR_DL_OP_CLEAR, 8u), ZR_DL_CMD_HDR(ZR_DL_OP_SET_CURSOR, 20u), ZR_I32LE(3), ZR_I32LE(4), /* x,y */
     (uint8_t)2u, /* shape=bar */
     (uint8_t)1u, /* visible */
     (uint8_t)1u, /* blink */

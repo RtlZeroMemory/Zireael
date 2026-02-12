@@ -5,6 +5,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.2.5 — 2026-02-12
+
+### Changed
+
+- core/platform: tightened terminal-state and capability handling across diff, input parsing, and backend capability reporting for edge-case resilience.
+- platform: raw-mode leave now performs explicit scroll-region and SGR resets on POSIX and Win32 paths.
+
+### Fixed
+
+- core: force cursor-position re-sync (`CUP`) when cursor position validity is unknown, including no-damage frames with cursor position set to “do not change”.
+- core: bracketed paste parsing now respects runtime config and backend capability gates.
+- platform: `color_mode` is backend-detected and clamped against wrapper request instead of mirroring requested mode.
+
 ## 1.2.4 — 2026-02-11
 
 ### Changed

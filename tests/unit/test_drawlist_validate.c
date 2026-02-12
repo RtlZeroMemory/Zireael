@@ -398,12 +398,13 @@ ZR_TEST_UNIT(drawlist_validate_unknown_opcode_is_unsupported) {
 /*
  * Test: drawlist_validate_enforces_caps
  *
- * Scenario: Capability limits (max_cmds, max_text_run_segments) are enforced
+ * Scenario: Capability limits (max_cmds, max_strings, max_blobs,
+ *           max_text_run_segments) are enforced
  *           during validation. Exceeding limits returns ZR_ERR_LIMIT.
  *
  * Arrange: Set restrictive limits.
  * Act:     Validate fixtures that exceed the limits.
- * Assert:  Both return ZR_ERR_LIMIT.
+ * Assert:  All return ZR_ERR_LIMIT.
  */
 ZR_TEST_UNIT(drawlist_validate_enforces_caps) {
   zr_dl_view_t v;
@@ -417,4 +418,28 @@ ZR_TEST_UNIT(drawlist_validate_enforces_caps) {
   lim = zr_limits_default();
   lim.dl_max_text_run_segments = 1u;
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture3, zr_test_dl_fixture3_len, &lim, &v), ZR_ERR_LIMIT);
+
+  /* --- Fixture 1 patched to 2 strings; limit to 1 --- */
+  uint8_t strings_over_cap[132];
+  memcpy(strings_over_cap, zr_test_dl_fixture1, sizeof(strings_over_cap));
+  strings_over_cap[8 * 4 + 0] = 2u;
+  strings_over_cap[8 * 4 + 1] = 0u;
+  strings_over_cap[8 * 4 + 2] = 0u;
+  strings_over_cap[8 * 4 + 3] = 0u;
+
+  lim = zr_limits_default();
+  lim.dl_max_strings = 1u;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(strings_over_cap, sizeof(strings_over_cap), &lim, &v), ZR_ERR_LIMIT);
+
+  /* --- Fixture 3 patched to 2 blobs; limit to 1 --- */
+  uint8_t blobs_over_cap[180];
+  memcpy(blobs_over_cap, zr_test_dl_fixture3, sizeof(blobs_over_cap));
+  blobs_over_cap[12 * 4 + 0] = 2u;
+  blobs_over_cap[12 * 4 + 1] = 0u;
+  blobs_over_cap[12 * 4 + 2] = 0u;
+  blobs_over_cap[12 * 4 + 3] = 0u;
+
+  lim = zr_limits_default();
+  lim.dl_max_blobs = 1u;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(blobs_over_cap, sizeof(blobs_over_cap), &lim, &v), ZR_ERR_LIMIT);
 }

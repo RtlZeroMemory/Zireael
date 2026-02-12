@@ -306,7 +306,7 @@ ZR_TEST_UNIT(diff_hides_cursor_with_vt_sequence_when_requested) {
 
   /* Expected: ESC[?25l (hide cursor only; no CUP needed because cursor pos is valid). */
   const uint8_t expected[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'?', (uint8_t)'2', (uint8_t)'5', (uint8_t)'l',
+      0x1Bu, (uint8_t)'[', (uint8_t)'?', (uint8_t)'2', (uint8_t)'5', (uint8_t)'l',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));

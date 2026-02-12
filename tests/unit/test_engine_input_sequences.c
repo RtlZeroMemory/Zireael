@@ -97,7 +97,8 @@ static bool zr_batch_contains_key_code(const uint8_t* bytes, size_t len, uint32_
       return false;
     }
 
-    if (rec_type == (uint32_t)ZR_EV_KEY && rec_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_key_t))) {
+    if (rec_type == (uint32_t)ZR_EV_KEY &&
+        rec_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_key_t))) {
       const size_t off_payload = off + sizeof(zr_ev_record_header_t);
       if (zr_u32le_at(bytes + off_payload + 0u) == want_key) {
         return true;
@@ -1361,11 +1362,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_tilde_higher_function_keys_with_modif
       - F12 : ESC [ 24 ; 6 ; 77 ~   (shift+ctrl; trailing params ignored)
   */
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'~', 0x1Bu,        (uint8_t)'[',
-      (uint8_t)'2', (uint8_t)'1', (uint8_t)';', (uint8_t)'2', (uint8_t)'~', 0x1Bu,        (uint8_t)'[',
-      (uint8_t)'2', (uint8_t)'3', (uint8_t)';', (uint8_t)'5', (uint8_t)'~', 0x1Bu,        (uint8_t)'[',
-      (uint8_t)'2', (uint8_t)'4', (uint8_t)';', (uint8_t)'6', (uint8_t)';', (uint8_t)'7', (uint8_t)'7',
-      (uint8_t)'~',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'2',
+      (uint8_t)'1', (uint8_t)';', (uint8_t)'2', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'3',
+      (uint8_t)';', (uint8_t)'5', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'4', (uint8_t)';',
+      (uint8_t)'6', (uint8_t)';', (uint8_t)'7', (uint8_t)'7', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -1547,11 +1547,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
   /* Wheel variants at (x=10,y=5): b=65 (down), b=87 (left + shift+ctrl). */
   {
     const uint8_t in[] = {
-        0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'6', (uint8_t)'5', (uint8_t)';', (uint8_t)'1',
-        (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
+        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'6', (uint8_t)'5', (uint8_t)';',
+        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
 
-        0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'8', (uint8_t)'7', (uint8_t)';', (uint8_t)'1',
-        (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
+        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'8', (uint8_t)'7', (uint8_t)';',
+        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
     };
     ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -1592,8 +1592,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
   /* Motion with no buttons + shift+alt: b=47 => MOVE with buttons=0. */
   {
     const uint8_t in[] = {
-        0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'4', (uint8_t)'7', (uint8_t)';', (uint8_t)'1',
-        (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
+        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'4', (uint8_t)'7', (uint8_t)';',
+        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
     };
     ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -1616,8 +1616,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
   /* Motion with left button + ctrl: b=48 => DRAG with buttons=1. */
   {
     const uint8_t in[] = {
-        0x1Bu, (uint8_t)'[', (uint8_t)'<', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'1',
-        (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
+        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'4', (uint8_t)'8', (uint8_t)';',
+        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
     };
     ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 

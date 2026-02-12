@@ -128,8 +128,8 @@ ZR_TEST_UNIT(diff_ansi16_emits_standard_fg_bg_codes) {
 
   /* Expected: ESC[31;44mX (no CUP, cursor starts at 0,0). */
   const uint8_t expected[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'3', (uint8_t)'1', (uint8_t)';', (uint8_t)'4',
-      (uint8_t)'4', (uint8_t)'m', (uint8_t)'X',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'3', (uint8_t)'1', (uint8_t)';',
+      (uint8_t)'4', (uint8_t)'4', (uint8_t)'m', (uint8_t)'X',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));

@@ -53,6 +53,17 @@ static int zr_test_skip(const char* reason) {
   return 77;
 }
 
+static void zr_dump_child_output(const uint8_t* out, size_t out_len) {
+  if (!out || out_len == 0u) {
+    return;
+  }
+  fprintf(stderr, "child output (%zu bytes):\n", out_len);
+  (void)fwrite(out, 1u, out_len, stderr);
+  if (out[out_len - 1u] != (uint8_t)'\n') {
+    (void)fputc('\n', stderr);
+  }
+}
+
 static int zr_env_set_optional(const char* key, const char* value) {
   if (!key) {
     return -1;
@@ -70,8 +81,8 @@ static int zr_env_set_optional(const char* key, const char* value) {
 /* Clear env markers used by Win32 modern-host/focus/SGR detection. */
 static int zr_clear_host_detection_env(void) {
   static const char* kKeys[] = {
-      "TERM", "TERM_PROGRAM", "WT_SESSION",        "KITTY_WINDOW_ID", "WEZTERM_PANE",
-      "WEZTERM_EXECUTABLE", "ANSICON",      "ConEmuANSI",
+      "TERM",         "TERM_PROGRAM",       "WT_SESSION", "KITTY_WINDOW_ID",
+      "WEZTERM_PANE", "WEZTERM_EXECUTABLE", "ANSICON",    "ConEmuANSI",
   };
 
   for (size_t i = 0u; i < sizeof(kKeys) / sizeof(kKeys[0]); i++) {
@@ -105,7 +116,8 @@ static int zr_apply_host_env_case(const zr_host_env_case_t* env_case) {
     return -1;
   }
 
-  if (zr_env_set_optional("TERM", env_case->term) != 0 || zr_env_set_optional("TERM_PROGRAM", env_case->term_program) != 0 ||
+  if (zr_env_set_optional("TERM", env_case->term) != 0 ||
+      zr_env_set_optional("TERM_PROGRAM", env_case->term_program) != 0 ||
       zr_env_set_optional("WT_SESSION", env_case->wt_session) != 0 ||
       zr_env_set_optional("KITTY_WINDOW_ID", env_case->kitty_window_id) != 0 ||
       zr_env_set_optional("WEZTERM_PANE", env_case->wezterm_pane) != 0 ||
@@ -268,7 +280,8 @@ static int zr_run_output_writable_override_checks(const plat_config_t* base_cfg)
   }
   if (caps_invalid.supports_output_wait_writable != caps_baseline.supports_output_wait_writable) {
     fprintf(stderr, "invalid output-writable override should be ignored: got=%u want=%u\n",
-            (unsigned)caps_invalid.supports_output_wait_writable, (unsigned)caps_baseline.supports_output_wait_writable);
+            (unsigned)caps_invalid.supports_output_wait_writable,
+            (unsigned)caps_baseline.supports_output_wait_writable);
     return -1;
   }
 
@@ -304,7 +317,8 @@ static int zr_run_output_writable_override_checks(const plat_config_t* base_cfg)
     return -1;
   }
   if (caps.supports_output_wait_writable != 0u) {
-    fprintf(stderr, "output-writable manual off mismatch: got=%u want=0\n", (unsigned)caps.supports_output_wait_writable);
+    fprintf(stderr, "output-writable manual off mismatch: got=%u want=0\n",
+            (unsigned)caps.supports_output_wait_writable);
     plat_destroy(plat);
     return -1;
   }
@@ -467,17 +481,19 @@ int main(int argc, char** argv) {
   char skip_reason[256];
   memset(skip_reason, 0, sizeof(skip_reason));
 
-  zr_result_t r =
-      zr_win32_conpty_run_self_capture("--child", out, sizeof(out), &out_len, &exit_code, skip_reason, sizeof(skip_reason));
+  zr_result_t r = zr_win32_conpty_run_self_capture("--child", out, sizeof(out), &out_len, &exit_code, skip_reason,
+                                                   sizeof(skip_reason));
   if (r == ZR_ERR_UNSUPPORTED) {
     return zr_test_skip(skip_reason[0] ? skip_reason : "ConPTY unavailable");
   }
   if (r != ZR_OK) {
     fprintf(stderr, "ConPTY runner failed: r=%d\n", (int)r);
+    zr_dump_child_output(out, out_len);
     return 2;
   }
   if (exit_code != 0u) {
     fprintf(stderr, "child failed: exit_code=%u\n", (unsigned)exit_code);
+    zr_dump_child_output(out, out_len);
     return 2;
   }
 

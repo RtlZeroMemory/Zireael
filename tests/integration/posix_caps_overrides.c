@@ -82,6 +82,13 @@ int main(void) {
     slave_fd = -1;
   }
 
+  if (setenv("TERM", "xterm-256color", 1) != 0) {
+    fprintf(stderr, "setenv(TERM) failed: errno=%d\n", errno);
+    (void)close(master_fd);
+    return 2;
+  }
+  (void)unsetenv("COLORTERM");
+
   if (setenv("ZIREAEL_CAP_MOUSE", "0", 1) != 0 || setenv("ZIREAEL_CAP_BRACKETED_PASTE", "0", 1) != 0 ||
       setenv("ZIREAEL_CAP_OSC52", "0", 1) != 0 || setenv("ZIREAEL_CAP_SYNC_UPDATE", "1", 1) != 0 ||
       setenv("ZIREAEL_CAP_SCROLL_REGION", "0", 1) != 0 || setenv("ZIREAEL_CAP_CURSOR_SHAPE", "0", 1) != 0) {
@@ -116,6 +123,13 @@ int main(void) {
     return 2;
   }
 
+  if (caps.color_mode != PLAT_COLOR_MODE_256) {
+    fprintf(stderr, "color_mode mismatch: got=%u want=%u\n", (unsigned)caps.color_mode, (unsigned)PLAT_COLOR_MODE_256);
+    plat_destroy(plat);
+    (void)close(master_fd);
+    return 2;
+  }
+
   if (caps.supports_mouse != 0u || caps.supports_bracketed_paste != 0u || caps.supports_osc52 != 0u ||
       caps.supports_sync_update != 1u || caps.supports_scroll_region != 0u || caps.supports_cursor_shape != 0u) {
     fprintf(stderr, "override mismatch: mouse=%u paste=%u osc52=%u sync=%u scroll=%u cursor=%u\n",
@@ -128,6 +142,62 @@ int main(void) {
   }
 
   plat_destroy(plat);
+
+  if (setenv("COLORTERM", "truecolor", 1) != 0) {
+    fprintf(stderr, "setenv(COLORTERM) failed: errno=%d\n", errno);
+    (void)close(master_fd);
+    return 2;
+  }
+
+  plat = NULL;
+  memset(&caps, 0, sizeof(caps));
+  r = plat_create(&plat, &cfg);
+  if (r != ZR_OK || !plat) {
+    fprintf(stderr, "plat_create() (truecolor) failed: r=%d\n", (int)r);
+    (void)close(master_fd);
+    return 2;
+  }
+  r = plat_get_caps(plat, &caps);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_get_caps() (truecolor) failed: r=%d\n", (int)r);
+    plat_destroy(plat);
+    (void)close(master_fd);
+    return 2;
+  }
+  if (caps.color_mode != PLAT_COLOR_MODE_RGB) {
+    fprintf(stderr, "color_mode (truecolor) mismatch: got=%u want=%u\n", (unsigned)caps.color_mode,
+            (unsigned)PLAT_COLOR_MODE_RGB);
+    plat_destroy(plat);
+    (void)close(master_fd);
+    return 2;
+  }
+  plat_destroy(plat);
+
+  plat = NULL;
+  cfg.requested_color_mode = PLAT_COLOR_MODE_16;
+  memset(&caps, 0, sizeof(caps));
+  r = plat_create(&plat, &cfg);
+  if (r != ZR_OK || !plat) {
+    fprintf(stderr, "plat_create() (clamp) failed: r=%d\n", (int)r);
+    (void)close(master_fd);
+    return 2;
+  }
+  r = plat_get_caps(plat, &caps);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_get_caps() (clamp) failed: r=%d\n", (int)r);
+    plat_destroy(plat);
+    (void)close(master_fd);
+    return 2;
+  }
+  if (caps.color_mode != PLAT_COLOR_MODE_16) {
+    fprintf(stderr, "color_mode (clamp) mismatch: got=%u want=%u\n", (unsigned)caps.color_mode,
+            (unsigned)PLAT_COLOR_MODE_16);
+    plat_destroy(plat);
+    (void)close(master_fd);
+    return 2;
+  }
+  plat_destroy(plat);
+
   (void)unsetenv("ZIREAEL_CAP_MOUSE");
   (void)unsetenv("ZIREAEL_CAP_BRACKETED_PASTE");
   (void)unsetenv("ZIREAEL_CAP_OSC52");

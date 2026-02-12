@@ -48,6 +48,7 @@ ZR_TEST_UNIT(diff_xterm256_component_distance_is_symmetric) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();

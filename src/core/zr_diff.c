@@ -113,6 +113,22 @@ static bool zr_style_eq(zr_style_t a, zr_style_t b) {
   return a.fg_rgb == b.fg_rgb && a.bg_rgb == b.bg_rgb && a.attrs == b.attrs && a.reserved == b.reserved;
 }
 
+static bool zr_term_style_is_valid(const zr_term_state_t* ts) {
+  return ts && ((ts->flags & ZR_TERM_STATE_STYLE_VALID) != 0u);
+}
+
+static bool zr_term_cursor_pos_is_valid(const zr_term_state_t* ts) {
+  return ts && ((ts->flags & ZR_TERM_STATE_CURSOR_POS_VALID) != 0u);
+}
+
+static bool zr_term_cursor_vis_is_valid(const zr_term_state_t* ts) {
+  return ts && ((ts->flags & ZR_TERM_STATE_CURSOR_VIS_VALID) != 0u);
+}
+
+static bool zr_term_cursor_shape_is_valid(const zr_term_state_t* ts) {
+  return ts && ((ts->flags & ZR_TERM_STATE_CURSOR_SHAPE_VALID) != 0u);
+}
+
 /* Compare two framebuffer cells for equality (glyph, flags, and style). */
 static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
   if (!a || !b) {
@@ -367,7 +383,7 @@ static bool zr_emit_cup(zr_sb_t* sb, zr_term_state_t* ts, uint32_t x, uint32_t y
   if (!sb || !ts) {
     return false;
   }
-  if (ts->cursor_x == x && ts->cursor_y == y) {
+  if (zr_term_cursor_pos_is_valid(ts) && ts->cursor_x == x && ts->cursor_y == y) {
     return true;
   }
   const uint8_t esc = 0x1Bu;
@@ -380,6 +396,7 @@ static bool zr_emit_cup(zr_sb_t* sb, zr_term_state_t* ts, uint32_t x, uint32_t y
   }
   ts->cursor_x = x;
   ts->cursor_y = y;
+  ts->flags |= ZR_TERM_STATE_CURSOR_POS_VALID;
   return true;
 }
 
@@ -390,7 +407,7 @@ static bool zr_emit_cursor_visibility(zr_sb_t* sb, zr_term_state_t* ts, uint8_t 
   if (visible > 1u) {
     return false;
   }
-  if (ts->cursor_visible == visible) {
+  if (zr_term_cursor_vis_is_valid(ts) && ts->cursor_visible == visible) {
     return true;
   }
 
@@ -402,6 +419,7 @@ static bool zr_emit_cursor_visibility(zr_sb_t* sb, zr_term_state_t* ts, uint8_t 
     return false;
   }
   ts->cursor_visible = visible;
+  ts->flags |= ZR_TERM_STATE_CURSOR_VIS_VALID;
   return true;
 }
 
@@ -424,9 +442,10 @@ static bool zr_emit_cursor_shape(zr_sb_t* sb, zr_term_state_t* ts, uint8_t shape
     return false;
   }
   if (caps->supports_cursor_shape == 0u) {
+    ts->flags |= ZR_TERM_STATE_CURSOR_SHAPE_VALID;
     return true;
   }
-  if (ts->cursor_shape == shape && ts->cursor_blink == blink) {
+  if (zr_term_cursor_shape_is_valid(ts) && ts->cursor_shape == shape && ts->cursor_blink == blink) {
     return true;
   }
 
@@ -438,6 +457,7 @@ static bool zr_emit_cursor_shape(zr_sb_t* sb, zr_term_state_t* ts, uint8_t shape
 
   ts->cursor_shape = shape;
   ts->cursor_blink = blink;
+  ts->flags |= ZR_TERM_STATE_CURSOR_SHAPE_VALID;
   return true;
 }
 
@@ -463,8 +483,10 @@ static bool zr_emit_cursor_desired(zr_sb_t* sb, zr_term_state_t* ts, const zr_cu
     return true;
   }
 
-  if (!zr_emit_cursor_shape(sb, ts, desired->shape, desired->blink, caps)) {
-    return false;
+  if (desired->visible != 0u) {
+    if (!zr_emit_cursor_shape(sb, ts, desired->shape, desired->blink, caps)) {
+      return false;
+    }
   }
   if (!zr_emit_cursor_visibility(sb, ts, desired->visible)) {
     return false;
@@ -474,8 +496,24 @@ static bool zr_emit_cursor_desired(zr_sb_t* sb, zr_term_state_t* ts, const zr_cu
     return true;
   }
 
-  uint32_t x = ts->cursor_x;
-  uint32_t y = ts->cursor_y;
+  if (desired->x == -1 && desired->y == -1) {
+    /*
+      "Do not change" cursor position.
+
+      Why: If cursor position is already known-valid, no byte emission is
+      needed. If it is unknown, emit one CUP to re-establish deterministic
+      terminal state for later frames.
+    */
+    if (zr_term_cursor_pos_is_valid(ts)) {
+      return true;
+    }
+    const uint32_t x = (ts->cursor_x < next->cols) ? ts->cursor_x : (next->cols - 1u);
+    const uint32_t y = (ts->cursor_y < next->rows) ? ts->cursor_y : (next->rows - 1u);
+    return zr_emit_cup(sb, ts, x, y);
+  }
+
+  uint32_t x = (ts->cursor_x < next->cols) ? ts->cursor_x : (next->cols - 1u);
+  uint32_t y = (ts->cursor_y < next->rows) ? ts->cursor_y : (next->rows - 1u);
   if (desired->x != -1) {
     x = zr_clamp_u32_from_i32(desired->x, 0u, next->cols - 1u);
   }
@@ -532,7 +570,7 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     return false;
   }
   desired = zr_style_apply_caps(desired, caps);
-  if (zr_style_eq(ts->style, desired)) {
+  if (zr_term_style_is_valid(ts) && zr_style_eq(ts->style, desired)) {
     return true;
   }
 
@@ -556,6 +594,7 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
   }
 
   ts->style = desired;
+  ts->flags |= ZR_TERM_STATE_STYLE_VALID;
   return true;
 }
 
@@ -564,6 +603,9 @@ static bool zr_emit_sgr_delta(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t desir
     return false;
   }
   desired = zr_style_apply_caps(desired, caps);
+  if (!zr_term_style_is_valid(ts)) {
+    return zr_emit_sgr_absolute(sb, ts, desired, caps);
+  }
   if (zr_style_eq(ts->style, desired)) {
     return true;
   }
@@ -639,6 +681,7 @@ static bool zr_emit_sgr_delta(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t desir
     return false;
   }
   ts->style = desired;
+  ts->flags |= ZR_TERM_STATE_STYLE_VALID;
   return true;
 }
 
@@ -995,6 +1038,7 @@ static bool zr_emit_decstbm(zr_sb_t* sb, zr_term_state_t* ts, uint32_t top, uint
   /* xterm/VT behavior: setting scroll margins homes the cursor. */
   ts->cursor_x = 0u;
   ts->cursor_y = 0u;
+  ts->flags |= ZR_TERM_STATE_CURSOR_POS_VALID;
   return true;
 }
 
@@ -1023,6 +1067,7 @@ static bool zr_emit_decstbm_reset(zr_sb_t* sb, zr_term_state_t* ts) {
   }
   ts->cursor_x = 0u;
   ts->cursor_y = 0u;
+  ts->flags |= ZR_TERM_STATE_CURSOR_POS_VALID;
   return true;
 }
 

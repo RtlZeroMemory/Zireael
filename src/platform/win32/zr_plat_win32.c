@@ -24,6 +24,8 @@ static const uint8_t ZR_WIN32_SEQ_ALT_SCREEN_LEAVE[] = "\x1b[?1049l";
 static const uint8_t ZR_WIN32_SEQ_CURSOR_HIDE[] = "\x1b[?25l";
 static const uint8_t ZR_WIN32_SEQ_CURSOR_SHOW[] = "\x1b[?25h";
 static const uint8_t ZR_WIN32_SEQ_WRAP_ENABLE[] = "\x1b[?7h";
+static const uint8_t ZR_WIN32_SEQ_SCROLL_REGION_RESET[] = "\x1b[r";
+static const uint8_t ZR_WIN32_SEQ_SGR_RESET[] = "\x1b[0m";
 static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_ENABLE[] = "\x1b[?2004h";
 static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_DISABLE[] = "\x1b[?2004l";
 /*
@@ -111,6 +113,16 @@ static void zr_win32_cap_override(const char* key, uint8_t* inout_cap) {
   if (zr_win32_env_bool_override(key, &override_value)) {
     *inout_cap = override_value;
   }
+}
+
+static plat_color_mode_t zr_win32_color_mode_clamp(plat_color_mode_t requested, plat_color_mode_t detected) {
+  if (detected == PLAT_COLOR_MODE_UNKNOWN) {
+    detected = PLAT_COLOR_MODE_16;
+  }
+  if (requested == PLAT_COLOR_MODE_UNKNOWN) {
+    return detected;
+  }
+  return (requested < detected) ? requested : detected;
 }
 
 static uint8_t zr_win32_detect_sync_update(void) {
@@ -697,6 +709,7 @@ static void zr_win32_emit_leave_sequences_best_effort(plat_t* plat) {
   /*
     Best-effort restore on leave:
       - disable mouse / bracketed paste
+      - reset scroll region + SGR state
       - show cursor
       - leave alt screen
       - wrap policy: leave wrap enabled
@@ -709,6 +722,8 @@ static void zr_win32_emit_leave_sequences_best_effort(plat_t* plat) {
                               sizeof(ZR_WIN32_SEQ_BRACKETED_PASTE_DISABLE));
   }
 
+  (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_SCROLL_REGION_RESET, sizeof(ZR_WIN32_SEQ_SCROLL_REGION_RESET));
+  (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_SGR_RESET, sizeof(ZR_WIN32_SEQ_SGR_RESET));
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_WRAP_ENABLE, sizeof(ZR_WIN32_SEQ_WRAP_ENABLE));
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_CURSOR_SHOW, sizeof(ZR_WIN32_SEQ_CURSOR_SHOW));
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_ALT_SCREEN_LEAVE, sizeof(ZR_WIN32_SEQ_ALT_SCREEN_LEAVE));
@@ -775,7 +790,7 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
     v1 caps are conservative and deterministic: if the environment supports VT
     output/input (required on enter), these sequences are safe to emit.
   */
-  plat->caps.color_mode = cfg->requested_color_mode;
+  plat->caps.color_mode = zr_win32_color_mode_clamp(cfg->requested_color_mode, PLAT_COLOR_MODE_RGB);
   plat->caps.supports_mouse = 1u;
   plat->caps.supports_bracketed_paste = 1u;
   /* Focus in/out bytes are not normalized by the core parser in v1. */

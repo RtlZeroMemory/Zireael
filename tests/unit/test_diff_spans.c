@@ -82,6 +82,7 @@ ZR_TEST_UNIT(diff_span_separates_and_uses_cup) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s;
 
   zr_limits_t lim = zr_limits_default();
@@ -131,6 +132,7 @@ ZR_TEST_UNIT(diff_continuation_includes_lead) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s;
 
   zr_limits_t lim = zr_limits_default();
@@ -175,6 +177,7 @@ ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s;
 
   zr_limits_t lim = zr_limits_default();
@@ -222,6 +225,7 @@ ZR_TEST_UNIT(diff_sgr_attr_clear_falls_back_to_reset) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s_prev;
 
   zr_limits_t lim = zr_limits_default();
@@ -292,6 +296,7 @@ ZR_TEST_UNIT(diff_damage_coalescing_keeps_unsorted_spans) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s;
 
   zr_limits_t lim = zr_limits_default();
@@ -333,6 +338,7 @@ ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s_prev;
 
   zr_limits_t lim = zr_limits_default();
@@ -372,6 +378,7 @@ ZR_TEST_UNIT(diff_returns_limit_without_claiming_bytes) {
   memset(&initial, 0, sizeof(initial));
   initial.cursor_x = 0u;
   initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
   initial.style = s;
 
   zr_limits_t lim = zr_limits_default();

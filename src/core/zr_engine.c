@@ -412,8 +412,13 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
   e->diff_row_cap = rows;
   e->diff_prev_hashes_valid = 0u;
 
-  /* A resize invalidates any cursor/style assumptions (best-effort). */
-  memset(&e->term_state, 0, sizeof(e->term_state));
+  /*
+    A resize invalidates cursor position and style assumptions (best-effort).
+
+    Why: The terminal cursor/style state can drift relative to our internal
+    bookkeeping; clearing these bits forces re-establishment only when needed.
+  */
+  e->term_state.flags &= (uint8_t) ~(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID);
 
   return ZR_OK;
 }
@@ -624,8 +629,15 @@ static void zr_engine_input_process_bytes(zr_engine_t* e, const uint8_t* bytes, 
     return;
   }
 
+  const bool paste_enabled =
+      (e->cfg_runtime.plat.enable_bracketed_paste != 0u) && (e->caps.supports_bracketed_paste != 0u);
+
   for (size_t i = 0u; i < len; i++) {
     const uint8_t b = bytes[i];
+    if (!paste_enabled) {
+      zr_engine_input_pending_append_byte(e, b, time_ms);
+      continue;
+    }
     if (e->paste_active) {
       zr_engine_input_process_paste_byte(e, b, time_ms);
     } else {
@@ -638,6 +650,44 @@ static void zr_engine_input_flush_pending(zr_engine_t* e, uint32_t time_ms) {
   if (!e) {
     return;
   }
+
+  const bool paste_enabled =
+      (e->cfg_runtime.plat.enable_bracketed_paste != 0u) && (e->caps.supports_bracketed_paste != 0u);
+
+  /*
+    Defensive: bracketed paste parsing is gated by config+caps. If the engine
+    ever enters paste_active while paste is disabled (should not happen in v1),
+    treat any captured bytes as normal input and reset paste state.
+  */
+  if (!paste_enabled && e->paste_active) {
+    if (e->paste_buf && e->paste_len != 0u) {
+      for (uint32_t i = 0u; i < e->paste_len; i++) {
+        zr_engine_input_pending_append_byte(e, e->paste_buf[i], time_ms);
+      }
+    }
+    for (uint32_t i = 0u; i < e->paste_end_hold_len; i++) {
+      zr_engine_input_pending_append_byte(e, e->paste_end_hold[i], time_ms);
+    }
+    e->paste_active = false;
+    e->paste_overflowed = false;
+    e->paste_len = 0u;
+    e->paste_end_hold_len = 0u;
+    e->paste_idle_polls = 0u;
+  }
+
+  if (!paste_enabled) {
+    for (uint32_t i = 0u; i < e->paste_begin_hold_len; i++) {
+      zr_engine_input_pending_append_byte(e, e->paste_begin_hold[i], time_ms);
+    }
+    e->paste_begin_hold_len = 0u;
+
+    if (e->input_pending_len != 0u) {
+      zr_input_parse_bytes(&e->evq, e->input_pending, (size_t)e->input_pending_len, time_ms);
+      e->input_pending_len = 0u;
+    }
+    return;
+  }
+
   if (e->paste_active) {
     /*
       Paste capture must not permanently wedge input if the end marker is missing.
@@ -903,6 +953,17 @@ static zr_result_t zr_engine_init_runtime_state(zr_engine_t* e) {
   if (rc != ZR_OK) {
     return rc;
   }
+
+  /*
+    Establish conservative initial terminal assumptions after entering raw mode.
+
+    Why: The platform enter sequences hide the cursor. Mark cursor visibility
+    as known so an empty present can't fail due to forced cursor-control bytes
+    under small out_max_bytes_per_frame values.
+  */
+  e->term_state.cursor_visible = 0u;
+  e->term_state.flags |= ZR_TERM_STATE_CURSOR_VIS_VALID;
+
   e->last_tick_ms = zr_engine_now_ms_u32();
   return ZR_OK;
 }

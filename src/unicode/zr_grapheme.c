@@ -93,8 +93,8 @@ static bool zr_grapheme_should_break(zr_gcb_class_t prev_class, bool prev_zwj_af
     return false;
   }
 
-  /* GB11: U+200D (after an EP) joins through Extend* until the next EP. */
-  if (prev_zwj_after_ep && next_is_ep) {
+  /* GB11: ... ZWJ x EP when that immediate ZWJ is preceded by EP (ignoring Extend). */
+  if (prev_class == ZR_GCB_ZWJ && next_is_ep && prev_zwj_after_ep) {
     return false;
   }
 

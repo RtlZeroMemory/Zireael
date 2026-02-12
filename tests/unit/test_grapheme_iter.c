@@ -20,6 +20,23 @@ static void zr_assert_one_cluster(zr_test_ctx_t* ctx, const uint8_t* bytes, size
   ZR_ASSERT_TRUE(!zr_grapheme_next(&it, &g));
 }
 
+static void zr_assert_two_clusters(zr_test_ctx_t* ctx, const uint8_t* bytes, size_t len, size_t first_size,
+                                   size_t second_size) {
+  zr_grapheme_iter_t it;
+  zr_grapheme_iter_init(&it, bytes, len);
+
+  zr_grapheme_t g;
+  ZR_ASSERT_TRUE(zr_grapheme_next(&it, &g));
+  ZR_ASSERT_EQ_U32(g.offset, 0u);
+  ZR_ASSERT_EQ_U32(g.size, (uint32_t)first_size);
+
+  ZR_ASSERT_TRUE(zr_grapheme_next(&it, &g));
+  ZR_ASSERT_EQ_U32(g.offset, (uint32_t)first_size);
+  ZR_ASSERT_EQ_U32(g.size, (uint32_t)second_size);
+
+  ZR_ASSERT_TRUE(!zr_grapheme_next(&it, &g));
+}
+
 ZR_TEST_UNIT(grapheme_combining_mark_stays_with_base) {
   /* "e" + U+0301 (COMBINING ACUTE ACCENT). */
   const uint8_t s[] = {0x65u, 0xCCu, 0x81u};
@@ -36,6 +53,16 @@ ZR_TEST_UNIT(grapheme_zwj_extended_pictographic_sequence) {
   /* U+1F600 ZWJ U+1F600 ("😀‍😀") exercises EP beyond a tiny hand-picked subset. */
   const uint8_t s[] = {0xF0u, 0x9Fu, 0x98u, 0x80u, 0xE2u, 0x80u, 0x8Du, 0xF0u, 0x9Fu, 0x98u, 0x80u};
   zr_assert_one_cluster(ctx, s, sizeof(s), sizeof(s));
+}
+
+ZR_TEST_UNIT(grapheme_zwj_extend_after_joined_ep) {
+  /*
+    Sequence: U+1F469 ZWJ U+0308 U+1F469 ("👩‍̈👩") — GB11 applies only to the
+    immediate boundary after ZWJ, so an Extend between ZWJ and trailing EP
+    restores the break before the final EP.
+  */
+  const uint8_t s[] = {0xF0u, 0x9Fu, 0x91u, 0xA9u, 0xE2u, 0x80u, 0x8Du, 0xCCu, 0x88u, 0xF0u, 0x9Fu, 0x91u, 0xA9u};
+  zr_assert_two_clusters(ctx, s, sizeof(s), 9u, 4u);
 }
 
 ZR_TEST_UNIT(grapheme_iter_progress_on_malformed_utf8) {

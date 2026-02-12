@@ -1182,6 +1182,16 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
     return rc;
   }
 
+  /*
+    Enforce create-time drawlist version negotiation before any framebuffer
+    staging mutation to preserve the no-partial-effects contract.
+  */
+  if (v.hdr.version != e->cfg_create.requested_drawlist_version) {
+    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_VALIDATE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
+                             v.hdr.version, ZR_ERR_UNSUPPORTED, ZR_OK);
+    return ZR_ERR_UNSUPPORTED;
+  }
+
   zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;

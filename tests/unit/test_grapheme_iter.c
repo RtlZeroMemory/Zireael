@@ -38,6 +38,17 @@ ZR_TEST_UNIT(grapheme_zwj_extended_pictographic_sequence) {
   zr_assert_one_cluster(ctx, s, sizeof(s), sizeof(s));
 }
 
+ZR_TEST_UNIT(grapheme_zwj_extend_after_joined_ep) {
+  /*
+    Sequence: U+1F469 ZWJ U+0308 U+1F469 ("👩‍̈👩") — tests that Extend characters
+    between the ZWJ and the trailing Extended_Pictographic do not split the
+    GB11 sequence.
+  */
+  const uint8_t s[] = {0xF0u, 0x9Fu, 0x91u, 0xA9u, 0xE2u, 0x80u, 0x8Du, 0xCCu, 0x88u,
+                       0xF0u, 0x9Fu, 0x91u, 0xA9u};
+  zr_assert_one_cluster(ctx, s, sizeof(s), sizeof(s));
+}
+
 ZR_TEST_UNIT(grapheme_iter_progress_on_malformed_utf8) {
   const uint8_t s[] = {0xF0u, 0x28u, 0x8Cu, 0x28u};
 

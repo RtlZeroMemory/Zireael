@@ -45,6 +45,10 @@ static const uint8_t ZR_ENGINE_PASTE_END[] = "\x1b[201~";
 struct zr_engine_t {
   /* --- Platform (OS boundary) --- */
   plat_t* plat;
+  struct zr_engine_t* restore_prev;
+  struct zr_engine_t* restore_next;
+  uint8_t restore_registered;
+  uint8_t _pad_restore0[3];
 
   plat_caps_t caps;
   plat_size_t size;
@@ -138,6 +142,142 @@ static void zr_engine_debug_free(zr_engine_t* e);
 
 static const uint8_t ZR_SYNC_BEGIN[] = "\x1b[?2026h";
 static const uint8_t ZR_SYNC_END[] = "\x1b[?2026l";
+
+static zr_engine_t* g_zr_engine_restore_head = NULL;
+static atomic_flag g_zr_engine_restore_lock = ATOMIC_FLAG_INIT;
+static atomic_flag g_zr_engine_restore_active_guard = ATOMIC_FLAG_INIT;
+static _Atomic uint8_t g_zr_engine_restore_hooks_installed = 0u;
+
+#if defined(ZR_ENGINE_TESTING)
+static _Atomic uint32_t g_zr_engine_test_restore_attempts = 0u;
+static _Atomic uint32_t g_zr_engine_test_restore_abort_calls = 0u;
+static _Atomic uint32_t g_zr_engine_test_restore_exit_calls = 0u;
+#endif
+
+static void zr_engine_restore_from_assert(void);
+static void zr_engine_restore_from_exit(void);
+
+static void zr_engine_restore_lock_acquire(void) {
+  while (atomic_flag_test_and_set_explicit(&g_zr_engine_restore_lock, memory_order_acquire)) {
+    zr_thread_yield();
+  }
+}
+
+static void zr_engine_restore_lock_release(void) {
+  atomic_flag_clear_explicit(&g_zr_engine_restore_lock, memory_order_release);
+}
+
+static void zr_engine_restore_sync_assert_hook_locked(void) {
+  if (g_zr_engine_restore_head) {
+    zr_assert_set_cleanup_hook(zr_engine_restore_from_assert);
+    return;
+  }
+  zr_assert_clear_cleanup_hook(zr_engine_restore_from_assert);
+}
+
+/*
+  Restore active platforms to non-raw mode.
+
+  Why: Used by both assert-failure cleanup and atexit handling so terminal
+  restore is attempted even when wrappers skip engine_destroy().
+*/
+static uint32_t zr_engine_restore_active_platforms(void) {
+  if (atomic_flag_test_and_set_explicit(&g_zr_engine_restore_active_guard, memory_order_acq_rel)) {
+    return 0u;
+  }
+
+  uint32_t attempts = 0u;
+
+  zr_engine_restore_lock_acquire();
+  for (zr_engine_t* it = g_zr_engine_restore_head; it; it = it->restore_next) {
+    if (!it->plat) {
+      continue;
+    }
+    attempts++;
+    (void)plat_leave_raw(it->plat);
+  }
+  zr_engine_restore_lock_release();
+
+  atomic_flag_clear_explicit(&g_zr_engine_restore_active_guard, memory_order_release);
+  return attempts;
+}
+
+static void zr_engine_restore_install_hooks_once(void) {
+  if (atomic_load_explicit(&g_zr_engine_restore_hooks_installed, memory_order_acquire) != 0u) {
+    return;
+  }
+
+  zr_engine_restore_lock_acquire();
+  if (atomic_load_explicit(&g_zr_engine_restore_hooks_installed, memory_order_acquire) == 0u) {
+    (void)atexit(zr_engine_restore_from_exit);
+    atomic_store_explicit(&g_zr_engine_restore_hooks_installed, 1u, memory_order_release);
+  }
+  zr_engine_restore_lock_release();
+}
+
+static void zr_engine_restore_register(zr_engine_t* e) {
+  if (!e || !e->plat) {
+    return;
+  }
+
+  zr_engine_restore_install_hooks_once();
+
+  zr_engine_restore_lock_acquire();
+  if (e->restore_registered == 0u) {
+    e->restore_prev = NULL;
+    e->restore_next = g_zr_engine_restore_head;
+    if (g_zr_engine_restore_head) {
+      g_zr_engine_restore_head->restore_prev = e;
+    }
+    g_zr_engine_restore_head = e;
+    e->restore_registered = 1u;
+  }
+  zr_engine_restore_sync_assert_hook_locked();
+  zr_engine_restore_lock_release();
+}
+
+static void zr_engine_restore_unregister(zr_engine_t* e) {
+  if (!e) {
+    return;
+  }
+
+  zr_engine_restore_lock_acquire();
+  if (e->restore_registered != 0u) {
+    if (e->restore_prev) {
+      e->restore_prev->restore_next = e->restore_next;
+    } else {
+      g_zr_engine_restore_head = e->restore_next;
+    }
+    if (e->restore_next) {
+      e->restore_next->restore_prev = e->restore_prev;
+    }
+    e->restore_prev = NULL;
+    e->restore_next = NULL;
+    e->restore_registered = 0u;
+  }
+  zr_engine_restore_sync_assert_hook_locked();
+  zr_engine_restore_lock_release();
+}
+
+static void zr_engine_restore_from_assert(void) {
+  const uint32_t attempts = zr_engine_restore_active_platforms();
+#if defined(ZR_ENGINE_TESTING)
+  (void)atomic_fetch_add_explicit(&g_zr_engine_test_restore_abort_calls, 1u, memory_order_acq_rel);
+  (void)atomic_fetch_add_explicit(&g_zr_engine_test_restore_attempts, attempts, memory_order_acq_rel);
+#else
+  (void)attempts;
+#endif
+}
+
+static void zr_engine_restore_from_exit(void) {
+  const uint32_t attempts = zr_engine_restore_active_platforms();
+#if defined(ZR_ENGINE_TESTING)
+  (void)atomic_fetch_add_explicit(&g_zr_engine_test_restore_exit_calls, 1u, memory_order_acq_rel);
+  (void)atomic_fetch_add_explicit(&g_zr_engine_test_restore_attempts, attempts, memory_order_acq_rel);
+#else
+  (void)attempts;
+#endif
+}
 
 /*
   Cross-thread post guard.
@@ -946,6 +1086,9 @@ static zr_result_t zr_engine_init_runtime_state(zr_engine_t* e) {
   if (rc != ZR_OK) {
     return rc;
   }
+
+  zr_engine_restore_register(e);
+
   if (e->cfg_runtime.wait_for_output_drain != 0u && e->caps.supports_output_wait_writable == 0u) {
     return ZR_ERR_UNSUPPORTED;
   }
@@ -1094,9 +1237,12 @@ void engine_destroy(zr_engine_t* e) {
   zr_engine_wait_posts_drained(e);
 
   if (e->plat) {
+    zr_engine_restore_unregister(e);
     (void)plat_leave_raw(e->plat);
     plat_destroy(e->plat);
     e->plat = NULL;
+  } else {
+    zr_engine_restore_unregister(e);
   }
 
   zr_engine_release_heap_state(e);
@@ -1621,3 +1767,32 @@ void engine_debug_reset(zr_engine_t* e) {
   }
   zr_debug_trace_reset(e->debug_trace);
 }
+
+#if defined(ZR_ENGINE_TESTING)
+/*
+  Unit-test hooks for restore-path coverage.
+
+  Why: Exercise assert/atexit restore wiring without terminating the process.
+*/
+void zr_engine_test_reset_restore_counters(void) {
+  atomic_store_explicit(&g_zr_engine_test_restore_attempts, 0u, memory_order_release);
+  atomic_store_explicit(&g_zr_engine_test_restore_abort_calls, 0u, memory_order_release);
+  atomic_store_explicit(&g_zr_engine_test_restore_exit_calls, 0u, memory_order_release);
+}
+
+uint32_t zr_engine_test_restore_attempts(void) {
+  return atomic_load_explicit(&g_zr_engine_test_restore_attempts, memory_order_acquire);
+}
+
+uint32_t zr_engine_test_restore_abort_calls(void) {
+  return atomic_load_explicit(&g_zr_engine_test_restore_abort_calls, memory_order_acquire);
+}
+
+uint32_t zr_engine_test_restore_exit_calls(void) {
+  return atomic_load_explicit(&g_zr_engine_test_restore_exit_calls, memory_order_acquire);
+}
+
+void zr_engine_test_invoke_exit_restore_hook(void) {
+  zr_engine_restore_from_exit();
+}
+#endif

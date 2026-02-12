@@ -87,6 +87,7 @@ set(ZIREAEL_SOURCES
         src/unicode/zr_width.c
         src/unicode/zr_wrap.c
         src/util/zr_arena.c
+        src/util/zr_assert.c
         src/util/zr_caps.c
         src/util/zr_log.c
         src/util/zr_ring.c

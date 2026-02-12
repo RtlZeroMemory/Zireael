@@ -5,6 +5,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.2 — 2026-02-12
+
+### Changed
+
+- core/drawlist: `engine_submit_drawlist()` now enforces create-time negotiated drawlist version and returns `ZR_ERR_UNSUPPORTED` on mismatches before any staging mutation.
+- unicode: GB11 boundary handling is anchored to the immediate `ZWJ` boundary; `EP ZWJ Extend EP` now breaks before trailing `EP` per pinned boundary policy.
+
+### Added
+
+- tests: added/updated regression coverage for negotiated drawlist-version mismatch no-partial-effects and GB11 `EP ZWJ Extend EP` boundary behavior.
+
 ## 1.3.1 — 2026-02-12
 
 ### Added

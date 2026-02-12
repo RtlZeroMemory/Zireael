@@ -443,8 +443,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_alt_text) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'9', (uint8_t)'7', (uint8_t)';',
-                        (uint8_t)'3', (uint8_t)'u'};
+  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[256];
@@ -481,8 +480,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_enter_with_ctrl) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'3', (uint8_t)';',
-                        (uint8_t)'5', (uint8_t)'u'};
+  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'3', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[128];
@@ -516,8 +514,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_with_extra_param) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'5', (uint8_t)';',
-                        (uint8_t)'1', (uint8_t)'2', (uint8_t)'3', (uint8_t)'u'};
+  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'5',
+                        (uint8_t)';', (uint8_t)'1', (uint8_t)'2', (uint8_t)'3', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[128];
@@ -656,9 +654,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_modify_other_keys_with_extra_param) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';',
-                        (uint8_t)'5', (uint8_t)';', (uint8_t)'9', (uint8_t)';', (uint8_t)'7',
-                        (uint8_t)'7', (uint8_t)'~'};
+  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'5',
+                        (uint8_t)';', (uint8_t)'9', (uint8_t)';', (uint8_t)'7', (uint8_t)'7', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[128];
@@ -738,8 +735,7 @@ ZR_TEST_UNIT(engine_poll_events_falls_back_on_malformed_csi_u_sequence) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'9',
-                        (uint8_t)';', (uint8_t)'x', (uint8_t)'u'};
+  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'x', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[512];
@@ -796,8 +792,7 @@ ZR_TEST_UNIT(engine_poll_events_falls_back_on_malformed_modify_other_keys_sequen
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7',
-                        (uint8_t)';', (uint8_t)'3', (uint8_t)'~'};
+  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out[512];

@@ -874,7 +874,7 @@ static zr_result_t zr_posix_sigpipe_consume_if_pending(const sigset_t* sigpipe_s
   (ZR_ERR_PLATFORM) instead of process termination.
 */
 static zr_result_t zr_posix_write_once_no_sigpipe(int fd, const uint8_t* bytes, size_t len, ssize_t* out_n,
-                                                   int* out_errno) {
+                                                  int* out_errno) {
   if (!bytes || !out_n || !out_errno) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -938,8 +938,8 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len)
   while (written < len) {
     ssize_t n = -1;
     int write_errno = 0;
-    zr_result_t write_rc = zr_posix_write_once_no_sigpipe(fd, bytes + (size_t)written, (size_t)(len - written), &n,
-                                                           &write_errno);
+    zr_result_t write_rc =
+        zr_posix_write_once_no_sigpipe(fd, bytes + (size_t)written, (size_t)(len - written), &n, &write_errno);
     if (write_rc != ZR_OK) {
       return ZR_ERR_PLATFORM;
     }

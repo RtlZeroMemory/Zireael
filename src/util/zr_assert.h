@@ -27,11 +27,11 @@ void zr_assert_fail(const char* file, int line, const char* expr);
 #if defined(NDEBUG)
 #define ZR_ASSERT(expr) ((void)0)
 #else
-#define ZR_ASSERT(expr)                              \
-  do {                                               \
-    if (!(expr)) {                                   \
-      zr_assert_fail(__FILE__, __LINE__, #expr);    \
-    }                                                \
+#define ZR_ASSERT(expr)                                                                                                \
+  do {                                                                                                                 \
+    if (!(expr)) {                                                                                                     \
+      zr_assert_fail(__FILE__, __LINE__, #expr);                                                                       \
+    }                                                                                                                  \
   } while (0)
 #endif
 

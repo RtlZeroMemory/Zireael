@@ -15,11 +15,11 @@
 #include <stdint.h>
 
 /* Unit-only hooks exported by zr_engine.c when ZR_ENGINE_TESTING=1. */
-extern void     zr_engine_test_reset_restore_counters(void);
+extern void zr_engine_test_reset_restore_counters(void);
 extern uint32_t zr_engine_test_restore_attempts(void);
 extern uint32_t zr_engine_test_restore_abort_calls(void);
 extern uint32_t zr_engine_test_restore_exit_calls(void);
-extern void     zr_engine_test_invoke_exit_restore_hook(void);
+extern void zr_engine_test_invoke_exit_restore_hook(void);
 
 ZR_TEST_UNIT(engine_restore_hook_runs_on_assert_cleanup_path) {
   mock_plat_reset();

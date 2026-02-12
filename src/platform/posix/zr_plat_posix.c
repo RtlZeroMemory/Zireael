@@ -255,6 +255,62 @@ static bool zr_posix_term_supports_vt_common(void) {
   return zr_posix_str_has_any(term, kVtTerms, sizeof(kVtTerms) / sizeof(kVtTerms[0]));
 }
 
+static plat_color_mode_t zr_posix_color_mode_clamp(plat_color_mode_t requested, plat_color_mode_t detected) {
+  /*
+    requested_color_mode is a wrapper request. The backend must not report or
+    emit a higher mode than it believes is supported, but wrappers may request
+    a lower mode for determinism or compatibility.
+  */
+  if (detected == PLAT_COLOR_MODE_UNKNOWN) {
+    detected = PLAT_COLOR_MODE_16;
+  }
+  if (requested == PLAT_COLOR_MODE_UNKNOWN) {
+    return detected;
+  }
+  return (requested < detected) ? requested : detected;
+}
+
+static plat_color_mode_t zr_posix_detect_color_mode(void) {
+  /*
+    Color detection must be conservative and deterministic.
+
+    Why: The engine uses caps.color_mode to decide which SGR forms are safe to
+    emit. Over-reporting can corrupt output in low-color terminals/CI.
+  */
+  if (zr_posix_term_is_dumb()) {
+    return PLAT_COLOR_MODE_16;
+  }
+
+  const char* colorterm = zr_posix_getenv_nonempty("COLORTERM");
+  if (colorterm) {
+    if (strstr(colorterm, "truecolor") || strstr(colorterm, "TRUECOLOR") || strstr(colorterm, "24bit") ||
+        strstr(colorterm, "24BIT")) {
+      return PLAT_COLOR_MODE_RGB;
+    }
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID")) {
+    return PLAT_COLOR_MODE_RGB;
+  }
+  if (zr_posix_getenv_nonempty("WEZTERM_PANE") || zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+    return PLAT_COLOR_MODE_RGB;
+  }
+
+  const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
+  if (term_program && strcmp(term_program, "iTerm.app") == 0) {
+    return PLAT_COLOR_MODE_RGB;
+  }
+  if (term_program && (strcmp(term_program, "Rio") == 0 || strcmp(term_program, "rio") == 0)) {
+    return PLAT_COLOR_MODE_RGB;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  if (term && strstr(term, "256color")) {
+    return PLAT_COLOR_MODE_256;
+  }
+  return PLAT_COLOR_MODE_16;
+}
+
 static uint8_t zr_posix_detect_scroll_region(void) {
   return zr_posix_term_supports_vt_common() ? 1u : 0u;
 }
@@ -743,7 +799,8 @@ static void zr_posix_set_caps_from_cfg(plat_t* plat, const plat_config_t* cfg) {
   if (!plat || !cfg) {
     return;
   }
-  plat->caps.color_mode = cfg->requested_color_mode;
+  const plat_color_mode_t detected_color = zr_posix_detect_color_mode();
+  plat->caps.color_mode = zr_posix_color_mode_clamp(cfg->requested_color_mode, detected_color);
   plat->caps.supports_mouse = zr_posix_detect_mouse_tracking();
   plat->caps.supports_bracketed_paste = zr_posix_detect_bracketed_paste();
   /* Focus in/out bytes are not normalized by the core parser in v1. */

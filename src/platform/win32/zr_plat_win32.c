@@ -115,6 +115,16 @@ static void zr_win32_cap_override(const char* key, uint8_t* inout_cap) {
   }
 }
 
+static plat_color_mode_t zr_win32_color_mode_clamp(plat_color_mode_t requested, plat_color_mode_t detected) {
+  if (detected == PLAT_COLOR_MODE_UNKNOWN) {
+    detected = PLAT_COLOR_MODE_16;
+  }
+  if (requested == PLAT_COLOR_MODE_UNKNOWN) {
+    return detected;
+  }
+  return (requested < detected) ? requested : detected;
+}
+
 static uint8_t zr_win32_detect_sync_update(void) {
   if (zr_win32_getenv_nonempty("KITTY_WINDOW_ID")) {
     return 1u;
@@ -780,7 +790,7 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
     v1 caps are conservative and deterministic: if the environment supports VT
     output/input (required on enter), these sequences are safe to emit.
   */
-  plat->caps.color_mode = cfg->requested_color_mode;
+  plat->caps.color_mode = zr_win32_color_mode_clamp(cfg->requested_color_mode, PLAT_COLOR_MODE_RGB);
   plat->caps.supports_mouse = 1u;
   plat->caps.supports_bracketed_paste = 1u;
   /* Focus in/out bytes are not normalized by the core parser in v1. */

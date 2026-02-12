@@ -18,10 +18,10 @@
 #error "Zireael version pins are locked; do not override ZR_*_VERSION_* macros."
 #endif
 
-/* Library version (v1.2.5). */
+/* Library version (v1.3.0). */
 #define ZR_LIBRARY_VERSION_MAJOR (1u)
-#define ZR_LIBRARY_VERSION_MINOR (2u)
-#define ZR_LIBRARY_VERSION_PATCH (5u)
+#define ZR_LIBRARY_VERSION_MINOR (3u)
+#define ZR_LIBRARY_VERSION_PATCH (0u)
 
 /* Engine ABI version (v1.1.0). */
 #define ZR_ENGINE_ABI_MAJOR (1u)

@@ -5,6 +5,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.0 — 2026-02-12
+
+### Added
+
+- input: normalized focus-in/focus-out handling via `ESC [ I` / `ESC [ O` and new public key enums for focus events.
+- input: CSI-u and modifyOtherKeys parsing coverage with deterministic fallback behavior for malformed/partial sequences.
+- platform: new `ZIREAEL_CAP_FOCUS_EVENTS` and `ZIREAEL_CAP_SGR_ATTRS_MASK` capability overrides.
+
+### Changed
+
+- platform: expanded truecolor and terminal capability heuristics across POSIX and Win32 backends.
+- platform: focus event mode is now enabled/disabled with raw-mode enter/leave when supported.
+- diff: attribute emission now respects backend-reported `sgr_attrs_supported` instead of assuming all SGR attrs.
+
 ## 1.2.5 — 2026-02-12
 
 ### Changed

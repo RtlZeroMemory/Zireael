@@ -29,6 +29,7 @@ static zr_term_state_t zr_term_default(void) {
   memset(&t, 0, sizeof(t));
   t.cursor_x = 0u;
   t.cursor_y = 0u;
+  t.flags = ZR_TERM_STATE_VALID_ALL;
   t.style = zr_style_default();
   return t;
 }

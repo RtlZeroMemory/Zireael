@@ -39,6 +39,7 @@ static void zr_term_state_default(zr_term_state_t* ts, zr_style_t style) {
     return;
   }
   memset(ts, 0, sizeof(*ts));
+  ts->flags = ZR_TERM_STATE_VALID_ALL;
   ts->style = style;
 }
 

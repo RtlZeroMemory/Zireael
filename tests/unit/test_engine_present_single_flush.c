@@ -130,7 +130,13 @@ ZR_TEST_UNIT(engine_present_sync_update_overhead_does_not_force_limit) {
   ZR_ASSERT_TRUE(e != NULL);
 
   mock_plat_clear_writes();
-  ZR_ASSERT_TRUE(engine_present(e) == ZR_OK);
+  {
+    const zr_result_t rc = engine_present(e);
+    if (rc != ZR_OK) {
+      zr_test_failf(ctx, __FILE__, __LINE__, "engine_present(e) failed: rc=%d", (int)rc);
+      return;
+    }
+  }
   ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
 
   engine_destroy(e);

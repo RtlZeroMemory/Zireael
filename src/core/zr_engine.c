@@ -412,8 +412,13 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
   e->diff_row_cap = rows;
   e->diff_prev_hashes_valid = 0u;
 
-  /* A resize invalidates any cursor/style assumptions (best-effort). */
-  memset(&e->term_state, 0, sizeof(e->term_state));
+  /*
+    A resize invalidates cursor position and style assumptions (best-effort).
+
+    Why: The terminal cursor/style state can drift relative to our internal
+    bookkeeping; clearing these bits forces re-establishment only when needed.
+  */
+  e->term_state.flags &= (uint8_t) ~(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID);
 
   return ZR_OK;
 }
@@ -903,6 +908,17 @@ static zr_result_t zr_engine_init_runtime_state(zr_engine_t* e) {
   if (rc != ZR_OK) {
     return rc;
   }
+
+  /*
+    Establish conservative initial terminal assumptions after entering raw mode.
+
+    Why: The platform enter sequences hide the cursor. Mark cursor visibility
+    as known so an empty present can't fail due to forced cursor-control bytes
+    under small out_max_bytes_per_frame values.
+  */
+  e->term_state.cursor_visible = 0u;
+  e->term_state.flags |= ZR_TERM_STATE_CURSOR_VIS_VALID;
+
   e->last_tick_ms = zr_engine_now_ms_u32();
   return ZR_OK;
 }

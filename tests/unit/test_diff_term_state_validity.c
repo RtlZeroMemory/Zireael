@@ -59,7 +59,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_pos_forces_cup_even_at_home) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+  initial.flags =
+      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();
@@ -108,7 +109,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_pos_forces_cup_without_frame_damage) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+  initial.flags =
+      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
   initial.style = base;
 
   zr_cursor_state_t desired;
@@ -167,7 +169,8 @@ ZR_TEST_UNIT(diff_unknown_style_forces_absolute_sgr_even_if_values_match) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags = (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+  initial.flags =
+      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();
@@ -184,11 +187,10 @@ ZR_TEST_UNIT(diff_unknown_style_forces_absolute_sgr_even_if_values_match) {
 
   /* Expected: ESC[0;38;2;0;0;0;48;2;0;0;0mX (style forced absolute due to unknown style validity). */
   const uint8_t expected[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'0', (uint8_t)';',
-      (uint8_t)'3', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';',
-      (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';',
-      (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';',
-      (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)'m', (uint8_t)'X',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';',
+      (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
+      (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0',
+      (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)'m', (uint8_t)'X',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
@@ -220,7 +222,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_shape_emits_decsusr_when_showing_cursor) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags = (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID);
+  initial.flags =
+      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID);
   initial.style = base;
 
   zr_cursor_state_t desired;
@@ -245,8 +248,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_shape_emits_decsusr_when_showing_cursor) {
 
   /* Expected: ESC[2 q ESC[?25h (DECSCUSR steady block + show cursor). */
   const uint8_t expected[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)' ', (uint8_t)'q',
-      0x1Bu, (uint8_t)'[', (uint8_t)'?', (uint8_t)'2', (uint8_t)'5', (uint8_t)'h',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)' ', (uint8_t)'q', 0x1Bu,
+      (uint8_t)'[', (uint8_t)'?', (uint8_t)'2', (uint8_t)'5', (uint8_t)'h',
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));

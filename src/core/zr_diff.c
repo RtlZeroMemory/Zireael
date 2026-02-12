@@ -475,7 +475,7 @@ static uint32_t zr_clamp_u32_from_i32(int32_t v, uint32_t lo, uint32_t hi) {
 }
 
 static bool zr_emit_cursor_desired(zr_sb_t* sb, zr_term_state_t* ts, const zr_cursor_state_t* desired,
-                                  const zr_fb_t* next, const plat_caps_t* caps) {
+                                   const zr_fb_t* next, const plat_caps_t* caps) {
   if (!sb || !ts || !next || !caps) {
     return false;
   }

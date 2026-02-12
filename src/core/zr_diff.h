@@ -42,8 +42,8 @@ typedef struct zr_term_state_t {
 #define ZR_TERM_STATE_CURSOR_POS_VALID ((uint8_t)0x02u)
 #define ZR_TERM_STATE_CURSOR_VIS_VALID ((uint8_t)0x04u)
 #define ZR_TERM_STATE_CURSOR_SHAPE_VALID ((uint8_t)0x08u)
-#define ZR_TERM_STATE_VALID_ALL                                                                                      \
-  ((uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |           \
+#define ZR_TERM_STATE_VALID_ALL                                                                                        \
+  ((uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |             \
              ZR_TERM_STATE_CURSOR_SHAPE_VALID))
 
 typedef struct zr_diff_stats_t {

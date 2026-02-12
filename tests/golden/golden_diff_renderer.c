@@ -55,13 +55,8 @@ static void zr_fb_set_ascii(zr_fb_t* fb, uint32_t x, uint32_t y, uint8_t ch, zr_
 }
 
 /* Set a cell to a UTF-8 grapheme with specified width (for wide glyphs). */
-static void zr_fb_set_utf8(zr_fb_t* fb,
-                           uint32_t x,
-                           uint32_t y,
-                           const uint8_t glyph[4],
-                           uint8_t glyph_len,
-                           uint8_t width,
-                           zr_style_t style) {
+static void zr_fb_set_utf8(zr_fb_t* fb, uint32_t x, uint32_t y, const uint8_t glyph[4], uint8_t glyph_len,
+                           uint8_t width, zr_style_t style) {
   zr_cell_t* c = zr_fb_cell(fb, x, y);
   if (!c) {
     return;
@@ -116,7 +111,7 @@ ZR_TEST_GOLDEN(diff_001_min_text_origin) {
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
   const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
-                                       &out_len, &final_state, &stats);
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_001_min_text_origin", out, out_len) == 0);
@@ -153,9 +148,8 @@ ZR_TEST_GOLDEN(diff_007_sparse_single_cell_midline) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_007_sparse_single_cell_midline", out, out_len) == 0);
@@ -201,9 +195,8 @@ ZR_TEST_GOLDEN(diff_004_scroll_region_scroll_up_fullscreen) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 1u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 1u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_004_scroll_region_scroll_up_fullscreen", out, out_len) == 0);
@@ -249,9 +242,8 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   /* --- Assert --- */
@@ -284,7 +276,7 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
 
   /* U+1F642 "slightly smiling face" in UTF-8 */
   const uint8_t emoji[4] = {0xF0u, 0x9Fu, 0x99u, 0x82u};
-  zr_fb_set_utf8(&next, 1u, 0u, emoji, 4u, 2u, s); /* Lead cell */
+  zr_fb_set_utf8(&next, 1u, 0u, emoji, 4u, 2u, s);                              /* Lead cell */
   zr_fb_set_utf8(&next, 2u, 0u, (const uint8_t[4]){0u, 0u, 0u, 0u}, 0u, 0u, s); /* Continuation */
 
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
@@ -298,9 +290,8 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   /* --- Assert --- */
@@ -353,9 +344,8 @@ ZR_TEST_GOLDEN(diff_005_cursor_show_shape_move) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out,
+                                        sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_005_cursor_show_shape_move", out, out_len) == 0);
@@ -403,9 +393,8 @@ ZR_TEST_GOLDEN(diff_006_cursor_hide_only) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, &desired, &lim, damage, 64u, 0u, out,
+                                        sizeof(out), &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_006_cursor_hide_only", out, out_len) == 0);

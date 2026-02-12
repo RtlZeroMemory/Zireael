@@ -500,14 +500,20 @@ static bool zr_emit_cursor_desired(zr_sb_t* sb, zr_term_state_t* ts, const zr_cu
     /*
       "Do not change" cursor position.
 
-      Why: Emitting CUP in this case is unnecessary and can turn an otherwise
-      empty frame into a ZR_ERR_LIMIT if the per-frame output cap is small.
+      Why: If cursor position is already known-valid, no byte emission is
+      needed. If it is unknown, emit one CUP to re-establish deterministic
+      terminal state for later frames.
     */
-    return true;
+    if (zr_term_cursor_pos_is_valid(ts)) {
+      return true;
+    }
+    const uint32_t x = (ts->cursor_x < next->cols) ? ts->cursor_x : (next->cols - 1u);
+    const uint32_t y = (ts->cursor_y < next->rows) ? ts->cursor_y : (next->rows - 1u);
+    return zr_emit_cup(sb, ts, x, y);
   }
 
-  uint32_t x = ts->cursor_x;
-  uint32_t y = ts->cursor_y;
+  uint32_t x = (ts->cursor_x < next->cols) ? ts->cursor_x : (next->cols - 1u);
+  uint32_t y = (ts->cursor_y < next->rows) ? ts->cursor_y : (next->rows - 1u);
   if (desired->x != -1) {
     x = zr_clamp_u32_from_i32(desired->x, 0u, next->cols - 1u);
   }

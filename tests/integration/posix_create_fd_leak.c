@@ -1,10 +1,9 @@
 /*
-  tests/integration/posix_create_fd_leak.c — POSIX backend create() failure cleanup.
+  tests/integration/posix_create_fd_leak.c — POSIX create() fallback cleanup + explicit pipe mode.
 
-  Why: When stdin/stdout are not TTYs but a controlling terminal exists, the POSIX
-  backend falls back to opening `/dev/tty`. If subsequent initialization fails
-  (e.g. self-pipe creation), the backend must close any owned fds before returning
-  an error to avoid leaking resources across retries.
+  Why: Covers two deterministic regressions in non-TTY launch paths:
+    - `/dev/tty` fallback failure must not leak owned fds
+    - explicit non-TTY pipe mode must allow create/raw/size without termios/ioctl-on-pipe failures
 */
 
 #ifndef _XOPEN_SOURCE
@@ -25,6 +24,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+enum {
+  ZR_NOFILE_LIMIT_FORCE_TTY_FALLBACK_FAIL = 4u,
+  ZR_NOFILE_LIMIT_PIPE_MODE_BYPASS = 5u,
+  ZR_PIPE_MODE_EXPECTED_COLS = 80u,
+  ZR_PIPE_MODE_EXPECTED_ROWS = 24u,
+};
 
 static int zr_test_skip(const char* reason) {
   fprintf(stdout, "SKIP: %s\n", reason);
@@ -86,7 +92,78 @@ static void zr_close_from(int first_fd) {
   }
 }
 
-static int zr_child_main(int master_fd, int slave_fd) {
+static void zr_init_default_cfg(plat_config_t* cfg) {
+  if (!cfg) {
+    return;
+  }
+  memset(cfg, 0, sizeof(*cfg));
+  cfg->requested_color_mode = PLAT_COLOR_MODE_UNKNOWN;
+  cfg->enable_mouse = 0u;
+  cfg->enable_bracketed_paste = 0u;
+  cfg->enable_focus_events = 0u;
+  cfg->enable_osc52 = 0u;
+}
+
+static int zr_redirect_stdio_to_pipes(void) {
+  int in_pipe[2] = {-1, -1};
+  int out_pipe[2] = {-1, -1};
+  if (pipe(in_pipe) != 0) {
+    return -1;
+  }
+  if (pipe(out_pipe) != 0) {
+    (void)close(in_pipe[0]);
+    (void)close(in_pipe[1]);
+    return -1;
+  }
+
+  if (dup2(in_pipe[0], STDIN_FILENO) < 0 || dup2(out_pipe[1], STDOUT_FILENO) < 0) {
+    (void)close(in_pipe[0]);
+    (void)close(in_pipe[1]);
+    (void)close(out_pipe[0]);
+    (void)close(out_pipe[1]);
+    return -1;
+  }
+
+  (void)close(in_pipe[0]);
+  (void)close(in_pipe[1]);
+  (void)close(out_pipe[0]);
+  (void)close(out_pipe[1]);
+  return 0;
+}
+
+static int zr_expect_pipe_mode_contract(plat_t* plat) {
+  if (!plat) {
+    return -1;
+  }
+
+  zr_result_t r = plat_enter_raw(plat);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_enter_raw() in pipe mode returned %d\n", (int)r);
+    return -1;
+  }
+
+  plat_size_t size;
+  memset(&size, 0, sizeof(size));
+  r = plat_get_size(plat, &size);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_get_size() in pipe mode returned %d\n", (int)r);
+    return -1;
+  }
+  if (size.cols != ZR_PIPE_MODE_EXPECTED_COLS || size.rows != ZR_PIPE_MODE_EXPECTED_ROWS) {
+    fprintf(stderr, "pipe-mode size mismatch: got=%ux%u expected=%ux%u\n", (unsigned)size.cols, (unsigned)size.rows,
+            (unsigned)ZR_PIPE_MODE_EXPECTED_COLS, (unsigned)ZR_PIPE_MODE_EXPECTED_ROWS);
+    return -1;
+  }
+
+  r = plat_leave_raw(plat);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_leave_raw() in pipe mode returned %d\n", (int)r);
+    return -1;
+  }
+  return 0;
+}
+
+static int zr_child_fd_leak_regression(int master_fd, int slave_fd) {
   if (setsid() < 0) {
     return zr_test_skip("setsid() failed; cannot acquire a controlling terminal");
   }
@@ -114,23 +191,9 @@ static int zr_child_main(int master_fd, int slave_fd) {
   }
   (void)close(tty_probe);
 
-  int in_pipe[2] = {-1, -1};
-  int out_pipe[2] = {-1, -1};
-  if (pipe(in_pipe) != 0 || pipe(out_pipe) != 0) {
+  if (zr_redirect_stdio_to_pipes() != 0) {
     return 2;
   }
-
-  if (dup2(in_pipe[0], STDIN_FILENO) < 0) {
-    return 2;
-  }
-  if (dup2(out_pipe[1], STDOUT_FILENO) < 0) {
-    return 2;
-  }
-
-  (void)close(in_pipe[0]);
-  (void)close(in_pipe[1]);
-  (void)close(out_pipe[0]);
-  (void)close(out_pipe[1]);
 
   /*
     Ensure we can still open one fd for `/dev/tty`, but not two fds for the
@@ -139,23 +202,26 @@ static int zr_child_main(int master_fd, int slave_fd) {
       - pipe() fails with EMFILE
   */
   zr_close_from(3);
-  if (zr_set_nofile_limit(4) != 0) {
+  if (zr_set_nofile_limit(ZR_NOFILE_LIMIT_FORCE_TTY_FALLBACK_FAIL) != 0) {
     return zr_test_skip("setrlimit(RLIMIT_NOFILE) failed");
   }
 
+  (void)unsetenv("ZIREAEL_POSIX_PIPE_MODE");
+
   plat_t* plat = NULL;
   plat_config_t cfg;
-  memset(&cfg, 0, sizeof(cfg));
-  cfg.requested_color_mode = PLAT_COLOR_MODE_UNKNOWN;
-  cfg.enable_mouse = 0u;
-  cfg.enable_bracketed_paste = 0u;
-  cfg.enable_focus_events = 0u;
-  cfg.enable_osc52 = 0u;
+  zr_init_default_cfg(&cfg);
 
   zr_result_t r = plat_create(&plat, &cfg);
-  if (r == ZR_OK) {
-    plat_destroy(plat);
+  if (r != ZR_ERR_PLATFORM) {
+    fprintf(stderr, "plat_create() fallback-failure path returned %d (expected %d)\n", (int)r, (int)ZR_ERR_PLATFORM);
+    if (r == ZR_OK && plat) {
+      plat_destroy(plat);
+    }
     return 2;
+  }
+  if (plat) {
+    plat_destroy(plat);
   }
 
   /*
@@ -171,7 +237,149 @@ static int zr_child_main(int master_fd, int slave_fd) {
   return 0;
 }
 
-int main(void) {
+static int zr_child_pipe_mode_without_controlling_tty(void) {
+  if (setsid() < 0) {
+    return zr_test_skip("setsid() failed; cannot detach from controlling terminal");
+  }
+  if (zr_redirect_stdio_to_pipes() != 0) {
+    return 2;
+  }
+
+  zr_close_from(3);
+  (void)unsetenv("ZIREAEL_POSIX_PIPE_MODE");
+
+  plat_t* plat = NULL;
+  plat_config_t cfg;
+  zr_init_default_cfg(&cfg);
+
+  zr_result_t r = plat_create(&plat, &cfg);
+  if (r != ZR_ERR_PLATFORM) {
+    fprintf(stderr, "plat_create() without pipe mode returned %d (expected %d)\n", (int)r, (int)ZR_ERR_PLATFORM);
+    if (r == ZR_OK && plat) {
+      plat_destroy(plat);
+    }
+    return 2;
+  }
+  if (plat) {
+    plat_destroy(plat);
+    plat = NULL;
+  }
+
+  if (setenv("ZIREAEL_POSIX_PIPE_MODE", "1", 1) != 0) {
+    fprintf(stderr, "setenv(ZIREAEL_POSIX_PIPE_MODE=1) failed: errno=%d\n", errno);
+    return 2;
+  }
+
+  r = plat_create(&plat, &cfg);
+  if (r != ZR_OK || !plat) {
+    fprintf(stderr, "plat_create() with explicit pipe mode failed: r=%d\n", (int)r);
+    return 2;
+  }
+  if (zr_expect_pipe_mode_contract(plat) != 0) {
+    plat_destroy(plat);
+    return 2;
+  }
+
+  plat_destroy(plat);
+  (void)unsetenv("ZIREAEL_POSIX_PIPE_MODE");
+  return 0;
+}
+
+static int zr_child_pipe_mode_skips_dev_tty(int master_fd, int slave_fd) {
+  if (setsid() < 0) {
+    return zr_test_skip("setsid() failed; cannot acquire a controlling terminal");
+  }
+
+  if (master_fd >= 0) {
+    (void)close(master_fd);
+    master_fd = -1;
+  }
+  if (slave_fd < 0) {
+    return zr_test_skip("PTY slave fd unavailable");
+  }
+  if (ioctl(slave_fd, TIOCSCTTY, 0) != 0) {
+    (void)close(slave_fd);
+    return zr_test_skip("ioctl(TIOCSCTTY) failed; cannot set controlling terminal");
+  }
+  (void)close(slave_fd);
+
+  int tty_probe = open("/dev/tty", O_RDWR | O_NOCTTY);
+  if (tty_probe < 0) {
+    return zr_test_skip("open(/dev/tty) failed; no controlling terminal available");
+  }
+  (void)close(tty_probe);
+
+  if (zr_redirect_stdio_to_pipes() != 0) {
+    return 2;
+  }
+
+  /*
+    With RLIMIT_NOFILE==5 and only {0,1,2} open:
+      - explicit pipe mode (no /dev/tty open) leaves room for self-pipe {3,4}
+      - any /dev/tty fallback attempt consumes fd 3 and makes pipe() fail
+  */
+  zr_close_from(3);
+  if (zr_set_nofile_limit(ZR_NOFILE_LIMIT_PIPE_MODE_BYPASS) != 0) {
+    return zr_test_skip("setrlimit(RLIMIT_NOFILE) failed");
+  }
+  if (setenv("ZIREAEL_POSIX_PIPE_MODE", "1", 1) != 0) {
+    fprintf(stderr, "setenv(ZIREAEL_POSIX_PIPE_MODE=1) failed: errno=%d\n", errno);
+    return 2;
+  }
+
+  plat_t* plat = NULL;
+  plat_config_t cfg;
+  zr_init_default_cfg(&cfg);
+
+  zr_result_t r = plat_create(&plat, &cfg);
+  if (r != ZR_OK || !plat) {
+    fprintf(stderr, "plat_create() in pipe mode + /dev/tty-available case failed: r=%d\n", (int)r);
+    return 2;
+  }
+  if (zr_expect_pipe_mode_contract(plat) != 0) {
+    plat_destroy(plat);
+    return 2;
+  }
+
+  plat_destroy(plat);
+  (void)unsetenv("ZIREAEL_POSIX_PIPE_MODE");
+  return 0;
+}
+
+typedef int (*zr_child_plain_fn_t)(void);
+typedef int (*zr_child_pty_fn_t)(int, int);
+
+static int zr_wait_child_exit_status(pid_t pid) {
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0) {
+    return 2;
+  }
+  if (WIFEXITED(status)) {
+    return WEXITSTATUS(status);
+  }
+  return 2;
+}
+
+static int zr_run_child_plain(zr_child_plain_fn_t fn) {
+  if (!fn) {
+    return 2;
+  }
+  pid_t pid = fork();
+  if (pid < 0) {
+    return 2;
+  }
+  if (pid == 0) {
+    const int child_rc = fn();
+    _exit((child_rc >= 0 && child_rc <= 255) ? child_rc : 2);
+  }
+  return zr_wait_child_exit_status(pid);
+}
+
+static int zr_run_child_with_pty(zr_child_pty_fn_t fn) {
+  if (!fn) {
+    return 2;
+  }
+
   int master_fd = -1;
   int slave_fd = -1;
   if (zr_make_pty_pair(&master_fd, &slave_fd) != 0) {
@@ -185,7 +393,8 @@ int main(void) {
     return 2;
   }
   if (pid == 0) {
-    return zr_child_main(master_fd, slave_fd);
+    const int child_rc = fn(master_fd, slave_fd);
+    _exit((child_rc >= 0 && child_rc <= 255) ? child_rc : 2);
   }
 
   /*
@@ -194,14 +403,27 @@ int main(void) {
   */
   (void)close(slave_fd);
 
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0) {
-    (void)close(master_fd);
-    return 2;
-  }
+  int rc = zr_wait_child_exit_status(pid);
   (void)close(master_fd);
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
+  return rc;
+}
+
+int main(void) {
+  int rc = zr_run_child_with_pty(zr_child_fd_leak_regression);
+  if (rc != 0) {
+    fprintf(stderr, "zr_child_fd_leak_regression failed: rc=%d\n", rc);
+    return rc;
   }
-  return 2;
+
+  rc = zr_run_child_plain(zr_child_pipe_mode_without_controlling_tty);
+  if (rc != 0) {
+    fprintf(stderr, "zr_child_pipe_mode_without_controlling_tty failed: rc=%d\n", rc);
+    return rc;
+  }
+
+  rc = zr_run_child_with_pty(zr_child_pipe_mode_skips_dev_tty);
+  if (rc != 0) {
+    fprintf(stderr, "zr_child_pipe_mode_skips_dev_tty failed: rc=%d\n", rc);
+  }
+  return rc;
 }

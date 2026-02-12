@@ -17,6 +17,7 @@ add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/unicode/zr_width.c
         ${PROJECT_SOURCE_DIR}/src/unicode/zr_wrap.c
         ${PROJECT_SOURCE_DIR}/src/util/zr_arena.c
+        ${PROJECT_SOURCE_DIR}/src/util/zr_assert.c
         ${PROJECT_SOURCE_DIR}/src/util/zr_caps.c
         ${PROJECT_SOURCE_DIR}/src/util/zr_log.c
         ${PROJECT_SOURCE_DIR}/src/util/zr_ring.c
@@ -26,6 +27,9 @@ add_library(zireael_unit_lib STATIC
 )
 
 target_link_libraries(zireael_unit_lib PRIVATE zireael_build_settings)
+target_compile_definitions(zireael_unit_lib PRIVATE
+        ZR_ENGINE_TESTING=1
+)
 target_include_directories(zireael_unit_lib PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
@@ -52,6 +56,7 @@ add_executable(zireael_unit_tests
         unit/test_engine_get_caps.c
         unit/test_engine_metrics_damage.c
         unit/test_engine_present_backpressure.c
+        unit/test_engine_restore_hooks.c
         unit/test_engine_present_single_flush.c
         unit/test_engine_submit_drawlist_no_partial_effects.c
         unit/test_engine_version_negotiation.c

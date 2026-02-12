@@ -56,6 +56,9 @@ enum {
   ZR_STYLE_ATTR_REVERSE = 1u << 3u,
   ZR_STYLE_ATTR_STRIKE = 1u << 4u,
   ZR_STYLE_ATTR_ALL_MASK = (1u << 5u) - 1u,
+  ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED = 0u,
+  ZR_WIN32_OUTPUT_WAIT_MODE_IMMEDIATE_READY = 1u,
+  ZR_WIN32_OUTPUT_WAIT_MODE_WAIT_HANDLE = 2u,
 };
 
 zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg);
@@ -81,7 +84,8 @@ struct plat_t {
   bool raw_active;
   bool has_pending_high_surrogate;
   uint16_t pending_high_surrogate;
-  uint8_t _pad[2];
+  uint8_t output_wait_mode;
+  uint8_t _pad[1];
 };
 
 static const char* zr_win32_getenv_nonempty(const char* key) {
@@ -663,16 +667,37 @@ static zr_result_t zr_win32_wait_handle_signaled(HANDLE h, int32_t timeout_ms) {
   return ZR_ERR_PLATFORM;
 }
 
-static uint8_t zr_win32_detect_output_wait_cap(HANDLE h_out) {
+/* Pick a deterministic output-wait strategy for the current stdout handle type. */
+static uint8_t zr_win32_detect_output_wait_mode(HANDLE h_out) {
   if (!h_out || h_out == INVALID_HANDLE_VALUE) {
-    return 0u;
-  }
-  if (GetFileType(h_out) != FILE_TYPE_PIPE) {
-    return 0u;
+    return ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED;
   }
 
-  const zr_result_t rc = zr_win32_wait_handle_signaled(h_out, 0);
-  return (rc == ZR_OK || rc == ZR_ERR_LIMIT) ? 1u : 0u;
+  const DWORD file_type = GetFileType(h_out);
+  if (file_type == FILE_TYPE_CHAR || file_type == FILE_TYPE_DISK) {
+    return ZR_WIN32_OUTPUT_WAIT_MODE_IMMEDIATE_READY;
+  }
+
+  if (file_type == FILE_TYPE_PIPE) {
+    const zr_result_t rc = zr_win32_wait_handle_signaled(h_out, 0);
+    if (rc == ZR_OK || rc == ZR_ERR_LIMIT) {
+      return ZR_WIN32_OUTPUT_WAIT_MODE_WAIT_HANDLE;
+    }
+    if (rc == ZR_ERR_UNSUPPORTED) {
+      /*
+        Some ConPTY pipe handles reject direct wait probes while output writes
+        are still valid. Prefer deterministic immediate-ready parity over
+        reporting unsupported in that case.
+      */
+      return ZR_WIN32_OUTPUT_WAIT_MODE_IMMEDIATE_READY;
+    }
+  }
+
+  return ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED;
+}
+
+static uint8_t zr_win32_output_wait_cap_from_mode(uint8_t wait_mode) {
+  return (wait_mode == ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED) ? 0u : 1u;
 }
 
 static zr_result_t zr_win32_write_cstr(HANDLE h_out, const uint8_t* s, size_t n_with_nul) {
@@ -891,6 +916,7 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->raw_active = false;
   plat->has_pending_high_surrogate = false;
   plat->pending_high_surrogate = 0u;
+  plat->output_wait_mode = ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED;
   plat->last_size.cols = 0u;
   plat->last_size.rows = 0u;
 
@@ -917,7 +943,8 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.supports_sync_update = zr_win32_detect_sync_update();
   plat->caps.supports_scroll_region = 1u;
   plat->caps.supports_cursor_shape = 1u;
-  plat->caps.supports_output_wait_writable = zr_win32_detect_output_wait_cap(plat->h_out);
+  plat->output_wait_mode = zr_win32_detect_output_wait_mode(plat->h_out);
+  plat->caps.supports_output_wait_writable = zr_win32_output_wait_cap_from_mode(plat->output_wait_mode);
   plat->caps.sgr_attrs_supported = zr_win32_detect_sgr_attrs_supported();
 
   /* Manual boolean capability overrides for non-standard terminals and CI harnesses. */
@@ -927,8 +954,22 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   zr_win32_cap_override("ZIREAEL_CAP_SYNC_UPDATE", &plat->caps.supports_sync_update);
   zr_win32_cap_override("ZIREAEL_CAP_SCROLL_REGION", &plat->caps.supports_scroll_region);
   zr_win32_cap_override("ZIREAEL_CAP_CURSOR_SHAPE", &plat->caps.supports_cursor_shape);
-  zr_win32_cap_override("ZIREAEL_CAP_OUTPUT_WAIT_WRITABLE", &plat->caps.supports_output_wait_writable);
   zr_win32_cap_override("ZIREAEL_CAP_FOCUS_EVENTS", &plat->caps.supports_focus_events);
+
+  /*
+    Keep cap + runtime behavior aligned:
+      - manual off always disables wait support
+      - manual on upgrades unsupported handles to immediate-ready mode
+  */
+  uint8_t output_wait_override = 0u;
+  if (zr_win32_env_bool_override("ZIREAEL_CAP_OUTPUT_WAIT_WRITABLE", &output_wait_override)) {
+    plat->caps.supports_output_wait_writable = output_wait_override;
+    if (output_wait_override == 0u) {
+      plat->output_wait_mode = ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED;
+    } else if (plat->output_wait_mode == ZR_WIN32_OUTPUT_WAIT_MODE_UNSUPPORTED) {
+      plat->output_wait_mode = ZR_WIN32_OUTPUT_WAIT_MODE_IMMEDIATE_READY;
+    }
+  }
 
   /* Optional attr-mask override (decimal or 0x... hex). */
   zr_win32_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS", &plat->caps.sgr_attrs_supported);
@@ -1238,7 +1279,14 @@ zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms) {
   if (plat->caps.supports_output_wait_writable == 0u) {
     return ZR_ERR_UNSUPPORTED;
   }
-  return zr_win32_wait_handle_signaled(plat->h_out, timeout_ms);
+
+  if (plat->output_wait_mode == ZR_WIN32_OUTPUT_WAIT_MODE_WAIT_HANDLE) {
+    return zr_win32_wait_handle_signaled(plat->h_out, timeout_ms);
+  }
+  if (plat->output_wait_mode == ZR_WIN32_OUTPUT_WAIT_MODE_IMMEDIATE_READY) {
+    return ZR_OK;
+  }
+  return ZR_ERR_UNSUPPORTED;
 }
 
 /* Wait for input or wake event; returns 1 if ready, 0 on timeout, or error code. */

@@ -34,17 +34,17 @@ enum {
 };
 
 typedef struct zr_color_env_case_t {
-  const char*       name;
-  const char*       term;
-  const char*       colorterm;
-  const char*       term_program;
-  const char*       kitty_window_id;
-  const char*       wezterm_pane;
-  const char*       wezterm_executable;
-  const char*       ghostty_resources_dir;
-  const char*       vte_version;
-  const char*       konsole_version;
-  const char*       wt_session;
+  const char* name;
+  const char* term;
+  const char* colorterm;
+  const char* term_program;
+  const char* kitty_window_id;
+  const char* wezterm_pane;
+  const char* wezterm_executable;
+  const char* ghostty_resources_dir;
+  const char* vte_version;
+  const char* konsole_version;
+  const char* wt_session;
 } zr_color_env_case_t;
 
 static int zr_test_skip(const char* reason) {
@@ -100,9 +100,16 @@ static int zr_env_set_optional(const char* key, const char* value) {
 }
 
 static int zr_clear_color_detection_env(void) {
-  static const char* kKeys[] = {"TERM",      "COLORTERM",      "TERM_PROGRAM",   "KITTY_WINDOW_ID",
-                                "WEZTERM_PANE", "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR",
-                                "VTE_VERSION", "KONSOLE_VERSION", "WT_SESSION"};
+  static const char* kKeys[] = {"TERM",
+                                "COLORTERM",
+                                "TERM_PROGRAM",
+                                "KITTY_WINDOW_ID",
+                                "WEZTERM_PANE",
+                                "WEZTERM_EXECUTABLE",
+                                "GHOSTTY_RESOURCES_DIR",
+                                "VTE_VERSION",
+                                "KONSOLE_VERSION",
+                                "WT_SESSION"};
   for (size_t i = 0u; i < sizeof(kKeys) / sizeof(kKeys[0]); i++) {
     if (zr_env_set_optional(kKeys[i], NULL) != 0) {
       fprintf(stderr, "unsetenv(%s) failed: errno=%d\n", kKeys[i], errno);
@@ -120,8 +127,7 @@ static int zr_apply_color_env_case(const zr_color_env_case_t* env_case) {
   if (zr_clear_color_detection_env() != 0) {
     return -1;
   }
-  if (zr_env_set_optional("TERM", env_case->term) != 0 ||
-      zr_env_set_optional("COLORTERM", env_case->colorterm) != 0 ||
+  if (zr_env_set_optional("TERM", env_case->term) != 0 || zr_env_set_optional("COLORTERM", env_case->colorterm) != 0 ||
       zr_env_set_optional("TERM_PROGRAM", env_case->term_program) != 0 ||
       zr_env_set_optional("KITTY_WINDOW_ID", env_case->kitty_window_id) != 0 ||
       zr_env_set_optional("WEZTERM_PANE", env_case->wezterm_pane) != 0 ||
@@ -206,13 +212,14 @@ static int zr_expect_color_mode(const char* label, const zr_color_env_case_t* en
 static int zr_run_color_detection_matrix(const plat_config_t* base_cfg) {
   static const struct {
     zr_color_env_case_t env_case;
-    plat_color_mode_t   expected_mode;
+    plat_color_mode_t expected_mode;
   } kCases[] = {
       {.env_case = {.name = "term-unset-defaults-16"}, .expected_mode = PLAT_COLOR_MODE_16},
       {.env_case = {.name = "term-empty-defaults-16", .term = ""}, .expected_mode = PLAT_COLOR_MODE_16},
       {.env_case = {.name = "term-dumb-wins-over-truecolor", .term = "dumb", .colorterm = "truecolor"},
        .expected_mode = PLAT_COLOR_MODE_16},
-      {.env_case = {.name = "term-256color-detects-256", .term = "xterm-256color"}, .expected_mode = PLAT_COLOR_MODE_256},
+      {.env_case = {.name = "term-256color-detects-256", .term = "xterm-256color"},
+       .expected_mode = PLAT_COLOR_MODE_256},
       {.env_case = {.name = "term-256color-case-insensitive", .term = "XTERM-256COLOR"},
        .expected_mode = PLAT_COLOR_MODE_256},
       {.env_case = {.name = "colorterm-24-bit-promotes-rgb", .term = "xterm-256color", .colorterm = "24-bit"},
@@ -220,7 +227,8 @@ static int zr_run_color_detection_matrix(const plat_config_t* base_cfg) {
       {.env_case = {.name = "colorterm-rgb-promotes-rgb", .term = "linux", .colorterm = "RGB"},
        .expected_mode = PLAT_COLOR_MODE_RGB},
       {.env_case = {.name = "term-direct-detects-rgb", .term = "xterm-direct"}, .expected_mode = PLAT_COLOR_MODE_RGB},
-      {.env_case = {.name = "term-24bit-token-detects-rgb", .term = "ansi-24bit"}, .expected_mode = PLAT_COLOR_MODE_RGB},
+      {.env_case = {.name = "term-24bit-token-detects-rgb", .term = "ansi-24bit"},
+       .expected_mode = PLAT_COLOR_MODE_RGB},
       {.env_case = {.name = "term-program-vscode-detects-rgb", .term = "vt100", .term_program = "VSCODE"},
        .expected_mode = PLAT_COLOR_MODE_RGB},
       {.env_case = {.name = "term-program-wezterm-detects-rgb", .term = "vt100", .term_program = "WezTerm"},
@@ -229,7 +237,9 @@ static int zr_run_color_detection_matrix(const plat_config_t* base_cfg) {
        .expected_mode = PLAT_COLOR_MODE_RGB},
       {.env_case = {.name = "wezterm-pane-env-detects-rgb", .term = "vt100", .wezterm_pane = "42"},
        .expected_mode = PLAT_COLOR_MODE_RGB},
-      {.env_case = {.name = "wezterm-executable-env-detects-rgb", .term = "vt100", .wezterm_executable = "/usr/bin/wezterm"},
+      {.env_case = {.name = "wezterm-executable-env-detects-rgb",
+                    .term = "vt100",
+                    .wezterm_executable = "/usr/bin/wezterm"},
        .expected_mode = PLAT_COLOR_MODE_RGB},
       {.env_case = {.name = "ghostty-env-detects-rgb", .term = "vt100", .ghostty_resources_dir = "/tmp/ghostty"},
        .expected_mode = PLAT_COLOR_MODE_RGB},
@@ -252,11 +262,11 @@ static int zr_run_color_detection_matrix(const plat_config_t* base_cfg) {
 }
 
 static int zr_run_request_clamp_matrix(const plat_config_t* base_cfg) {
-  static const plat_color_mode_t kRequestedModes[ZR_COLOR_REQUEST_COUNT] = {
-      PLAT_COLOR_MODE_UNKNOWN, PLAT_COLOR_MODE_16, PLAT_COLOR_MODE_256, PLAT_COLOR_MODE_RGB};
+  static const plat_color_mode_t kRequestedModes[ZR_COLOR_REQUEST_COUNT] = {PLAT_COLOR_MODE_UNKNOWN, PLAT_COLOR_MODE_16,
+                                                                            PLAT_COLOR_MODE_256, PLAT_COLOR_MODE_RGB};
   static const struct {
     zr_color_env_case_t env_case;
-    plat_color_mode_t   expected[ZR_COLOR_REQUEST_COUNT];
+    plat_color_mode_t expected[ZR_COLOR_REQUEST_COUNT];
   } kCases[] = {
       {.env_case = {.name = "clamp-detected-16-linux", .term = "linux"},
        .expected = {PLAT_COLOR_MODE_16, PLAT_COLOR_MODE_16, PLAT_COLOR_MODE_16, PLAT_COLOR_MODE_16}},
@@ -271,8 +281,8 @@ static int zr_run_request_clamp_matrix(const plat_config_t* base_cfg) {
   for (size_t case_index = 0u; case_index < sizeof(kCases) / sizeof(kCases[0]); case_index++) {
     for (size_t req_index = 0u; req_index < ZR_COLOR_REQUEST_COUNT; req_index++) {
       char label[128];
-      int  label_n = snprintf(label, sizeof(label), "%s/request=%u", kCases[case_index].env_case.name,
-                              (unsigned)kRequestedModes[req_index]);
+      int label_n = snprintf(label, sizeof(label), "%s/request=%u", kCases[case_index].env_case.name,
+                             (unsigned)kRequestedModes[req_index]);
       if (label_n <= 0 || (size_t)label_n >= sizeof(label)) {
         fprintf(stderr, "snprintf() failed while building clamp label\n");
         return -1;
@@ -280,7 +290,8 @@ static int zr_run_request_clamp_matrix(const plat_config_t* base_cfg) {
 
       plat_config_t cfg = *base_cfg;
       cfg.requested_color_mode = kRequestedModes[req_index];
-      if (zr_expect_color_mode(label, &kCases[case_index].env_case, &cfg, kCases[case_index].expected[req_index]) != 0) {
+      if (zr_expect_color_mode(label, &kCases[case_index].env_case, &cfg, kCases[case_index].expected[req_index]) !=
+          0) {
         return -1;
       }
     }
@@ -341,9 +352,8 @@ int main(void) {
       caps.supports_focus_events != 0u) {
     fprintf(stderr, "override mismatch: mouse=%u paste=%u focus=%u osc52=%u sync=%u scroll=%u cursor=%u\n",
             (unsigned)caps.supports_mouse, (unsigned)caps.supports_bracketed_paste,
-            (unsigned)caps.supports_focus_events, (unsigned)caps.supports_osc52,
-            (unsigned)caps.supports_sync_update, (unsigned)caps.supports_scroll_region,
-            (unsigned)caps.supports_cursor_shape);
+            (unsigned)caps.supports_focus_events, (unsigned)caps.supports_osc52, (unsigned)caps.supports_sync_update,
+            (unsigned)caps.supports_scroll_region, (unsigned)caps.supports_cursor_shape);
     goto cleanup;
   }
 

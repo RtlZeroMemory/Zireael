@@ -335,8 +335,8 @@ static bool zr_posix_term_program_indicates_truecolor(const char* term_program) 
 }
 
 static bool zr_posix_term_indicates_truecolor(const char* term) {
-  static const char* kTruecolorTerms[] = {"-direct", "truecolor", "24bit", "kitty", "wezterm",
-                                          "alacritty", "foot", "ghostty", "rio"};
+  static const char* kTruecolorTerms[] = {"-direct",   "truecolor", "24bit",   "kitty", "wezterm",
+                                          "alacritty", "foot",      "ghostty", "rio"};
   return zr_posix_str_has_any_ci(term, kTruecolorTerms, sizeof(kTruecolorTerms) / sizeof(kTruecolorTerms[0]));
 }
 
@@ -424,8 +424,8 @@ static uint8_t zr_posix_detect_focus_events(void) {
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  static const char* kFocusTerms[] = {"xterm", "screen", "tmux", "rxvt", "alacritty",
-                                      "kitty", "wezterm", "foot", "st",   "rio", "ghostty"};
+  static const char* kFocusTerms[] = {"xterm",   "screen", "tmux", "rxvt", "alacritty", "kitty",
+                                      "wezterm", "foot",   "st",   "rio",  "ghostty"};
   return zr_posix_str_has_any_ci(term, kFocusTerms, sizeof(kFocusTerms) / sizeof(kFocusTerms[0])) ? 1u : 0u;
 }
 
@@ -452,8 +452,8 @@ static uint32_t zr_posix_detect_sgr_attrs_supported(void) {
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  static const char* kRichAttrTerms[] = {"xterm", "screen", "tmux", "rxvt", "alacritty",
-                                         "kitty", "wezterm", "foot", "st",   "rio", "ghostty"};
+  static const char* kRichAttrTerms[] = {"xterm",   "screen", "tmux", "rxvt", "alacritty", "kitty",
+                                         "wezterm", "foot",   "st",   "rio",  "ghostty"};
   if (zr_posix_str_has_any_ci(term, kRichAttrTerms, sizeof(kRichAttrTerms) / sizeof(kRichAttrTerms[0]))) {
     attrs |= ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE;
   }

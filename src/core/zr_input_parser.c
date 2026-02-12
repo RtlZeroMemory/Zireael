@@ -361,7 +361,8 @@ static bool zr__parse_csi_simple_key(const uint8_t* bytes, size_t len, size_t i,
   return true;
 }
 
-static bool zr__parse_csi_focus_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key, size_t* out_consumed) {
+static bool zr__parse_csi_focus_key(const uint8_t* bytes, size_t len, size_t i, zr_key_t* out_key,
+                                    size_t* out_consumed) {
   if (!bytes || !out_key || !out_consumed) {
     return false;
   }

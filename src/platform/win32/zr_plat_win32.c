@@ -205,8 +205,8 @@ static bool zr_win32_detect_modern_vt_host(void) {
   }
 
   const char* term = zr_win32_getenv_nonempty("TERM");
-  static const char* kRichTerms[] = {"xterm", "screen", "tmux", "kitty", "wezterm", "alacritty",
-                                     "foot",  "ghostty", "rio"};
+  static const char* kRichTerms[] = {"xterm",     "screen", "tmux",    "kitty", "wezterm",
+                                     "alacritty", "foot",   "ghostty", "rio"};
   if (zr_win32_str_has_any_ci(term, kRichTerms, sizeof(kRichTerms) / sizeof(kRichTerms[0]))) {
     return true;
   }

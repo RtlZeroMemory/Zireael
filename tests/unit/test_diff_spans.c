@@ -303,11 +303,8 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_per_attr_controls_emission) {
   } zr_attr_case_t;
 
   static const zr_attr_case_t cases[] = {
-      {ZR_TEST_ATTR_BOLD, (uint8_t)'1'},
-      {ZR_TEST_ATTR_ITALIC, (uint8_t)'3'},
-      {ZR_TEST_ATTR_UNDERLINE, (uint8_t)'4'},
-      {ZR_TEST_ATTR_REVERSE, (uint8_t)'7'},
-      {ZR_TEST_ATTR_STRIKE, (uint8_t)'9'},
+      {ZR_TEST_ATTR_BOLD, (uint8_t)'1'},    {ZR_TEST_ATTR_ITALIC, (uint8_t)'3'}, {ZR_TEST_ATTR_UNDERLINE, (uint8_t)'4'},
+      {ZR_TEST_ATTR_REVERSE, (uint8_t)'7'}, {ZR_TEST_ATTR_STRIKE, (uint8_t)'9'},
   };
 
   const zr_style_t base = {0u, 0u, 0u, 0u};
@@ -347,8 +344,8 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_add_subset_is_ordered) {
 
   const zr_style_t base = {0u, 0u, 0u, 0u};
   zr_style_t want = base;
-  want.attrs = ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_ITALIC | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE |
-               ZR_TEST_ATTR_STRIKE;
+  want.attrs =
+      ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_ITALIC | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE | ZR_TEST_ATTR_STRIKE;
   zr_set_cell_ascii(&prev, 0u, (uint8_t)'X', base);
   zr_set_cell_ascii(&next, 0u, (uint8_t)'X', want);
 
@@ -356,7 +353,7 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_add_subset_is_ordered) {
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, supported);
 
   const uint8_t expected[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4',
       (uint8_t)';', (uint8_t)'9', (uint8_t)'m', (uint8_t)'X',
   };
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
@@ -391,12 +388,11 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_reset_then_add_transitions) {
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, supported);
 
   const uint8_t expected[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4', (uint8_t)'m', (uint8_t)'A',
-      0x1Bu,        (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';',
-      (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
-      (uint8_t)';', (uint8_t)'4', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0',
-      (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)'m', (uint8_t)'B', 0x1Bu,
-      (uint8_t)'[', (uint8_t)'7', (uint8_t)'m', (uint8_t)'C',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4', (uint8_t)'m', (uint8_t)'A', 0x1Bu,
+      (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';',
+      (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'4', (uint8_t)'8',
+      (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
+      (uint8_t)'m', (uint8_t)'B', 0x1Bu,        (uint8_t)'[', (uint8_t)'7', (uint8_t)'m', (uint8_t)'C',
   };
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
   ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)sizeof(expected));

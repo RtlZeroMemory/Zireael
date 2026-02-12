@@ -174,6 +174,194 @@ static int zr_read_caps_for_cfg(const plat_config_t* cfg, const char* context, p
   return 0;
 }
 
+static int zr_wait_output_rc_is_supported(zr_result_t r) {
+  return (r == ZR_OK || r == ZR_ERR_LIMIT) ? 1 : 0;
+}
+
+static int zr_set_temp_stdout(HANDLE* out_saved_stdout, HANDLE new_stdout, const char* label) {
+  if (!out_saved_stdout || !label || !new_stdout || new_stdout == INVALID_HANDLE_VALUE) {
+    return -1;
+  }
+
+  HANDLE saved_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+  if (!saved_stdout || saved_stdout == INVALID_HANDLE_VALUE) {
+    fprintf(stderr, "GetStdHandle(STD_OUTPUT_HANDLE) failed (%s)\n", label);
+    return -1;
+  }
+  if (!SetStdHandle(STD_OUTPUT_HANDLE, new_stdout)) {
+    fprintf(stderr, "SetStdHandle(STD_OUTPUT_HANDLE, new) failed (%s): gle=%lu\n", label,
+            (unsigned long)GetLastError());
+    return -1;
+  }
+  *out_saved_stdout = saved_stdout;
+  return 0;
+}
+
+static int zr_restore_stdout(HANDLE saved_stdout, const char* label) {
+  if (!saved_stdout || saved_stdout == INVALID_HANDLE_VALUE || !label) {
+    return -1;
+  }
+  if (!SetStdHandle(STD_OUTPUT_HANDLE, saved_stdout)) {
+    fprintf(stderr, "SetStdHandle(STD_OUTPUT_HANDLE, restore) failed (%s): gle=%lu\n", label,
+            (unsigned long)GetLastError());
+    return -1;
+  }
+  return 0;
+}
+
+/* Validate cap + runtime output wait behavior against the current active STDOUT handle. */
+static int zr_expect_output_wait_for_active_stdout(const plat_config_t* cfg, const char* label, uint8_t expected_cap,
+                                                   int expect_wait_supported) {
+  if (!cfg || !label) {
+    return -1;
+  }
+
+  int rc = -1;
+  plat_t* plat = NULL;
+  zr_result_t r = plat_create(&plat, cfg);
+  if (r != ZR_OK || !plat) {
+    fprintf(stderr, "plat_create() failed (%s): r=%d\n", label, (int)r);
+    return -1;
+  }
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  r = plat_get_caps(plat, &caps);
+  if (r != ZR_OK) {
+    fprintf(stderr, "plat_get_caps() failed (%s): r=%d\n", label, (int)r);
+    rc = -1;
+    goto destroy_plat;
+  }
+  if (caps.supports_output_wait_writable != expected_cap) {
+    fprintf(stderr, "output-writable cap mismatch (%s): got=%u want=%u\n", label,
+            (unsigned)caps.supports_output_wait_writable, (unsigned)expected_cap);
+    rc = -1;
+    goto destroy_plat;
+  }
+
+  r = plat_wait_output_writable(plat, 0);
+  if (expect_wait_supported) {
+    if (!zr_wait_output_rc_is_supported(r)) {
+      fprintf(stderr, "plat_wait_output_writable() should be supported (%s): r=%d\n", label, (int)r);
+      goto destroy_plat;
+    }
+  } else if (r != ZR_ERR_UNSUPPORTED) {
+    fprintf(stderr, "plat_wait_output_writable() should be unsupported (%s): r=%d\n", label, (int)r);
+    goto destroy_plat;
+  }
+
+  rc = 0;
+
+destroy_plat:
+  plat_destroy(plat);
+  return rc;
+}
+
+/*
+  Swap STDOUT for one handle type, then validate cap + runtime wait behavior.
+
+  Why: Win32 may expose stdout as console char, pipe (ConPTY), or disk/file.
+  This helper pins deterministic behavior across those handle classes.
+*/
+static int zr_expect_output_wait_for_stdout_handle(const plat_config_t* cfg, const char* label, HANDLE new_stdout,
+                                                   uint8_t expected_cap, int expect_wait_supported) {
+  HANDLE saved_stdout = NULL;
+  if (zr_set_temp_stdout(&saved_stdout, new_stdout, label) != 0) {
+    return -1;
+  }
+
+  const int rc =
+      zr_expect_output_wait_for_active_stdout(cfg, label, expected_cap, expect_wait_supported);
+  if (zr_restore_stdout(saved_stdout, label) != 0) {
+    return -1;
+  }
+  return rc;
+}
+
+static HANDLE zr_open_temp_output_file(char temp_name[MAX_PATH]) {
+  if (!temp_name) {
+    return INVALID_HANDLE_VALUE;
+  }
+  temp_name[0] = '\0';
+  if (GetTempFileNameA(".", "zrw", 0u, temp_name) == 0u) {
+    fprintf(stderr, "GetTempFileNameA() failed: gle=%lu\n", (unsigned long)GetLastError());
+    return INVALID_HANDLE_VALUE;
+  }
+
+  HANDLE h_file = CreateFileA(temp_name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              NULL, OPEN_EXISTING, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+  if (!h_file || h_file == INVALID_HANDLE_VALUE) {
+    fprintf(stderr, "CreateFileA(temp) failed: gle=%lu\n", (unsigned long)GetLastError());
+    (void)DeleteFileA(temp_name);
+    temp_name[0] = '\0';
+    return INVALID_HANDLE_VALUE;
+  }
+  return h_file;
+}
+
+static int zr_check_output_wait_char_case(const plat_config_t* base_cfg) {
+  HANDLE h_nul = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0u, NULL);
+  if (!h_nul || h_nul == INVALID_HANDLE_VALUE) {
+    fprintf(stderr, "CreateFileA(NUL) failed: gle=%lu\n", (unsigned long)GetLastError());
+    return -1;
+  }
+  const int rc = zr_expect_output_wait_for_stdout_handle(base_cfg, "output-writable-handle-char", h_nul, 1u, 1);
+  (void)CloseHandle(h_nul);
+  return rc;
+}
+
+static int zr_check_output_wait_pipe_case(const plat_config_t* base_cfg) {
+  HANDLE h_pipe_read = NULL;
+  HANDLE h_pipe_write = NULL;
+  if (!CreatePipe(&h_pipe_read, &h_pipe_write, NULL, 0u)) {
+    fprintf(stderr, "CreatePipe() failed: gle=%lu\n", (unsigned long)GetLastError());
+    return -1;
+  }
+  const int rc = zr_expect_output_wait_for_stdout_handle(base_cfg, "output-writable-handle-pipe", h_pipe_write, 1u, 1);
+  (void)CloseHandle(h_pipe_write);
+  (void)CloseHandle(h_pipe_read);
+  return rc;
+}
+
+static int zr_check_output_wait_disk_case(const plat_config_t* base_cfg) {
+  char temp_name[MAX_PATH];
+  HANDLE h_file = zr_open_temp_output_file(temp_name);
+  if (!h_file || h_file == INVALID_HANDLE_VALUE) {
+    return -1;
+  }
+  const int rc = zr_expect_output_wait_for_stdout_handle(base_cfg, "output-writable-handle-disk", h_file, 1u, 1);
+  (void)CloseHandle(h_file);
+  if (temp_name[0] != '\0') {
+    (void)DeleteFileA(temp_name);
+  }
+  return rc;
+}
+
+/*
+  Validate output-writable parity across common Win32 stdout handle classes.
+
+  Why: Engine config gates wait-for-output-drain on this cap. False unsupported
+  states on safe handle types break parity with POSIX and ConPTY environments.
+*/
+static int zr_run_output_writable_handle_type_checks(const plat_config_t* base_cfg) {
+  if (!base_cfg) {
+    return -1;
+  }
+  if (zr_env_set_optional("ZIREAEL_CAP_OUTPUT_WAIT_WRITABLE", NULL) != 0) {
+    return -1;
+  }
+  if (zr_check_output_wait_char_case(base_cfg) != 0) {
+    return -1;
+  }
+  if (zr_check_output_wait_pipe_case(base_cfg) != 0) {
+    return -1;
+  }
+  if (zr_check_output_wait_disk_case(base_cfg) != 0) {
+    return -1;
+  }
+  return 0;
+}
+
 /* Validate Win32 color clamp behavior: requested mode cannot exceed detected RGB. */
 static int zr_run_color_clamp_matrix(const plat_config_t* base_cfg) {
   static const struct {
@@ -282,9 +470,17 @@ static int zr_run_output_writable_override_checks(const plat_config_t* base_cfg)
   if (zr_apply_host_env_case(&kHost) != 0) {
     return -1;
   }
+  if (zr_run_output_writable_handle_type_checks(base_cfg) != 0) {
+    return -1;
+  }
 
   plat_caps_t caps_baseline;
   if (zr_read_caps_for_cfg(base_cfg, "output-writable-baseline", &caps_baseline) != 0) {
+    return -1;
+  }
+  if (caps_baseline.supports_output_wait_writable != 1u) {
+    fprintf(stderr, "output-writable baseline mismatch: got=%u want=1\n",
+            (unsigned)caps_baseline.supports_output_wait_writable);
     return -1;
   }
 

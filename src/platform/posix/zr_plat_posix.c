@@ -3,6 +3,7 @@
 
   Why: Implements the OS-facing platform boundary for POSIX terminals:
     - raw mode enter/leave (idempotent, best-effort restore on leave)
+    - explicit non-TTY pipe mode (env-gated, deterministic, no termios on pipes)
     - non-blocking input reads
     - poll()-based wait that can be interrupted by a self-pipe wake (threads + signals)
 */
@@ -52,12 +53,15 @@ struct plat_t {
   bool termios_valid;
 
   bool raw_active;
+  bool explicit_pipe_mode;
 
   bool sigwinch_registered;
 };
 
 enum {
   ZR_POSIX_SIGWINCH_MAX_WAKE_FDS = 32u,
+  ZR_POSIX_PIPE_MODE_DEFAULT_COLS = 80u,
+  ZR_POSIX_PIPE_MODE_DEFAULT_ROWS = 24u,
   ZR_STYLE_ATTR_BOLD = 1u << 0u,
   ZR_STYLE_ATTR_ITALIC = 1u << 1u,
   ZR_STYLE_ATTR_UNDERLINE = 1u << 2u,
@@ -278,6 +282,14 @@ static bool zr_posix_env_bool_override(const char* key, uint8_t* out_value) {
     return true;
   }
   return false;
+}
+
+static bool zr_posix_pipe_mode_enabled(void) {
+  uint8_t enabled = 0u;
+  if (!zr_posix_env_bool_override("ZIREAEL_POSIX_PIPE_MODE", &enabled)) {
+    return false;
+  }
+  return enabled != 0u;
 }
 
 static void zr_posix_cap_override(const char* key, uint8_t* inout_cap) {
@@ -816,6 +828,100 @@ static zr_result_t zr_posix_wait_writable_timeout(int fd, int32_t timeout_ms) {
   }
 }
 
+static zr_result_t zr_posix_sigpipe_pending(bool* out_pending) {
+  if (!out_pending) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  sigset_t pending;
+  if (sigpending(&pending) != 0) {
+    return ZR_ERR_PLATFORM;
+  }
+  const int member = sigismember(&pending, SIGPIPE);
+  if (member < 0) {
+    return ZR_ERR_PLATFORM;
+  }
+  *out_pending = (member == 1);
+  return ZR_OK;
+}
+
+static zr_result_t zr_posix_sigpipe_consume_if_pending(const sigset_t* sigpipe_set) {
+  if (!sigpipe_set) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  bool pending = false;
+  zr_result_t pending_rc = zr_posix_sigpipe_pending(&pending);
+  if (pending_rc != ZR_OK) {
+    return pending_rc;
+  }
+  if (!pending) {
+    return ZR_OK;
+  }
+
+  sigset_t wait_set = *sigpipe_set;
+  int caught_signal = 0;
+  if (sigwait(&wait_set, &caught_signal) != 0 || caught_signal != SIGPIPE) {
+    return ZR_ERR_PLATFORM;
+  }
+  return ZR_OK;
+}
+
+/*
+  Perform one write() while suppressing thread-delivered SIGPIPE.
+
+  Why: Writing to a closed pipe/socket may raise SIGPIPE with default process
+  termination. The platform contract requires deterministic error returns
+  (ZR_ERR_PLATFORM) instead of process termination.
+*/
+static zr_result_t zr_posix_write_once_no_sigpipe(int fd, const uint8_t* bytes, size_t len, ssize_t* out_n,
+                                                   int* out_errno) {
+  if (!bytes || !out_n || !out_errno) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  *out_n = -1;
+  *out_errno = 0;
+
+  sigset_t sigpipe_set;
+  sigset_t old_mask;
+  if (sigemptyset(&sigpipe_set) != 0 || sigaddset(&sigpipe_set, SIGPIPE) != 0) {
+    return ZR_ERR_PLATFORM;
+  }
+  if (sigprocmask(SIG_BLOCK, &sigpipe_set, &old_mask) != 0) {
+    return ZR_ERR_PLATFORM;
+  }
+
+  zr_result_t result = ZR_OK;
+  int saved_errno = errno;
+  bool sigpipe_pending_before = false;
+
+  zr_result_t pending_rc = zr_posix_sigpipe_pending(&sigpipe_pending_before);
+  if (pending_rc != ZR_OK) {
+    result = pending_rc;
+    goto done;
+  }
+
+  *out_n = write(fd, bytes, len);
+  if (*out_n < 0) {
+    *out_errno = errno;
+    saved_errno = *out_errno;
+  }
+  if (*out_n < 0 && *out_errno == EPIPE && !sigpipe_pending_before) {
+    zr_result_t consume_rc = zr_posix_sigpipe_consume_if_pending(&sigpipe_set);
+    if (consume_rc != ZR_OK) {
+      result = consume_rc;
+      goto done;
+    }
+  }
+
+done:
+  if (sigprocmask(SIG_SETMASK, &old_mask, NULL) != 0) {
+    result = ZR_ERR_PLATFORM;
+  }
+  errno = saved_errno;
+  return result;
+}
+
 /* Write all bytes to fd, retrying on EINTR; returns error on partial write failure. */
 static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len) {
   if (len < 0) {
@@ -830,12 +936,19 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len)
 
   int32_t written = 0;
   while (written < len) {
-    ssize_t n = write(fd, bytes + (size_t)written, (size_t)(len - written));
+    ssize_t n = -1;
+    int write_errno = 0;
+    zr_result_t write_rc = zr_posix_write_once_no_sigpipe(fd, bytes + (size_t)written, (size_t)(len - written), &n,
+                                                           &write_errno);
+    if (write_rc != ZR_OK) {
+      return ZR_ERR_PLATFORM;
+    }
+
     if (n > 0) {
       written += (int32_t)n;
       continue;
     }
-    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    if (n < 0 && (write_errno == EAGAIN || write_errno == EWOULDBLOCK)) {
       /*
         Terminals are typically blocking, but stdout may be configured as
         non-blocking by a parent process or wrapper. Treat EAGAIN as a
@@ -847,7 +960,7 @@ static zr_result_t zr_posix_write_all(int fd, const uint8_t* bytes, int32_t len)
       }
       continue;
     }
-    if (n < 0 && errno == EINTR) {
+    if (n < 0 && write_errno == EINTR) {
       continue;
     }
     return ZR_ERR_PLATFORM;
@@ -991,6 +1104,18 @@ static zr_result_t zr_posix_create_bind_stdio_or_tty(plat_t* plat) {
   }
 
   if (isatty(plat->stdin_fd) != 0 && isatty(plat->stdout_fd) != 0) {
+    plat->explicit_pipe_mode = false;
+    return ZR_OK;
+  }
+
+  if (zr_posix_pipe_mode_enabled()) {
+    /*
+      Explicit non-TTY mode: keep stdio as-is and avoid /dev/tty fallback.
+
+      Why: Some wrappers intentionally run through pipes/redirected stdio and
+      still need deterministic engine creation and polling behavior.
+    */
+    plat->explicit_pipe_mode = true;
     return ZR_OK;
   }
 
@@ -1003,6 +1128,7 @@ static zr_result_t zr_posix_create_bind_stdio_or_tty(plat_t* plat) {
     return ZR_ERR_PLATFORM;
   }
   (void)zr_posix_set_fd_cloexec(fd);
+  plat->explicit_pipe_mode = false;
   plat->tty_fd_owned = fd;
   plat->stdin_fd = fd;
   plat->stdout_fd = fd;
@@ -1050,6 +1176,7 @@ zr_result_t zr_plat_posix_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->wake_read_fd = -1;
   plat->wake_write_fd = -1;
   plat->wake_slot_index = -1;
+  plat->explicit_pipe_mode = false;
 
   zr_result_t r = zr_posix_create_bind_stdio_or_tty(plat);
   if (r != ZR_OK) {
@@ -1116,6 +1243,10 @@ zr_result_t plat_enter_raw(plat_t* plat) {
   if (plat->raw_active) {
     return ZR_OK;
   }
+  if (plat->explicit_pipe_mode) {
+    plat->raw_active = true;
+    return ZR_OK;
+  }
 
   if (!plat->termios_valid) {
     if (tcgetattr(plat->stdin_fd, &plat->termios_saved) != 0) {
@@ -1159,6 +1290,10 @@ zr_result_t plat_leave_raw(plat_t* plat) {
   if (!plat) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  if (plat->explicit_pipe_mode) {
+    plat->raw_active = false;
+    return ZR_OK;
+  }
 
   /*
     Idempotent + best-effort:
@@ -1183,6 +1318,11 @@ zr_result_t plat_leave_raw(plat_t* plat) {
 zr_result_t plat_get_size(plat_t* plat, plat_size_t* out_size) {
   if (!plat || !out_size) {
     return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (plat->explicit_pipe_mode) {
+    out_size->cols = ZR_POSIX_PIPE_MODE_DEFAULT_COLS;
+    out_size->rows = ZR_POSIX_PIPE_MODE_DEFAULT_ROWS;
+    return ZR_OK;
   }
 
   struct winsize ws;

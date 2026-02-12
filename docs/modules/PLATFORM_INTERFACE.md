@@ -106,6 +106,11 @@ To support optional frame pacing, the platform interface exposes an output-writa
 - Preserves one SIGWINCH wake via overflow marker when a wake pipe is saturated
 - Chains to any previously installed `SIGWINCH` handler
 - Restores the prior handler when the final POSIX platform instance is destroyed
+- Default create path is unchanged: non-TTY stdio falls back to `/dev/tty` and fails with `ZR_ERR_PLATFORM` when no TTY
+  is available
+- `ZIREAEL_POSIX_PIPE_MODE=1` is an explicit opt-in for non-TTY stdio: skip `/dev/tty` fallback, treat
+  `plat_enter_raw`/`plat_leave_raw` as no-op success (no termios calls), and report deterministic size `80x24`
+- `plat_write_output`: suppresses SIGPIPE termination and returns `ZR_ERR_PLATFORM` on broken-pipe/EPIPE failures
 - `plat_wait_output_writable`: uses `poll(POLLOUT)` on stdout fd
 
 ### Windows

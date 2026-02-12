@@ -13,6 +13,7 @@
 
 #include "platform/zr_platform.h"
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -28,6 +29,8 @@ static const uint8_t ZR_WIN32_SEQ_SCROLL_REGION_RESET[] = "\x1b[r";
 static const uint8_t ZR_WIN32_SEQ_SGR_RESET[] = "\x1b[0m";
 static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_ENABLE[] = "\x1b[?2004h";
 static const uint8_t ZR_WIN32_SEQ_BRACKETED_PASTE_DISABLE[] = "\x1b[?2004l";
+static const uint8_t ZR_WIN32_SEQ_FOCUS_ENABLE[] = "\x1b[?1004h";
+static const uint8_t ZR_WIN32_SEQ_FOCUS_DISABLE[] = "\x1b[?1004l";
 /*
   Mouse tracking sequences (locked, parity with POSIX backend):
     - ?1000h: report button press/release
@@ -47,6 +50,12 @@ enum {
   ZR_WIN32_MOD_ALT_BIT = 1u << 1u,
   ZR_WIN32_MOD_CTRL_BIT = 1u << 2u,
   ZR_WIN32_MOD_META_BIT = 1u << 3u,
+  ZR_STYLE_ATTR_BOLD = 1u << 0u,
+  ZR_STYLE_ATTR_ITALIC = 1u << 1u,
+  ZR_STYLE_ATTR_UNDERLINE = 1u << 2u,
+  ZR_STYLE_ATTR_REVERSE = 1u << 3u,
+  ZR_STYLE_ATTR_STRIKE = 1u << 4u,
+  ZR_STYLE_ATTR_ALL_MASK = (1u << 5u) - 1u,
 };
 
 zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg);
@@ -113,6 +122,110 @@ static void zr_win32_cap_override(const char* key, uint8_t* inout_cap) {
   if (zr_win32_env_bool_override(key, &override_value)) {
     *inout_cap = override_value;
   }
+}
+
+static bool zr_win32_env_u32_override(const char* key, uint32_t* out_value) {
+  if (!key || !out_value) {
+    return false;
+  }
+
+  const char* v = zr_win32_getenv_nonempty(key);
+  if (!v) {
+    return false;
+  }
+  if (v[0] == '-' || v[0] == '+') {
+    return false;
+  }
+
+  errno = 0;
+  char* end = NULL;
+  unsigned long parsed = strtoul(v, &end, 0);
+  if (errno != 0 || !end || *end != '\0' || parsed > UINT32_MAX) {
+    return false;
+  }
+
+  *out_value = (uint32_t)parsed;
+  return true;
+}
+
+static void zr_win32_cap_u32_override(const char* key, uint32_t* inout_cap) {
+  uint32_t override_value = 0u;
+  if (zr_win32_env_u32_override(key, &override_value)) {
+    *inout_cap = override_value;
+  }
+}
+
+static uint8_t zr_win32_ascii_tolower(uint8_t c) {
+  if (c >= (uint8_t)'A' && c <= (uint8_t)'Z') {
+    return (uint8_t)(c + ((uint8_t)'a' - (uint8_t)'A'));
+  }
+  return c;
+}
+
+static bool zr_win32_str_contains_ci(const char* s, const char* needle) {
+  if (!s || !needle || needle[0] == '\0') {
+    return false;
+  }
+
+  for (size_t i = 0u; s[i] != '\0'; i++) {
+    size_t j = 0u;
+    while (needle[j] != '\0' && s[i + j] != '\0' &&
+           zr_win32_ascii_tolower((uint8_t)s[i + j]) == zr_win32_ascii_tolower((uint8_t)needle[j])) {
+      j++;
+    }
+    if (needle[j] == '\0') {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool zr_win32_str_has_any_ci(const char* s, const char* const* needles, size_t count) {
+  if (!s || !needles) {
+    return false;
+  }
+  for (size_t i = 0u; i < count; i++) {
+    if (needles[i] && zr_win32_str_contains_ci(s, needles[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool zr_win32_detect_modern_vt_host(void) {
+  if (zr_win32_getenv_nonempty("WT_SESSION") || zr_win32_getenv_nonempty("KITTY_WINDOW_ID") ||
+      zr_win32_getenv_nonempty("WEZTERM_PANE") || zr_win32_getenv_nonempty("WEZTERM_EXECUTABLE") ||
+      zr_win32_getenv_nonempty("ANSICON")) {
+    return true;
+  }
+
+  const char* conemu_ansi = zr_win32_getenv_nonempty("ConEmuANSI");
+  if (conemu_ansi && (strcmp(conemu_ansi, "ON") == 0 || strcmp(conemu_ansi, "on") == 0)) {
+    return true;
+  }
+
+  const char* term = zr_win32_getenv_nonempty("TERM");
+  static const char* kRichTerms[] = {"xterm", "screen", "tmux", "kitty", "wezterm", "alacritty",
+                                     "foot",  "ghostty", "rio"};
+  if (zr_win32_str_has_any_ci(term, kRichTerms, sizeof(kRichTerms) / sizeof(kRichTerms[0]))) {
+    return true;
+  }
+
+  const char* term_program = zr_win32_getenv_nonempty("TERM_PROGRAM");
+  static const char* kPrograms[] = {"WezTerm", "vscode", "WarpTerminal"};
+  return zr_win32_str_has_any_ci(term_program, kPrograms, sizeof(kPrograms) / sizeof(kPrograms[0]));
+}
+
+static uint8_t zr_win32_detect_focus_events(void) {
+  return zr_win32_detect_modern_vt_host() ? 1u : 0u;
+}
+
+static uint32_t zr_win32_detect_sgr_attrs_supported(void) {
+  uint32_t attrs = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE;
+  if (zr_win32_detect_modern_vt_host()) {
+    attrs |= ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE;
+  }
+  return attrs;
 }
 
 static plat_color_mode_t zr_win32_color_mode_clamp(plat_color_mode_t requested, plat_color_mode_t detected) {
@@ -690,7 +803,7 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
 static void zr_win32_emit_enter_sequences_best_effort(plat_t* plat) {
   /*
     Locked ordering for enter:
-      ?1049h, ?25l, ?7h, ?2004h, ?1000h?1002h?1003h?1006h (when enabled by config/caps)
+      ?1049h, ?25l, ?7h, ?2004h, ?1004h, ?1000h?1002h?1003h?1006h (when enabled by config/caps)
   */
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_ALT_SCREEN_ENTER, sizeof(ZR_WIN32_SEQ_ALT_SCREEN_ENTER));
   (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_CURSOR_HIDE, sizeof(ZR_WIN32_SEQ_CURSOR_HIDE));
@@ -700,6 +813,9 @@ static void zr_win32_emit_enter_sequences_best_effort(plat_t* plat) {
     (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_BRACKETED_PASTE_ENABLE,
                               sizeof(ZR_WIN32_SEQ_BRACKETED_PASTE_ENABLE));
   }
+  if (plat->cfg.enable_focus_events && plat->caps.supports_focus_events) {
+    (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_FOCUS_ENABLE, sizeof(ZR_WIN32_SEQ_FOCUS_ENABLE));
+  }
   if (plat->cfg.enable_mouse && plat->caps.supports_mouse) {
     (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_MOUSE_ENABLE, sizeof(ZR_WIN32_SEQ_MOUSE_ENABLE));
   }
@@ -708,7 +824,7 @@ static void zr_win32_emit_enter_sequences_best_effort(plat_t* plat) {
 static void zr_win32_emit_leave_sequences_best_effort(plat_t* plat) {
   /*
     Best-effort restore on leave:
-      - disable mouse / bracketed paste
+      - disable mouse / focus / bracketed paste
       - reset scroll region + SGR state
       - show cursor
       - leave alt screen
@@ -716,6 +832,9 @@ static void zr_win32_emit_leave_sequences_best_effort(plat_t* plat) {
   */
   if (plat->cfg.enable_mouse && plat->caps.supports_mouse) {
     (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_MOUSE_DISABLE, sizeof(ZR_WIN32_SEQ_MOUSE_DISABLE));
+  }
+  if (plat->cfg.enable_focus_events && plat->caps.supports_focus_events) {
+    (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_FOCUS_DISABLE, sizeof(ZR_WIN32_SEQ_FOCUS_DISABLE));
   }
   if (plat->cfg.enable_bracketed_paste && plat->caps.supports_bracketed_paste) {
     (void)zr_win32_write_cstr(plat->h_out, ZR_WIN32_SEQ_BRACKETED_PASTE_DISABLE,
@@ -793,15 +912,15 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   plat->caps.color_mode = zr_win32_color_mode_clamp(cfg->requested_color_mode, PLAT_COLOR_MODE_RGB);
   plat->caps.supports_mouse = 1u;
   plat->caps.supports_bracketed_paste = 1u;
-  /* Focus in/out bytes are not normalized by the core parser in v1. */
-  plat->caps.supports_focus_events = 0u;
+  plat->caps.supports_focus_events = zr_win32_detect_focus_events();
   plat->caps.supports_osc52 = zr_win32_detect_osc52();
   plat->caps.supports_sync_update = zr_win32_detect_sync_update();
   plat->caps.supports_scroll_region = 1u;
   plat->caps.supports_cursor_shape = 1u;
   plat->caps.supports_output_wait_writable = zr_win32_detect_output_wait_cap(plat->h_out);
+  plat->caps.sgr_attrs_supported = zr_win32_detect_sgr_attrs_supported();
 
-  /* Manual capability overrides for non-standard terminals and CI harnesses. */
+  /* Manual boolean capability overrides for non-standard terminals and CI harnesses. */
   zr_win32_cap_override("ZIREAEL_CAP_MOUSE", &plat->caps.supports_mouse);
   zr_win32_cap_override("ZIREAEL_CAP_BRACKETED_PASTE", &plat->caps.supports_bracketed_paste);
   zr_win32_cap_override("ZIREAEL_CAP_OSC52", &plat->caps.supports_osc52);
@@ -809,10 +928,15 @@ zr_result_t zr_plat_win32_create(plat_t** out_plat, const plat_config_t* cfg) {
   zr_win32_cap_override("ZIREAEL_CAP_SCROLL_REGION", &plat->caps.supports_scroll_region);
   zr_win32_cap_override("ZIREAEL_CAP_CURSOR_SHAPE", &plat->caps.supports_cursor_shape);
   zr_win32_cap_override("ZIREAEL_CAP_OUTPUT_WAIT_WRITABLE", &plat->caps.supports_output_wait_writable);
+  zr_win32_cap_override("ZIREAEL_CAP_FOCUS_EVENTS", &plat->caps.supports_focus_events);
+
+  /* Optional attr-mask override (decimal or 0x... hex). */
+  zr_win32_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS", &plat->caps.sgr_attrs_supported);
+  zr_win32_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS_MASK", &plat->caps.sgr_attrs_supported);
+  plat->caps.sgr_attrs_supported &= ZR_STYLE_ATTR_ALL_MASK;
   plat->caps._pad0[0] = 0u;
   plat->caps._pad0[1] = 0u;
   plat->caps._pad0[2] = 0u;
-  plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 
   (void)zr_win32_query_size_best_effort(plat->h_out, &plat->last_size);
 

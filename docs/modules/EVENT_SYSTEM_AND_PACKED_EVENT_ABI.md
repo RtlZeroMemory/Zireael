@@ -40,7 +40,7 @@ Malformed UTF-8 is normalized to `U+FFFD` using the pinned invalid-sequence poli
 
 ## Key event fields
 
-- `key` — key code (escape, enter, arrows, F1-F12, etc.)
+- `key` — key code (escape, enter, arrows, focus in/out, F1-F12, etc.)
 - `mods` — modifier mask (shift, ctrl, alt, meta)
 - `action` — down, up, or repeat
 

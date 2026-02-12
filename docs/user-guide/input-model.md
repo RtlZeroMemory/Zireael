@@ -18,6 +18,10 @@ Zireael reads terminal input bytes, normalizes them into structured events, and 
 
 See [ABI -> Event Batch Format](../abi/event-batch-format.md).
 
+Supported key-sequence normalization includes common CSI/SS3 navigation keys,
+xterm focus in/out (`CSI I` / `CSI O`), SGR mouse, and CSI-based extended key
+forms (such as `CSI ... u` and `CSI 27;...~`).
+
 ## Timeout and Tick Behavior
 
 `engine_poll_events(timeout_ms, ...)`:

@@ -58,6 +58,12 @@ struct plat_t {
 
 enum {
   ZR_POSIX_SIGWINCH_MAX_WAKE_FDS = 32u,
+  ZR_STYLE_ATTR_BOLD = 1u << 0u,
+  ZR_STYLE_ATTR_ITALIC = 1u << 1u,
+  ZR_STYLE_ATTR_UNDERLINE = 1u << 2u,
+  ZR_STYLE_ATTR_REVERSE = 1u << 3u,
+  ZR_STYLE_ATTR_STRIKE = 1u << 4u,
+  ZR_STYLE_ATTR_ALL_MASK = (1u << 5u) - 1u,
 };
 
 static _Atomic int g_posix_wake_fd_slots[ZR_POSIX_SIGWINCH_MAX_WAKE_FDS];
@@ -215,6 +221,43 @@ static bool zr_posix_str_has_any(const char* s, const char* const* needles, size
   return false;
 }
 
+static uint8_t zr_posix_ascii_tolower(uint8_t c) {
+  if (c >= (uint8_t)'A' && c <= (uint8_t)'Z') {
+    return (uint8_t)(c + ((uint8_t)'a' - (uint8_t)'A'));
+  }
+  return c;
+}
+
+static bool zr_posix_str_contains_ci(const char* s, const char* needle) {
+  if (!s || !needle || needle[0] == '\0') {
+    return false;
+  }
+
+  for (size_t i = 0u; s[i] != '\0'; i++) {
+    size_t j = 0u;
+    while (needle[j] != '\0' && s[i + j] != '\0' &&
+           zr_posix_ascii_tolower((uint8_t)s[i + j]) == zr_posix_ascii_tolower((uint8_t)needle[j])) {
+      j++;
+    }
+    if (needle[j] == '\0') {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool zr_posix_str_has_any_ci(const char* s, const char* const* needles, size_t count) {
+  if (!s || !needles) {
+    return false;
+  }
+  for (size_t i = 0u; i < count; i++) {
+    if (needles[i] && zr_posix_str_contains_ci(s, needles[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool zr_posix_env_bool_override(const char* key, uint8_t* out_value) {
   if (!key || !out_value) {
     return false;
@@ -244,6 +287,37 @@ static void zr_posix_cap_override(const char* key, uint8_t* inout_cap) {
   }
 }
 
+static bool zr_posix_env_u32_override(const char* key, uint32_t* out_value) {
+  if (!key || !out_value) {
+    return false;
+  }
+
+  const char* v = zr_posix_getenv_nonempty(key);
+  if (!v) {
+    return false;
+  }
+  if (v[0] == '-' || v[0] == '+') {
+    return false;
+  }
+
+  errno = 0;
+  char* end = NULL;
+  unsigned long parsed = strtoul(v, &end, 0);
+  if (errno != 0 || !end || *end != '\0' || parsed > UINT32_MAX) {
+    return false;
+  }
+
+  *out_value = (uint32_t)parsed;
+  return true;
+}
+
+static void zr_posix_cap_u32_override(const char* key, uint32_t* inout_cap) {
+  uint32_t override_value = 0u;
+  if (zr_posix_env_u32_override(key, &override_value)) {
+    *inout_cap = override_value;
+  }
+}
+
 static bool zr_posix_term_supports_vt_common(void) {
   if (zr_posix_term_is_dumb()) {
     return false;
@@ -253,6 +327,40 @@ static bool zr_posix_term_supports_vt_common(void) {
   static const char* kVtTerms[] = {"xterm",     "screen", "tmux",    "rxvt", "vt", "linux",
                                    "alacritty", "kitty",  "wezterm", "foot", "st", "rio"};
   return zr_posix_str_has_any(term, kVtTerms, sizeof(kVtTerms) / sizeof(kVtTerms[0]));
+}
+
+static bool zr_posix_term_program_indicates_truecolor(const char* term_program) {
+  static const char* kPrograms[] = {"iTerm.app", "WezTerm", "Rio", "WarpTerminal", "vscode"};
+  return zr_posix_str_has_any_ci(term_program, kPrograms, sizeof(kPrograms) / sizeof(kPrograms[0]));
+}
+
+static bool zr_posix_term_indicates_truecolor(const char* term) {
+  static const char* kTruecolorTerms[] = {"-direct", "truecolor", "24bit", "kitty", "wezterm",
+                                          "alacritty", "foot", "ghostty", "rio"};
+  return zr_posix_str_has_any_ci(term, kTruecolorTerms, sizeof(kTruecolorTerms) / sizeof(kTruecolorTerms[0]));
+}
+
+static bool zr_posix_detect_truecolor_env(void) {
+  const char* colorterm = zr_posix_getenv_nonempty("COLORTERM");
+  if (zr_posix_str_contains_ci(colorterm, "truecolor") || zr_posix_str_contains_ci(colorterm, "24bit") ||
+      zr_posix_str_contains_ci(colorterm, "24-bit") || zr_posix_str_contains_ci(colorterm, "rgb")) {
+    return true;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID") || zr_posix_getenv_nonempty("WEZTERM_PANE") ||
+      zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE") || zr_posix_getenv_nonempty("GHOSTTY_RESOURCES_DIR") ||
+      zr_posix_getenv_nonempty("VTE_VERSION") || zr_posix_getenv_nonempty("KONSOLE_VERSION") ||
+      zr_posix_getenv_nonempty("WT_SESSION")) {
+    return true;
+  }
+
+  const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
+  if (zr_posix_term_program_indicates_truecolor(term_program)) {
+    return true;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  return zr_posix_term_indicates_truecolor(term);
 }
 
 static plat_color_mode_t zr_posix_color_mode_clamp(plat_color_mode_t requested, plat_color_mode_t detected) {
@@ -281,31 +389,12 @@ static plat_color_mode_t zr_posix_detect_color_mode(void) {
     return PLAT_COLOR_MODE_16;
   }
 
-  const char* colorterm = zr_posix_getenv_nonempty("COLORTERM");
-  if (colorterm) {
-    if (strstr(colorterm, "truecolor") || strstr(colorterm, "TRUECOLOR") || strstr(colorterm, "24bit") ||
-        strstr(colorterm, "24BIT")) {
-      return PLAT_COLOR_MODE_RGB;
-    }
-  }
-
-  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID")) {
-    return PLAT_COLOR_MODE_RGB;
-  }
-  if (zr_posix_getenv_nonempty("WEZTERM_PANE") || zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE")) {
-    return PLAT_COLOR_MODE_RGB;
-  }
-
-  const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
-  if (term_program && strcmp(term_program, "iTerm.app") == 0) {
-    return PLAT_COLOR_MODE_RGB;
-  }
-  if (term_program && (strcmp(term_program, "Rio") == 0 || strcmp(term_program, "rio") == 0)) {
+  if (zr_posix_detect_truecolor_env()) {
     return PLAT_COLOR_MODE_RGB;
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  if (term && strstr(term, "256color")) {
+  if (zr_posix_str_contains_ci(term, "256color")) {
     return PLAT_COLOR_MODE_256;
   }
   return PLAT_COLOR_MODE_16;
@@ -323,6 +412,23 @@ static uint8_t zr_posix_detect_bracketed_paste(void) {
   return zr_posix_term_supports_vt_common() ? 1u : 0u;
 }
 
+static uint8_t zr_posix_detect_focus_events(void) {
+  if (zr_posix_term_is_dumb()) {
+    return 0u;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID") || zr_posix_getenv_nonempty("WEZTERM_PANE") ||
+      zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE") || zr_posix_getenv_nonempty("GHOSTTY_RESOURCES_DIR") ||
+      zr_posix_getenv_nonempty("VTE_VERSION") || zr_posix_getenv_nonempty("WT_SESSION")) {
+    return 1u;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  static const char* kFocusTerms[] = {"xterm", "screen", "tmux", "rxvt", "alacritty",
+                                      "kitty", "wezterm", "foot", "st",   "rio", "ghostty"};
+  return zr_posix_str_has_any_ci(term, kFocusTerms, sizeof(kFocusTerms) / sizeof(kFocusTerms[0])) ? 1u : 0u;
+}
+
 static uint8_t zr_posix_detect_cursor_shape(void) {
   if (zr_posix_term_is_dumb()) {
     return 0u;
@@ -332,6 +438,26 @@ static uint8_t zr_posix_detect_cursor_shape(void) {
   static const char* kCursorTerms[] = {"xterm", "screen",  "tmux", "rxvt", "alacritty",
                                        "kitty", "wezterm", "foot", "st",   "rio"};
   return zr_posix_str_has_any(term, kCursorTerms, sizeof(kCursorTerms) / sizeof(kCursorTerms[0])) ? 1u : 0u;
+}
+
+static uint32_t zr_posix_detect_sgr_attrs_supported(void) {
+  if (zr_posix_term_is_dumb()) {
+    return 0u;
+  }
+
+  uint32_t attrs = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE;
+  if (zr_posix_detect_truecolor_env()) {
+    attrs |= ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE;
+    return attrs;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  static const char* kRichAttrTerms[] = {"xterm", "screen", "tmux", "rxvt", "alacritty",
+                                         "kitty", "wezterm", "foot", "st",   "rio", "ghostty"};
+  if (zr_posix_str_has_any_ci(term, kRichAttrTerms, sizeof(kRichAttrTerms) / sizeof(kRichAttrTerms[0]))) {
+    attrs |= ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE;
+  }
+  return attrs;
 }
 
 static uint8_t zr_posix_detect_osc52(void) {
@@ -751,7 +877,7 @@ static zr_result_t zr_posix_write_cstr(int fd, const char* s) {
 static void zr_posix_emit_enter_sequences(plat_t* plat) {
   /*
     Locked ordering for enter:
-      ?1049h, ?25l, ?7h, ?2004h, ?1000h?1002h?1003h?1006h (when enabled by config/caps)
+      ?1049h, ?25l, ?7h, ?2004h, ?1004h, ?1000h?1002h?1003h?1006h (when enabled by config/caps)
   */
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1049h");
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?25l");
@@ -759,6 +885,9 @@ static void zr_posix_emit_enter_sequences(plat_t* plat) {
 
   if (plat->cfg.enable_bracketed_paste && plat->caps.supports_bracketed_paste) {
     (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?2004h");
+  }
+  if (plat->cfg.enable_focus_events && plat->caps.supports_focus_events) {
+    (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1004h");
   }
   if (plat->cfg.enable_mouse && plat->caps.supports_mouse) {
     /*
@@ -775,7 +904,7 @@ static void zr_posix_emit_enter_sequences(plat_t* plat) {
 static void zr_posix_emit_leave_sequences(plat_t* plat) {
   /*
     Best-effort restore on leave:
-      - disable mouse / bracketed paste
+      - disable mouse / focus / bracketed paste
       - reset scroll region + SGR state
       - show cursor
       - leave alt screen
@@ -783,6 +912,9 @@ static void zr_posix_emit_leave_sequences(plat_t* plat) {
   */
   if (plat->cfg.enable_mouse && plat->caps.supports_mouse) {
     (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l");
+  }
+  if (plat->cfg.enable_focus_events && plat->caps.supports_focus_events) {
+    (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1004l");
   }
   if (plat->cfg.enable_bracketed_paste && plat->caps.supports_bracketed_paste) {
     (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?2004l");
@@ -803,16 +935,16 @@ static void zr_posix_set_caps_from_cfg(plat_t* plat, const plat_config_t* cfg) {
   plat->caps.color_mode = zr_posix_color_mode_clamp(cfg->requested_color_mode, detected_color);
   plat->caps.supports_mouse = zr_posix_detect_mouse_tracking();
   plat->caps.supports_bracketed_paste = zr_posix_detect_bracketed_paste();
-  /* Focus in/out bytes are not normalized by the core parser in v1. */
-  plat->caps.supports_focus_events = 0u;
+  plat->caps.supports_focus_events = zr_posix_detect_focus_events();
   plat->caps.supports_osc52 = zr_posix_detect_osc52();
   plat->caps.supports_sync_update = zr_posix_detect_sync_update();
   plat->caps.supports_scroll_region = zr_posix_detect_scroll_region();
   plat->caps.supports_cursor_shape = zr_posix_detect_cursor_shape();
   plat->caps.supports_output_wait_writable = 1u;
+  plat->caps.sgr_attrs_supported = zr_posix_detect_sgr_attrs_supported();
 
   /*
-    Manual capability overrides for non-standard terminals and CI harnesses.
+    Manual boolean capability overrides for non-standard terminals and CI harnesses.
 
     Values: 1/0, true/false, yes/no, on/off.
   */
@@ -822,11 +954,16 @@ static void zr_posix_set_caps_from_cfg(plat_t* plat, const plat_config_t* cfg) {
   zr_posix_cap_override("ZIREAEL_CAP_SYNC_UPDATE", &plat->caps.supports_sync_update);
   zr_posix_cap_override("ZIREAEL_CAP_SCROLL_REGION", &plat->caps.supports_scroll_region);
   zr_posix_cap_override("ZIREAEL_CAP_CURSOR_SHAPE", &plat->caps.supports_cursor_shape);
+  zr_posix_cap_override("ZIREAEL_CAP_FOCUS_EVENTS", &plat->caps.supports_focus_events);
+
+  /* Optional attr-mask override (decimal or 0x... hex). */
+  zr_posix_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS", &plat->caps.sgr_attrs_supported);
+  zr_posix_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS_MASK", &plat->caps.sgr_attrs_supported);
+  plat->caps.sgr_attrs_supported &= ZR_STYLE_ATTR_ALL_MASK;
 
   plat->caps._pad0[0] = 0u;
   plat->caps._pad0[1] = 0u;
   plat->caps._pad0[2] = 0u;
-  plat->caps.sgr_attrs_supported = 0xFFFFFFFFu;
 }
 
 static void zr_posix_create_cleanup(plat_t* plat) {

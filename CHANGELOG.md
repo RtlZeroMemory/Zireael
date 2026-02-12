@@ -5,6 +5,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.1 — 2026-02-12
+
+### Added
+
+- tests: expanded terminal edge-case coverage for higher CSI-tilde function keys, additional SGR mouse variants, unicode ZWJ/VS16 width policy vectors, wrap/tab boundary behavior, and mixed invalid/valid UTF-8 progression.
+- tests: added Win32 ConPTY integration coverage for capability overrides (color clamp matrix, focus/output-writable overrides, and SGR attribute-mask parsing/precedence).
+
+### Changed
+
+- core: focus key events (`ZR_KEY_FOCUS_IN` / `ZR_KEY_FOCUS_OUT`) are now gated by runtime config and backend capability before event packing.
+- tests: strengthened drawlist/diff limit and terminal-state assertions, including ANSI16 SGR emission and cursor-hide VT output vectors.
+
 ## 1.3.0 — 2026-02-12
 
 ### Added

@@ -270,8 +270,7 @@ static int zr_expect_output_wait_for_stdout_handle(const plat_config_t* cfg, con
     return -1;
   }
 
-  const int rc =
-      zr_expect_output_wait_for_active_stdout(cfg, label, expected_cap, expect_wait_supported);
+  const int rc = zr_expect_output_wait_for_active_stdout(cfg, label, expected_cap, expect_wait_supported);
   if (zr_restore_stdout(saved_stdout, label) != 0) {
     return -1;
   }
@@ -288,8 +287,9 @@ static HANDLE zr_open_temp_output_file(char temp_name[MAX_PATH]) {
     return INVALID_HANDLE_VALUE;
   }
 
-  HANDLE h_file = CreateFileA(temp_name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                              NULL, OPEN_EXISTING, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+  HANDLE h_file =
+      CreateFileA(temp_name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+                  OPEN_EXISTING, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
   if (!h_file || h_file == INVALID_HANDLE_VALUE) {
     fprintf(stderr, "CreateFileA(temp) failed: gle=%lu\n", (unsigned long)GetLastError());
     (void)DeleteFileA(temp_name);

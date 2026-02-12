@@ -720,6 +720,7 @@ static void zr_posix_emit_leave_sequences(plat_t* plat) {
   /*
     Best-effort restore on leave:
       - disable mouse / bracketed paste
+      - reset scroll region + SGR state
       - show cursor
       - leave alt screen
       - wrap policy: leave wrap enabled
@@ -731,6 +732,8 @@ static void zr_posix_emit_leave_sequences(plat_t* plat) {
     (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?2004l");
   }
 
+  (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[r");
+  (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[0m");
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?7h");
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?25h");
   (void)zr_posix_write_cstr(plat->stdout_fd, "\x1b[?1049l");

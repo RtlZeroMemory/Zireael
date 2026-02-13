@@ -49,6 +49,12 @@ Limits:
 - `cfg->limits` is `zr_limits_t` from `src/util/zr_caps.h` and includes deterministic caps used by the engine.
 - `zr_limits_t.out_max_bytes_per_frame` bounds the maximum bytes emitted by `engine_present()` and enables the
   single-flush-per-present contract.
+- `zr_limits_validate()` rejects zero-valued caps and enforces only
+  `arena_initial_bytes <= arena_max_total_bytes`; drawlist/diff caps are otherwise independent knobs (no cross-field
+  dominance constraints).
+- `zr_limits_t.dl_max_clip_depth` has a practical execution cap of `64` in `zr_dl_execute()` because the clip stack is
+  fixed-size (`kMaxClip + 1` slots). Values `> 64` can still pass `zr_limits_validate()`, but drawlist execution
+  deterministically returns `ZR_ERR_LIMIT` before command execution (no framebuffer/cursor partial effects).
 
 ABI requirements:
 

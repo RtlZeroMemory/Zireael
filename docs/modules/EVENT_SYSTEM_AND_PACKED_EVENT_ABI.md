@@ -25,9 +25,10 @@ Defined by `src/core/zr_event.h`.
 
 ## Drop counters
 
-`zr_event_queue.c` tracks `dropped_total` and `dropped_due_to_full` per queue (see `src/core/zr_event_queue.c:231-359`), but
-the ABI exposes only the `ZR_EV_BATCH_TRUNCATED` flag. There is no portable ABI call that reports the numeric counters,
-so wrappers must rely on truncation flags as the sole indication that events were discarded.
+- Packed event batch ABI exposes only per-batch truncation via `ZR_EV_BATCH_TRUNCATED` in `zr_evbatch_header_t.flags`.
+- Numeric aggregate drop telemetry is exposed via the metrics ABI:
+  `engine_get_metrics()` and `zr_metrics_t.events_dropped_total`.
+- Wrappers should treat truncation flags as batch-local signaling and metrics as cumulative drop counters.
 
 ## Event types
 

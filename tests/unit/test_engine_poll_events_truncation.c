@@ -6,6 +6,8 @@
       ZR_ERR_LIMIT and writes nothing.
     - If the output buffer fits the header but not all records, truncation is a
       success mode: TRUNCATED flag set and bytes_written returned.
+    - Record framing remains forward-compatible: unknown record types can be
+      skipped using record size to reach subsequent known records.
 */
 
 #include "zr_test.h"
@@ -21,9 +23,13 @@
 #include <stddef.h>
 #include <string.h>
 
-static size_t zr_align4(size_t v) { return (v + 3u) & ~(size_t)3u; }
+static size_t zr_align4(size_t v) {
+  return (v + 3u) & ~(size_t)3u;
+}
 
-static uint32_t zr_u32le_at(const uint8_t* p) { return zr_load_u32le(p); }
+static uint32_t zr_u32le_at(const uint8_t* p) {
+  return zr_load_u32le(p);
+}
 
 ZR_TEST_UNIT(engine_poll_events_truncates_as_success_with_flag) {
   mock_plat_reset();
@@ -62,8 +68,8 @@ ZR_TEST_UNIT(engine_poll_events_truncates_as_success_with_flag) {
 
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + 0u), ZR_EV_MAGIC);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + 4u), ZR_EVENT_BATCH_VERSION_V1);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 8u), (uint32_t)cap);       /* total_size */
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);                  /* event_count */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 8u), (uint32_t)cap); /* total_size */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);           /* event_count */
   ZR_ASSERT_TRUE((zr_u32le_at(out + 16u) & ZR_EV_BATCH_TRUNCATED) != 0u);
 
   engine_destroy(e);
@@ -99,6 +105,61 @@ ZR_TEST_UNIT(engine_poll_events_header_too_small_returns_limit_and_writes_nothin
   const int n = engine_poll_events(e, 0, out, (int)cap);
   ZR_ASSERT_TRUE(n == (int)ZR_ERR_LIMIT);
   ZR_ASSERT_MEMEQ(out, expect, sizeof(out));
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_poll_events_unknown_record_type_is_skippable_by_size) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_TRUE(engine_create(&e, &cfg) == ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  /* Drain initial resize event enqueued by engine_create(). */
+  {
+    uint8_t out0[128];
+    memset(out0, 0, sizeof(out0));
+    const int n0 = engine_poll_events(e, 0, out0, (int)sizeof(out0));
+    ZR_ASSERT_TRUE(n0 > 0);
+  }
+
+  /* Two key events: ESC [ A (UP), ESC [ B (DOWN). */
+  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'A', 0x1Bu, (uint8_t)'[', (uint8_t)'B'};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128];
+  memset(out, 0, sizeof(out));
+
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > (int)sizeof(zr_evbatch_header_t));
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 0u), ZR_EV_MAGIC);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 4u), ZR_EVENT_BATCH_VERSION_V1);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 2u);
+
+  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
+  const uint32_t rec0_size = zr_u32le_at(out + off_rec0 + 4u);
+  ZR_ASSERT_TRUE(rec0_size >= (uint32_t)sizeof(zr_ev_record_header_t));
+  ZR_ASSERT_TRUE((rec0_size & 3u) == 0u);
+  ZR_ASSERT_TRUE((off_rec0 + (size_t)rec0_size) <= (size_t)n);
+
+  const uint32_t unknown_type = 0x7FFFFFFFu;
+  zr_store_u32le(out + off_rec0 + 0u, unknown_type);
+
+  const size_t off_rec1 = off_rec0 + (size_t)rec0_size;
+  ZR_ASSERT_TRUE((off_rec1 + sizeof(zr_ev_record_header_t)) <= (size_t)n);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec1 + 0u), (uint32_t)ZR_EV_KEY);
+
+  const uint32_t rec1_size = zr_u32le_at(out + off_rec1 + 4u);
+  ZR_ASSERT_TRUE(rec1_size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_key_t)));
+  ZR_ASSERT_TRUE((off_rec1 + (size_t)rec1_size) <= (size_t)n);
+
+  const size_t off_payload = off_rec1 + sizeof(zr_ev_record_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 0u), (uint32_t)ZR_KEY_DOWN);
 
   engine_destroy(e);
 }

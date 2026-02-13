@@ -44,6 +44,11 @@ When enabled/supported:
 - paste content is emitted as `ZR_EV_PASTE`
 - payload includes declared byte length + UTF-8 bytes
 - wrapper must validate payload size before reading
+- if the end marker (`ESC[201~`) is missing or incomplete, the engine
+  performs a deterministic idle flush after 4 consecutive idle polls and emits
+  one `ZR_EV_PASTE` with bytes captured so far
+- when idle flush terminates paste, any buffered prefix bytes of the end marker
+  are treated as payload bytes
 
 ## User Events and Wakeups
 

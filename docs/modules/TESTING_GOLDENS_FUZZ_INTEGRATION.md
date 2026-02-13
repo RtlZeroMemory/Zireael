@@ -74,6 +74,18 @@ Build contract:
   - `zireael_libfuzz_utf8_decode`
   - `zireael_libfuzz_grapheme_iter`
 
+## Pinned corpus seeds
+
+Each libFuzzer harness ships with deterministic seeds under `tests/fuzz/corpus/<harness>/seed0.bin` so local
+reproductions, CI sharding, and nightly runs start from the same baseline bytes. The pinned seeds currently include:
+
+- `libfuzzer_drawlist_parser/seed0.bin`: a minimal `zr_dl_header_t` + `ZR_DL_OP_CLEAR`.
+- `libfuzzer_input_parser/seed0.bin`: a CSI Up escape sequence (`ESC [ A`).
+- `libfuzzer_utf8_decode/seed0.bin`: the UTF-8 string `"Hello 😄"`.
+- `libfuzzer_grapheme_iter/seed0.bin`: a simple grapheme with a combining accent (`áb`).
+
+Add new seeds to the same tree whenever new deterministic edge cases are required so libFuzzer harnesses keep reproducible baselines.
+
 ## Integration tests
 
 Purpose:

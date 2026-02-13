@@ -69,3 +69,8 @@ create a state where a continuation cell exists without a valid lead cell immedi
 Clipping MUST NOT affect cursor advancement. When a wide glyph cannot be fully written within the current clip, the
 draw is replaced with `U+FFFD` (width `1`) but the logical cursor advance remains `2`. This prevents clip-dependent text
 shifts where subsequent glyphs move into/out of the visible region.
+
+If clipping begins inside a continuation cell, the executor cannot safely reset the lead cell because it lies outside
+the clip. In that case `zr_fb_put_grapheme()` aborts without modifying either cell to preserve wide-glyph invariants
+(see `src/core/zr_framebuffer.c:446-516` and the regression in `tests/unit/test_clipping.c`). Wrappers should therefore not
+expect a replacement glyph to appear when only continuation cells are writable.

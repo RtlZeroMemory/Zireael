@@ -65,6 +65,7 @@ add_executable(zireael_unit_tests
         unit/test_clipping.c
         unit/test_blit.c
         unit/test_framebuffer_text.c
+        unit/test_framebuffer_primitives.c
         unit/test_drawlist_validate.c
         unit/test_event_pack.c
         unit/test_event_queue.c

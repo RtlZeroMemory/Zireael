@@ -115,3 +115,23 @@ ZR_TEST_UNIT(clipping_rects_with_non_positive_size_are_noops_for_fill_rect) {
 
   zr_fb_release(&fb);
 }
+
+ZR_TEST_UNIT(clipping_wide_glyph_noop_when_lead_outside_clip) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
+  zr_fill_ascii(ctx, &fb, (uint8_t)'.');
+
+  zr_rect_t stack[4];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, stack, 4u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_clip_push(&p, (zr_rect_t){1, 0, 1, 1}), ZR_OK);
+
+  const uint8_t wide = (uint8_t)'X';
+  const zr_style_t style = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 0, 0, &wide, 1u, 2u, &style), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 0, 0), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1, 0), (uint8_t)'.');
+
+  zr_fb_release(&fb);
+}

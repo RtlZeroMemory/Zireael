@@ -23,9 +23,13 @@
 #include <stddef.h>
 #include <string.h>
 
-static size_t zr_align4(size_t v) { return (v + 3u) & ~(size_t)3u; }
+static size_t zr_align4(size_t v) {
+  return (v + 3u) & ~(size_t)3u;
+}
 
-static uint32_t zr_u32le_at(const uint8_t* p) { return zr_load_u32le(p); }
+static uint32_t zr_u32le_at(const uint8_t* p) {
+  return zr_load_u32le(p);
+}
 
 ZR_TEST_UNIT(engine_poll_events_truncates_as_success_with_flag) {
   mock_plat_reset();
@@ -64,8 +68,8 @@ ZR_TEST_UNIT(engine_poll_events_truncates_as_success_with_flag) {
 
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + 0u), ZR_EV_MAGIC);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + 4u), ZR_EVENT_BATCH_VERSION_V1);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 8u), (uint32_t)cap);       /* total_size */
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);                  /* event_count */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 8u), (uint32_t)cap); /* total_size */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);           /* event_count */
   ZR_ASSERT_TRUE((zr_u32le_at(out + 16u) & ZR_EV_BATCH_TRUNCATED) != 0u);
 
   engine_destroy(e);

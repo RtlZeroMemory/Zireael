@@ -23,6 +23,12 @@ Defined by `src/core/zr_event.h`.
 - If the output buffer cannot fit the batch header, polling fails with `ZR_ERR_LIMIT`.
 - If some records don't fit, the batch is truncated as a **success**: `ZR_EV_BATCH_TRUNCATED` flag is set, only complete records emitted.
 
+## Drop counters
+
+`zr_event_queue.c` tracks `dropped_total` and `dropped_due_to_full` per queue (see `src/core/zr_event_queue.c:231-359`), but
+the ABI exposes only the `ZR_EV_BATCH_TRUNCATED` flag. There is no portable ABI call that reports the numeric counters,
+so wrappers must rely on truncation flags as the sole indication that events were discarded.
+
 ## Event types
 
 | Type | Value | Payload | Description |

@@ -28,8 +28,9 @@ enum {
   ZR_STYLE_ATTR_ITALIC = 1u << 1u,
   ZR_STYLE_ATTR_UNDERLINE = 1u << 2u,
   ZR_STYLE_ATTR_REVERSE = 1u << 3u,
-  ZR_STYLE_ATTR_STRIKE = 1u << 4u,
-  ZR_STYLE_ATTR_BASIC_MASK = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE,
+  ZR_STYLE_ATTR_DIM = 1u << 4u,
+  ZR_STYLE_ATTR_STRIKE = 1u << 5u,
+  ZR_STYLE_ATTR_BASIC_MASK = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE | ZR_STYLE_ATTR_DIM,
   ZR_COLOR_REQUEST_COUNT = 4u,
 };
 
@@ -391,6 +392,23 @@ int main(void) {
   }
   if (caps.sgr_attrs_supported != 0x3u) {
     fprintf(stderr, "sgr attrs override mismatch: got=0x%08X want=0x00000003\n", (unsigned)caps.sgr_attrs_supported);
+    goto cleanup;
+  }
+  (void)unsetenv("ZIREAEL_CAP_SGR_ATTRS_MASK");
+
+  if (setenv("ZIREAEL_CAP_SGR_ATTRS_MASK", "0x20", 1) != 0) {
+    fprintf(stderr, "setenv(ZIREAEL_CAP_SGR_ATTRS_MASK=0x20) failed: errno=%d\n", errno);
+    goto cleanup;
+  }
+  if (zr_apply_color_env_case(&kBaselineEnv) != 0) {
+    goto cleanup;
+  }
+  if (zr_read_caps_for_cfg(&cfg, "sgr-attrs-strike-bit-supported", &caps) != 0) {
+    goto cleanup;
+  }
+  if (caps.sgr_attrs_supported != (uint32_t)ZR_STYLE_ATTR_STRIKE) {
+    fprintf(stderr, "sgr attrs strike-bit mismatch: got=0x%08X want=0x%08X\n", (unsigned)caps.sgr_attrs_supported,
+            (unsigned)ZR_STYLE_ATTR_STRIKE);
     goto cleanup;
   }
   (void)unsetenv("ZIREAEL_CAP_SGR_ATTRS_MASK");

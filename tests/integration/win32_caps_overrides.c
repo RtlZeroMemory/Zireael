@@ -32,9 +32,10 @@ enum {
   ZR_STYLE_ATTR_ITALIC = 1u << 1u,
   ZR_STYLE_ATTR_UNDERLINE = 1u << 2u,
   ZR_STYLE_ATTR_REVERSE = 1u << 3u,
-  ZR_STYLE_ATTR_STRIKE = 1u << 4u,
-  ZR_STYLE_ATTR_BASIC_MASK = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE,
-  ZR_STYLE_ATTR_ALL_MASK = (1u << 5u) - 1u,
+  ZR_STYLE_ATTR_DIM = 1u << 4u,
+  ZR_STYLE_ATTR_STRIKE = 1u << 5u,
+  ZR_STYLE_ATTR_BASIC_MASK = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE | ZR_STYLE_ATTR_DIM,
+  ZR_STYLE_ATTR_ALL_MASK = (1u << 6u) - 1u,
 };
 
 typedef struct zr_host_env_case_t {
@@ -620,6 +621,13 @@ static int zr_run_sgr_override_matrix(const plat_config_t* base_cfg) {
     return -1;
   }
   if (zr_expect_sgr_attrs(base_cfg, "sgr-mask-hex-valid", 0x3u) != 0) {
+    return -1;
+  }
+
+  if (zr_env_set_optional("ZIREAEL_CAP_SGR_ATTRS_MASK", "0x20") != 0) {
+    return -1;
+  }
+  if (zr_expect_sgr_attrs(base_cfg, "sgr-mask-strike-bit-supported", (uint32_t)ZR_STYLE_ATTR_STRIKE) != 0) {
     return -1;
   }
 

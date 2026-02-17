@@ -95,7 +95,7 @@ On failure: `ZR_ERR_FORMAT` or `ZR_ERR_UNSUPPORTED`, no partial effects.
 typedef struct zr_dl_style_t {
   uint32_t fg;        // 0x00RRGGBB
   uint32_t bg;        // 0x00RRGGBB
-  uint32_t attrs;     // bold=0, italic=1, underline=2, reverse=3, strikethrough=4
+  uint32_t attrs;     // bold=0, italic=1, underline=2, reverse=3, dim=4, strikethrough=5
   uint32_t reserved0; // must be 0 in v1
 } zr_dl_style_t;
 ```

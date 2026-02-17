@@ -19,7 +19,8 @@ enum {
   ZR_TEST_ATTR_ITALIC = 1u << 1u,
   ZR_TEST_ATTR_UNDERLINE = 1u << 2u,
   ZR_TEST_ATTR_REVERSE = 1u << 3u,
-  ZR_TEST_ATTR_STRIKE = 1u << 4u,
+  ZR_TEST_ATTR_DIM = 1u << 4u,
+  ZR_TEST_ATTR_STRIKE = 1u << 5u,
 };
 
 typedef struct zr_diff_render_result_t {
@@ -304,7 +305,7 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_per_attr_controls_emission) {
 
   static const zr_attr_case_t cases[] = {
       {ZR_TEST_ATTR_BOLD, (uint8_t)'1'},    {ZR_TEST_ATTR_ITALIC, (uint8_t)'3'}, {ZR_TEST_ATTR_UNDERLINE, (uint8_t)'4'},
-      {ZR_TEST_ATTR_REVERSE, (uint8_t)'7'}, {ZR_TEST_ATTR_STRIKE, (uint8_t)'9'},
+      {ZR_TEST_ATTR_REVERSE, (uint8_t)'7'}, {ZR_TEST_ATTR_DIM, (uint8_t)'2'},    {ZR_TEST_ATTR_STRIKE, (uint8_t)'9'},
   };
 
   const zr_style_t base = {0u, 0u, 0u, 0u};

@@ -63,7 +63,7 @@ Raw mode enables unbuffered input and disables terminal echo/line editing.
 
 - `plat_caps_t.color_mode` — detected color mode (16 / 256 / RGB). Backends use conservative detection and clamp any
   wrapper `requested_color_mode` to avoid emitting higher-color SGR forms than the terminal/backend can handle.
-- `plat_caps_t.sgr_attrs_supported` — bitmask of supported style attrs (bold/italic/underline/reverse/strike) applied
+- `plat_caps_t.sgr_attrs_supported` — bitmask of supported style attrs (bold/italic/underline/reverse/dim/strike) applied
   by the diff renderer before SGR emission.
 - `plat_caps_t.supports_scroll_region` — safe to use DECSTBM + SU/SD for scroll optimizations
 - `plat_caps_t.supports_sync_update` — safe to wrap presents in DEC private mode `?2026` (synchronized updates)

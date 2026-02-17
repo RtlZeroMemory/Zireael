@@ -30,7 +30,10 @@ enum {
   ZR_STYLE_ATTR_REVERSE = 1u << 3u,
   ZR_STYLE_ATTR_DIM = 1u << 4u,
   ZR_STYLE_ATTR_STRIKE = 1u << 5u,
+  ZR_STYLE_ATTR_OVERLINE = 1u << 6u,
+  ZR_STYLE_ATTR_BLINK = 1u << 7u,
   ZR_STYLE_ATTR_BASIC_MASK = ZR_STYLE_ATTR_BOLD | ZR_STYLE_ATTR_UNDERLINE | ZR_STYLE_ATTR_REVERSE | ZR_STYLE_ATTR_DIM,
+  ZR_STYLE_ATTR_RICH_MASK = ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE | ZR_STYLE_ATTR_OVERLINE | ZR_STYLE_ATTR_BLINK,
   ZR_COLOR_REQUEST_COUNT = 4u,
 };
 
@@ -358,9 +361,9 @@ int main(void) {
     goto cleanup;
   }
 
-  if (caps.sgr_attrs_supported != (uint32_t)(ZR_STYLE_ATTR_BASIC_MASK | ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE)) {
+  if (caps.sgr_attrs_supported != (uint32_t)(ZR_STYLE_ATTR_BASIC_MASK | ZR_STYLE_ATTR_RICH_MASK)) {
     fprintf(stderr, "baseline sgr attrs mismatch: got=0x%08X want=0x%08X\n", (unsigned)caps.sgr_attrs_supported,
-            (unsigned)(ZR_STYLE_ATTR_BASIC_MASK | ZR_STYLE_ATTR_ITALIC | ZR_STYLE_ATTR_STRIKE));
+            (unsigned)(ZR_STYLE_ATTR_BASIC_MASK | ZR_STYLE_ATTR_RICH_MASK));
     goto cleanup;
   }
 
@@ -412,6 +415,57 @@ int main(void) {
     goto cleanup;
   }
   (void)unsetenv("ZIREAEL_CAP_SGR_ATTRS_MASK");
+
+  if (setenv("ZIREAEL_CAP_SGR_ATTRS_MASK", "0x40", 1) != 0) {
+    fprintf(stderr, "setenv(ZIREAEL_CAP_SGR_ATTRS_MASK=0x40) failed: errno=%d\n", errno);
+    goto cleanup;
+  }
+  if (zr_apply_color_env_case(&kBaselineEnv) != 0) {
+    goto cleanup;
+  }
+  if (zr_read_caps_for_cfg(&cfg, "sgr-attrs-overline-bit-supported", &caps) != 0) {
+    goto cleanup;
+  }
+  if (caps.sgr_attrs_supported != (uint32_t)ZR_STYLE_ATTR_OVERLINE) {
+    fprintf(stderr, "sgr attrs overline-bit mismatch: got=0x%08X want=0x%08X\n", (unsigned)caps.sgr_attrs_supported,
+            (unsigned)ZR_STYLE_ATTR_OVERLINE);
+    goto cleanup;
+  }
+  (void)unsetenv("ZIREAEL_CAP_SGR_ATTRS_MASK");
+
+  if (setenv("ZIREAEL_CAP_SGR_ATTRS_MASK", "0x80", 1) != 0) {
+    fprintf(stderr, "setenv(ZIREAEL_CAP_SGR_ATTRS_MASK=0x80) failed: errno=%d\n", errno);
+    goto cleanup;
+  }
+  if (zr_apply_color_env_case(&kBaselineEnv) != 0) {
+    goto cleanup;
+  }
+  if (zr_read_caps_for_cfg(&cfg, "sgr-attrs-blink-bit-supported", &caps) != 0) {
+    goto cleanup;
+  }
+  if (caps.sgr_attrs_supported != (uint32_t)ZR_STYLE_ATTR_BLINK) {
+    fprintf(stderr, "sgr attrs blink-bit mismatch: got=0x%08X want=0x%08X\n", (unsigned)caps.sgr_attrs_supported,
+            (unsigned)ZR_STYLE_ATTR_BLINK);
+    goto cleanup;
+  }
+  (void)unsetenv("ZIREAEL_CAP_SGR_ATTRS_MASK");
+
+  if (setenv("ZIREAEL_CAP_SGR_ATTRS", "0xC0", 1) != 0) {
+    fprintf(stderr, "setenv(ZIREAEL_CAP_SGR_ATTRS=0xC0) failed: errno=%d\n", errno);
+    goto cleanup;
+  }
+  if (zr_apply_color_env_case(&kBaselineEnv) != 0) {
+    goto cleanup;
+  }
+  if (zr_read_caps_for_cfg(&cfg, "sgr-attrs-high-bits-preserved", &caps) != 0) {
+    goto cleanup;
+  }
+  if (caps.sgr_attrs_supported != (uint32_t)(ZR_STYLE_ATTR_OVERLINE | ZR_STYLE_ATTR_BLINK)) {
+    fprintf(stderr, "sgr attrs high-bit override mismatch: got=0x%08X want=0x%08X\n",
+            (unsigned)caps.sgr_attrs_supported, (unsigned)(ZR_STYLE_ATTR_OVERLINE | ZR_STYLE_ATTR_BLINK));
+    goto cleanup;
+  }
+  (void)unsetenv("ZIREAEL_CAP_SGR_ATTRS");
 
   if (setenv("ZIREAEL_CAP_SGR_ATTRS_MASK", "-1", 1) != 0) {
     fprintf(stderr, "setenv(ZIREAEL_CAP_SGR_ATTRS_MASK=-1) failed: errno=%d\n", errno);

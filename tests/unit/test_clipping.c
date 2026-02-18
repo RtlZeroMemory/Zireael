@@ -136,7 +136,7 @@ ZR_TEST_UNIT(clipping_wide_glyph_noop_when_lead_outside_clip) {
   zr_fb_release(&fb);
 }
 
-ZR_TEST_UNIT(clipping_overwrite_continuation_cleans_lead_outside_clip) {
+ZR_TEST_UNIT(clipping_overwrite_continuation_does_not_mutate_lead_outside_clip) {
   zr_fb_t fb;
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 3u, 1u), ZR_OK);
   zr_fill_ascii(ctx, &fb, (uint8_t)'.');
@@ -157,14 +157,14 @@ ZR_TEST_UNIT(clipping_overwrite_continuation_cleans_lead_outside_clip) {
   const uint8_t a = (uint8_t)'A';
   ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 1, 0, &a, 1u, 1u, &style), ZR_OK);
 
-  /* Continuation overwrite must also clean lead outside clip. */
-  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 0u, 0u), (uint8_t)' ');
-  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), (uint8_t)'A');
+  /* Clip isolation: continuation-edge overwrite is rejected if pair is out of clip. */
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 0u, 0u), wide[0]);
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), 0u);
 
   zr_fb_release(&fb);
 }
 
-ZR_TEST_UNIT(clipping_overwrite_wide_lead_cleans_continuation_outside_clip) {
+ZR_TEST_UNIT(clipping_overwrite_wide_lead_does_not_mutate_continuation_outside_clip) {
   zr_fb_t fb;
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
   zr_fill_ascii(ctx, &fb, (uint8_t)'.');
@@ -185,9 +185,9 @@ ZR_TEST_UNIT(clipping_overwrite_wide_lead_cleans_continuation_outside_clip) {
   const uint8_t b = (uint8_t)'B';
   ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 1, 0, &b, 1u, 1u, &style), ZR_OK);
 
-  /* Lead overwrite must also clean continuation outside clip. */
-  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), (uint8_t)'B');
-  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 2u, 0u), (uint8_t)' ');
+  /* Clip isolation: lead overwrite is rejected if continuation is out of clip. */
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), wide[0]);
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 2u, 0u), 0u);
 
   zr_fb_release(&fb);
 }

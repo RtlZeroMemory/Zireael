@@ -5,6 +5,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.7 — 2026-02-18
+
+### Changed
+
+- core/framebuffer: `zr_fb_put_grapheme()` now normalizes empty width-1/2 payloads (`len == 0`) into drawable ASCII space cells (width `1`) to avoid non-drawable width-1 state.
+- core/diff: non-continuation empty cells now emit spaces for their display width, preventing terminal/internal cursor desynchronization on strict renderers.
+- docs: updated framebuffer/versioning documentation for the empty-cell normalization contract.
+
+### Added
+
+- tests: added framebuffer invariant coverage for empty width-1 grapheme normalization.
+- tests: added diff renderer regression coverage that requires emitting a space for empty width-1 cells.
+
 ## 1.3.6 — 2026-02-18
 
 ### Changed

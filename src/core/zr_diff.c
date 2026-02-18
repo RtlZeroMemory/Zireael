@@ -1128,6 +1128,19 @@ static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t 
       if (!zr_sb_write_bytes(&ctx->sb, c->glyph, (size_t)c->glyph_len)) {
         return ZR_ERR_LIMIT;
       }
+    } else {
+      /*
+       * Defensive normalization for non-continuation empty cells.
+       *
+       * Why: a styled cell must emit at least one printable byte per display
+       * column. Otherwise internal cursor accounting advances while the terminal
+       * cursor does not, producing strict-renderer artifacts.
+       */
+      for (uint8_t i = 0u; i < w; i++) {
+        if (!zr_sb_write_u8(&ctx->sb, (uint8_t)' ')) {
+          return ZR_ERR_LIMIT;
+        }
+      }
     }
 
     ctx->ts.cursor_x += (uint32_t)w;

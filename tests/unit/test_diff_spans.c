@@ -245,6 +245,46 @@ ZR_TEST_UNIT(diff_reanchors_after_non_ascii_width1_cell) {
   zr_fb_release(&next);
 }
 
+ZR_TEST_UNIT(diff_renders_space_for_empty_width1_cell) {
+  zr_fb_t prev = zr_make_fb_1row(2u);
+  zr_fb_t next = zr_make_fb_1row(2u);
+
+  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_set_cell_utf8(&next, 0u, (const uint8_t[4]){0u, 0u, 0u, 0u}, 0u, 1u, s);
+  zr_set_cell_ascii(&next, 1u, (uint8_t)'X', s);
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
+  initial.style = s;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[64];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  const uint8_t expected[] = {(uint8_t)' ', (uint8_t)'X'};
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
 ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
   zr_fb_t prev = zr_make_fb_1row(1u);
   zr_fb_t next = zr_make_fb_1row(1u);

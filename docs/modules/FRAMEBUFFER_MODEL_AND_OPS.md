@@ -61,6 +61,8 @@ create a state where a continuation cell exists without a valid lead cell immedi
 - `zr_fb_put_grapheme` — writes a pre-segmented grapheme with an explicit width (`1` or `2`):
   - If `len > ZR_CELL_GLYPH_MAX`, writes `U+FFFD` width `1`.
   - If `width == 2` but cannot write both cells within bounds+clip, writes `U+FFFD` width `1` (never half glyphs).
+  - Invariant-repair exception (LOCKED): when overwriting a continuation/lead edge, it may clear exactly one adjacent
+    paired cell (`x-1` or `x+1`) outside clip to prevent orphan wide-pair state.
 - `zr_fb_draw_text_bytes` — draws UTF-8 text by iterating graphemes and calling `zr_fb_put_grapheme`.
 - `zr_fb_blit_rect` — overlap-safe rectangle copy (memmove-like semantics) that preserves wide-glyph invariants.
 
@@ -70,7 +72,7 @@ Clipping MUST NOT affect cursor advancement. When a wide glyph cannot be fully w
 draw is replaced with `U+FFFD` (width `1`) but the logical cursor advance remains `2`. This prevents clip-dependent text
 shifts where subsequent glyphs move into/out of the visible region.
 
-If clipping begins inside a continuation cell, the executor cannot safely reset the lead cell because it lies outside
-the clip. In that case `zr_fb_put_grapheme()` aborts without modifying either cell to preserve wide-glyph invariants
-(see `src/core/zr_framebuffer.c:446-516` and the regression in `tests/unit/test_clipping.c`). Wrappers should therefore not
-expect a replacement glyph to appear when only continuation cells are writable.
+If clipping begins inside a continuation cell (or covers only a wide lead), `zr_fb_put_grapheme()` applies a bounded
+invariant-repair exception: it may clear the paired cell immediately adjacent to the target (`x-1` or `x+1`) even when
+that paired cell is outside clip. This is the only allowed out-of-clip mutation and prevents stale orphan lead/continuation
+pairs on incremental frames (see `tests/unit/test_clipping.c`).

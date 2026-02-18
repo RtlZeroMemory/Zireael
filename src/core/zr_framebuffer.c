@@ -460,8 +460,10 @@ static bool zr_painter_can_write_width2(const zr_fb_painter_t* p, uint32_t x, ui
 /*
  * Overwrite a single cell with a width-1 grapheme while preserving wide invariants.
  *
- * Why: Overwriting any part of an existing wide glyph must clear the paired cell,
- * but only when both cells are writable within the current clip.
+ * Why: Overwriting any part of an existing wide glyph must clear the paired cell.
+ * Clip exception (LOCKED): paired-cell invariant repair may touch exactly one
+ * immediate neighbor cell (x-1 or x+1) even when that neighbor is outside clip.
+ * No other out-of-clip writes are allowed.
  */
 static bool zr_painter_write_width1(zr_fb_painter_t* p, uint32_t x, uint32_t y, const uint8_t* bytes, size_t len,
                                     zr_style_t style) {
@@ -482,9 +484,6 @@ static bool zr_painter_write_width1(zr_fb_painter_t* p, uint32_t x, uint32_t y, 
     if (x == 0u) {
       return false;
     }
-    if (!zr_painter_can_touch(p, (int32_t)(x - 1u), (int32_t)y)) {
-      return false;
-    }
     zr_cell_t* lead = zr_fb_cell(p->fb, x - 1u, y);
     if (!lead) {
       return false;
@@ -498,9 +497,6 @@ static bool zr_painter_write_width1(zr_fb_painter_t* p, uint32_t x, uint32_t y, 
     if (x + 1u >= p->fb->cols) {
       return false;
     }
-    if (!zr_painter_can_touch(p, (int32_t)(x + 1u), (int32_t)y)) {
-      return false;
-    }
     zr_cell_t* cont = zr_fb_cell(p->fb, x + 1u, y);
     if (!cont) {
       return false;
@@ -512,9 +508,6 @@ static bool zr_painter_write_width1(zr_fb_painter_t* p, uint32_t x, uint32_t y, 
   if (x + 1u < p->fb->cols) {
     zr_cell_t* next = zr_fb_cell(p->fb, x + 1u, y);
     if (zr_cell_is_continuation(next)) {
-      if (!zr_painter_can_touch(p, (int32_t)(x + 1u), (int32_t)y)) {
-        return false;
-      }
       zr_cell_set_space(next, style);
     }
   }

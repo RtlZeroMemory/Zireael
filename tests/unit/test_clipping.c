@@ -135,3 +135,77 @@ ZR_TEST_UNIT(clipping_wide_glyph_noop_when_lead_outside_clip) {
 
   zr_fb_release(&fb);
 }
+
+ZR_TEST_UNIT(clipping_overwrite_continuation_repairs_pair_with_bounded_cleanup) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 5u, 1u), ZR_OK);
+  zr_fill_ascii(ctx, &fb, (uint8_t)'.');
+
+  zr_rect_t stack[4];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, stack, 4u), ZR_OK);
+
+  const zr_style_t style = zr_style0();
+  const uint8_t wide[] = {0xE7u, 0x95u, 0x8Cu}; /* U+754C '界' */
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 1, 0, wide, sizeof(wide), 2u, &style), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 0u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), wide[0]);
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 2u, 0u), 0u);
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 3u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 4u, 0u), (uint8_t)'.');
+
+  /* Allow writes only at x==2 (continuation); lead at x==1 is outside clip. */
+  ZR_ASSERT_EQ_U32(zr_fb_clip_push(&p, (zr_rect_t){2, 0, 1, 1}), ZR_OK);
+  const uint8_t a = (uint8_t)'A';
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 2, 0, &a, 1u, 1u, &style), ZR_OK);
+
+  /*
+   * Bounded exception: cleanup may touch only the adjacent pair cell (x==1).
+   * No other out-of-clip cells are mutated.
+   */
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 0u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), (uint8_t)' ');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 2u, 0u), (uint8_t)'A');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 3u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 4u, 0u), (uint8_t)'.');
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(clipping_overwrite_wide_lead_repairs_pair_with_bounded_cleanup) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 6u, 1u), ZR_OK);
+  zr_fill_ascii(ctx, &fb, (uint8_t)'.');
+
+  zr_rect_t stack[4];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, stack, 4u), ZR_OK);
+
+  const zr_style_t style = zr_style0();
+  const uint8_t wide[] = {0xE7u, 0x95u, 0x8Cu}; /* U+754C '界' */
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 2, 0, wide, sizeof(wide), 2u, &style), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 2u, 0u), wide[0]);
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 3u, 0u), 0u);
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 4u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 5u, 0u), (uint8_t)'.');
+
+  /* Allow writes only at x==2 (lead); continuation x==3 is outside clip. */
+  ZR_ASSERT_EQ_U32(zr_fb_clip_push(&p, (zr_rect_t){2, 0, 1, 1}), ZR_OK);
+  const uint8_t b = (uint8_t)'B';
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 2, 0, &b, 1u, 1u, &style), ZR_OK);
+
+  /*
+   * Bounded exception: cleanup may touch only the adjacent pair cell (x==3).
+   * No other out-of-clip cells are mutated.
+   */
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 1u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 2u, 0u), (uint8_t)'B');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 3u, 0u), (uint8_t)' ');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 4u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ch(&fb, 5u, 0u), (uint8_t)'.');
+
+  zr_fb_release(&fb);
+}

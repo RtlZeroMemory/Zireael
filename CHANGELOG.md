@@ -5,6 +5,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.8-alpha.1 — 2026-02-18
+
+### Changed
+
+- core/diff: when screen validity is unknown, renderer now establishes a deterministic blank baseline and forces full redraw if `prev` is not baseline-blank, avoiding stale/blank mismatch artifacts.
+- core/diff: baseline-clear overflow now falls back gracefully under very small per-frame output caps instead of entering a persistent `ZR_ERR_LIMIT` loop.
+- core/framebuffer: grapheme writes now sanitize invalid UTF-8 and C0/DEL/C1 control scalars to `U+FFFD` before storage to prevent control-byte emission in terminal output.
+
+### Added
+
+- tests: expanded diff terminal-state regressions for screen-invalid redraw correctness and low-cap fallback behavior.
+- tests: added golden/VT-model coverage for baseline-clear synchronization and strict terminal-state invariants.
+
 ## 1.3.7 — 2026-02-18
 
 ### Changed

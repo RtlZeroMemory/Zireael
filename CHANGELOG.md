@@ -5,6 +5,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.6 — 2026-02-18
+
+### Changed
+
+- core/framebuffer: codified a bounded paired-cell invariant-repair exception for clip-edge overwrites, permitting cleanup of only the immediate wide pair cell (`x-1` or `x+1`) to avoid orphan continuation/lead artifacts.
+- core/diff: added conservative cursor re-anchoring after non-ASCII or non-width-1 cell emission to prevent terminal cursor drift across mixed-width/font stacks.
+
+### Added
+
+- tests: added clip-edge regressions that prove paired-cell cleanup remains strictly bounded to adjacent pair cells.
+- tests: added diff regression coverage ensuring CUP re-anchor occurs after non-ASCII width-1 cells.
+
 ## 1.3.3 — 2026-02-12
 
 ### Changed

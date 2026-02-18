@@ -114,6 +114,16 @@ Fix / rationale (already implemented; pinned):
 - Zireael’s policy: any attribute clear falls back to reset-based absolute SGR (`0;...m`) to establish an exact style.
   `src/core/zr_diff.c:628` (`zr_emit_sgr_delta`).
 
+Minimal reproduction scenario:
+
+- `prev`: cell has an attribute enabled (e.g. `BOLD`) and renders correctly.
+- `next`: the same cell clears that attribute while keeping other fields stable.
+- If the renderer emits only add-deltas (or assumes terminal-specific off-codes), the attribute can remain stuck on in strict terminals.
+
+Fix plan / rationale:
+
+- If any attribute needs clearing, emit a reset-based absolute SGR (`0;...m`) to establish the exact desired style.
+
 Tests:
 
 - Golden: `diff_011_attr_clear_forces_absolute_sgr` (bytes pinned) + VT model state check.
@@ -191,6 +201,16 @@ Audit result:
 - Trailing cells that change from non-blank → blank are detected as dirty (`src/core/zr_diff.c:717`) and are repainted
   as spaces (normal glyph path) in the dirty span render (`src/core/zr_diff.c:1145`).
 
+Minimal reproduction scenario:
+
+- `prev`: a row ends with visible glyphs (e.g. "ABCDEF").
+- `next`: the row becomes shorter (e.g. "AB" followed by blanks).
+- If the renderer redraws only the shorter prefix, strict terminals will keep the old trailing glyphs visible.
+
+Fix plan / rationale:
+
+- Treat trailing cells that become blank as ordinary dirty cells and repaint them as spaces with the correct style, without using EL/ED.
+
 Tests:
 
 - Golden: `diff_009_eol_shrink_clears_trailing_cells`.
@@ -213,6 +233,16 @@ Audit result:
   - damage spans are expanded around wide cells via `src/core/zr_diff.c:1208`
 - Framebuffer writers preserve wide invariants (lead+continuation) and repair edge cases on overwrite:
   `src/core/zr_framebuffer.c:493`.
+
+Minimal reproduction scenario:
+
+- `prev`: contains a wide glyph (width 2) at column `x`, with its continuation at `x+1`.
+- `next`: clears or replaces the wide glyph with narrow content, making both cells blank.
+- If only the lead cell is repainted, strict terminals can retain the continuation occupancy and show a phantom half-cell artifact.
+
+Fix plan / rationale:
+
+- Expand dirty spans around wide glyphs and treat continuation-cell diffs as requiring repaint of the adjacent lead and or both cells.
 
 Tests:
 
@@ -272,6 +302,16 @@ Audit result:
   `src/core/zr_diff.c:1054` and `src/core/zr_diff.c:1088`.
 - Newly exposed lines are repainted full-width to avoid relying on terminal “blank insert” attributes:
   `src/core/zr_diff.c:1733`.
+
+Minimal reproduction scenario:
+
+- `prev`: a full-screen region contains distinct rows (e.g. row 0 = "AAAA", row 1 = "BBBB", ...).
+- `next`: rows are shifted by a scroll (up or down), exposing new blank lines at one edge.
+- If the renderer emits a scroll op but does not reset scroll margins (DECSTBM side effect) or does not repaint newly exposed lines, strict terminals can show stale content or wrong attribute-filled blanks.
+
+Fix plan / rationale:
+
+- When using scroll-region optimizations: emit DECSTBM to set margins, emit SU/SD, reset margins (`ESC[r`, homes cursor), then repaint newly exposed lines full-width with explicit spaces+style.
 
 Tests:
 

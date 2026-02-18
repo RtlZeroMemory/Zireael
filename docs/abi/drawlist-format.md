@@ -62,7 +62,7 @@ Malformed size/layout is rejected with `ZR_ERR_FORMAT` or `ZR_ERR_LIMIT`.
 ## Style Encoding (`zr_dl_style_t`)
 
 - `fg`, `bg`: `0x00RRGGBB`
-- `attrs`: style bitmask (bold/italic/underline/reverse/dim/strike)
+- `attrs`: style bitmask (bold/italic/underline/reverse/dim/strike/overline/blink)
 - `reserved0`: must be zero
 
 Capability note:

@@ -21,6 +21,8 @@ enum {
   ZR_TEST_ATTR_REVERSE = 1u << 3u,
   ZR_TEST_ATTR_DIM = 1u << 4u,
   ZR_TEST_ATTR_STRIKE = 1u << 5u,
+  ZR_TEST_ATTR_OVERLINE = 1u << 6u,
+  ZR_TEST_ATTR_BLINK = 1u << 7u,
 };
 
 typedef struct zr_diff_render_result_t {
@@ -300,12 +302,15 @@ ZR_TEST_UNIT(diff_sgr_attr_clear_falls_back_to_reset) {
 ZR_TEST_UNIT(diff_sgr_attr_mask_per_attr_controls_emission) {
   typedef struct zr_attr_case_t {
     uint32_t bit;
-    uint8_t sgr_digit;
+    const uint8_t* sgr_code;
+    size_t sgr_code_len;
   } zr_attr_case_t;
 
   static const zr_attr_case_t cases[] = {
-      {ZR_TEST_ATTR_BOLD, (uint8_t)'1'},    {ZR_TEST_ATTR_ITALIC, (uint8_t)'3'}, {ZR_TEST_ATTR_UNDERLINE, (uint8_t)'4'},
-      {ZR_TEST_ATTR_REVERSE, (uint8_t)'7'}, {ZR_TEST_ATTR_DIM, (uint8_t)'2'},    {ZR_TEST_ATTR_STRIKE, (uint8_t)'9'},
+      {ZR_TEST_ATTR_BOLD, (const uint8_t*)"1", 1u},      {ZR_TEST_ATTR_ITALIC, (const uint8_t*)"3", 1u},
+      {ZR_TEST_ATTR_UNDERLINE, (const uint8_t*)"4", 1u}, {ZR_TEST_ATTR_REVERSE, (const uint8_t*)"7", 1u},
+      {ZR_TEST_ATTR_DIM, (const uint8_t*)"2", 1u},       {ZR_TEST_ATTR_STRIKE, (const uint8_t*)"9", 1u},
+      {ZR_TEST_ATTR_OVERLINE, (const uint8_t*)"53", 2u}, {ZR_TEST_ATTR_BLINK, (const uint8_t*)"5", 1u},
   };
 
   const zr_style_t base = {0u, 0u, 0u, 0u};
@@ -319,12 +324,16 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_per_attr_controls_emission) {
     zr_set_cell_ascii(&next, 0u, (uint8_t)'X', want);
 
     const zr_diff_render_result_t with_support = zr_run_diff_render(&prev, &next, base, cases[i].bit);
-    const uint8_t expected_with_support[] = {
-        0x1Bu, (uint8_t)'[', cases[i].sgr_digit, (uint8_t)'m', (uint8_t)'X',
-    };
+    uint8_t expected_with_support[8];
+    expected_with_support[0] = 0x1Bu;
+    expected_with_support[1] = (uint8_t)'[';
+    memcpy(&expected_with_support[2], cases[i].sgr_code, cases[i].sgr_code_len);
+    expected_with_support[2u + cases[i].sgr_code_len] = (uint8_t)'m';
+    expected_with_support[3u + cases[i].sgr_code_len] = (uint8_t)'X';
+    const size_t expected_with_support_len = 4u + cases[i].sgr_code_len;
     ZR_ASSERT_EQ_U32(with_support.rc, ZR_OK);
-    ZR_ASSERT_EQ_U32(with_support.out_len, (uint32_t)sizeof(expected_with_support));
-    ZR_ASSERT_MEMEQ(with_support.out, expected_with_support, sizeof(expected_with_support));
+    ZR_ASSERT_EQ_U32(with_support.out_len, (uint32_t)expected_with_support_len);
+    ZR_ASSERT_MEMEQ(with_support.out, expected_with_support, expected_with_support_len);
     ZR_ASSERT_EQ_U32(with_support.final_state.style.attrs, cases[i].bit);
 
     const zr_diff_render_result_t without_support = zr_run_diff_render(&prev, &next, base, 0u);
@@ -345,17 +354,18 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_add_subset_is_ordered) {
 
   const zr_style_t base = {0u, 0u, 0u, 0u};
   zr_style_t want = base;
-  want.attrs =
-      ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_ITALIC | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE | ZR_TEST_ATTR_STRIKE;
+  want.attrs = ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_ITALIC | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE |
+               ZR_TEST_ATTR_STRIKE | ZR_TEST_ATTR_OVERLINE | ZR_TEST_ATTR_BLINK;
   zr_set_cell_ascii(&prev, 0u, (uint8_t)'X', base);
   zr_set_cell_ascii(&next, 0u, (uint8_t)'X', want);
 
-  const uint32_t supported = ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_STRIKE;
+  const uint32_t supported =
+      ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_STRIKE | ZR_TEST_ATTR_OVERLINE | ZR_TEST_ATTR_BLINK;
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, supported);
 
   const uint8_t expected[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4',
-      (uint8_t)';', (uint8_t)'9', (uint8_t)'m', (uint8_t)'X',
+      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4', (uint8_t)';', (uint8_t)'9',
+      (uint8_t)';', (uint8_t)'5', (uint8_t)'3', (uint8_t)';', (uint8_t)'5', (uint8_t)'m', (uint8_t)'X',
   };
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
   ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)sizeof(expected));

@@ -59,6 +59,7 @@ create a state where a continuation cell exists without a valid lead cell immedi
 - `zr_fb_draw_hline` / `zr_fb_draw_vline` / `zr_fb_draw_box` — ASCII line/box primitives.
 - `zr_fb_draw_scrollbar_v` / `zr_fb_draw_scrollbar_h` — ASCII scrollbars.
 - `zr_fb_put_grapheme` — writes a pre-segmented grapheme with an explicit width (`1` or `2`):
+  - If `len == 0`, normalizes to a single ASCII space (width `1`).
   - If `len > ZR_CELL_GLYPH_MAX`, writes `U+FFFD` width `1`.
   - If `width == 2` but cannot write both cells within bounds+clip, writes `U+FFFD` width `1` (never half glyphs).
   - Invariant-repair exception (LOCKED): when overwriting a continuation/lead edge, it may clear exactly one adjacent

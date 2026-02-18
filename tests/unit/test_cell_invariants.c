@@ -162,3 +162,30 @@ ZR_TEST_UNIT(cell_invariant_oversized_grapheme_renders_replacement) {
   /* --- Cleanup --- */
   zr_fb_release(&fb);
 }
+
+/*
+ * Test: cell_invariant_empty_width1_grapheme_normalizes_to_space
+ *
+ * Scenario: An empty width-1 grapheme payload should not create a non-drawable
+ *           width-1 cell. The framebuffer normalizes it to ASCII space.
+ */
+ZR_TEST_UNIT(cell_invariant_empty_width1_grapheme_normalizes_to_space) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
+  const zr_style_t s0 = zr_style0();
+  (void)zr_fb_clear(&fb, &s0);
+
+  zr_rect_t clip_stack[2];
+  zr_fb_painter_t p;
+  zr_painter_begin_1(ctx, &p, &fb, clip_stack, 2u);
+
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 0, 0, NULL, 0u, 1u, &s0), ZR_OK);
+
+  const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
+  ZR_ASSERT_TRUE(c != NULL);
+  ZR_ASSERT_EQ_U32(c->width, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph_len, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph[0], (uint8_t)' ');
+
+  zr_fb_release(&fb);
+}

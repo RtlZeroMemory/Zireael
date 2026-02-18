@@ -740,9 +740,22 @@ zr_result_t zr_fb_put_grapheme(zr_fb_painter_t* p, int32_t x, int32_t y, const u
   }
 
   const zr_style_t s = *style;
+  const uint8_t space = (uint8_t)' ';
   const uint8_t* out_bytes = bytes;
   size_t out_len = len;
   bool try_wide = (width == 2u);
+
+  /*
+   * Canonicalize empty graphemes to a drawable width-1 space.
+   *
+   * Why: width-1 cells with glyph_len==0 are non-drawable and can desynchronize
+   * terminal cursor state in strict renderers when diff emits style + no bytes.
+   */
+  if (out_len == 0u) {
+    out_bytes = &space;
+    out_len = 1u;
+    try_wide = false;
+  }
 
   if (out_len > (size_t)ZR_CELL_GLYPH_MAX) {
     out_bytes = ZR_UTF8_REPLACEMENT;

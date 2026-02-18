@@ -1,0 +1,9 @@
+# fixture_id: diff_008_screen_invalid_blank_baseline
+# purpose: when ZR_TERM_STATE_SCREEN_VALID is not set, renderer must establish a blank baseline
+#          using DECSTBM reset + baseline SGR + ED2 before applying sparse diffs.
+#
+# pinned:
+#   - caps.color_mode = RGB (truecolor)
+#   - enable_scroll_optimizations = 0
+#   - initial_term_state.flags: style/cursor valid, but SCREEN_VALID is NOT set
+#   - prev == next == 1x1 blank

@@ -81,6 +81,7 @@ add_executable(zireael_unit_tests
         unit/test_grapheme_iter.c
         unit/test_width.c
         unit/test_wrap.c
+        unit/zr_vt_model.c
         golden/zr_golden.c
         golden/golden_diff_renderer.c
         golden/golden_runner_smoke.c

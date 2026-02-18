@@ -21,6 +21,29 @@ is a **pure** renderer:
 - When scroll optimizations are enabled and `caps.supports_scroll_region == 1`, it may emit DECSTBM + SU/SD and redraw
   only newly exposed lines.
 
+#### Terminal state validity flags (`zr_term_state_t.flags`)
+
+`zr_term_state_t.flags` is a best-effort validity mask for the cached terminal state and baseline assumptions.
+
+Why: The engine sometimes knows its terminal bookkeeping is desynced (startup/resize). These bits let the diff renderer
+force re-establishment of baseline state even when numeric fields happen to match.
+
+Bits (see `src/core/zr_diff.h`):
+
+- `STYLE_VALID`: cached SGR style is known to match the terminal.
+- `CURSOR_POS_VALID`: cached cursor position is known to match the terminal.
+- `CURSOR_VIS_VALID`: cached cursor visibility is known to match the terminal.
+- `CURSOR_SHAPE_VALID`: cached cursor shape/blink is known to match the terminal.
+- `SCREEN_VALID`: terminal *screen contents* are known to match `prev`.
+
+When `SCREEN_VALID` is not set, the renderer establishes a known blank baseline **before** applying sparse diffs:
+
+- reset scroll region (`ESC[r`, homes cursor)
+- emit a deterministic baseline style (absolute SGR)
+- clear screen (`ESC[2J`)
+
+This prevents stale glyph artifacts in terminals that preserve screen contents across resizes.
+
 #### Damage rectangles
 
 The diff renderer computes a bounded, coalesced set of **damage rectangles** (cell-space) for the frame:

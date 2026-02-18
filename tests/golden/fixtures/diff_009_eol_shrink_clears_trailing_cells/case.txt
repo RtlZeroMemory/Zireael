@@ -1,0 +1,10 @@
+# fixture_id: diff_009_eol_shrink_clears_trailing_cells
+# purpose: when a line becomes shorter, renderer must clear trailing cells deterministically (spaces)
+#          to avoid residual artifacts in strict terminals.
+#
+# pinned:
+#   - caps.color_mode = RGB (truecolor)
+#   - enable_scroll_optimizations = 0
+#   - initial_term_state.flags = VALID_ALL
+#   - prev: "ABCDEF"
+#   - next: "AB" + blanks

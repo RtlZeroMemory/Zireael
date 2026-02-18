@@ -132,3 +132,55 @@ ZR_TEST_UNIT(framebuffer_draw_text_bytes_keycap_sequence_writes_wide_pair) {
 
   zr_fb_release(&fb);
 }
+
+ZR_TEST_UNIT(framebuffer_put_grapheme_replaces_invalid_utf8_bytes) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
+
+  const zr_style_t s0 = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, &s0), ZR_OK);
+
+  zr_rect_t clip_stack[2];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, clip_stack, 2u), ZR_OK);
+
+  /* Standalone UTF-8 continuation byte: invalid in UTF-8 mode. */
+  const uint8_t bad[] = {0x80u};
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 0, 0, bad, sizeof(bad), 1u, &s0), ZR_OK);
+
+  const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
+  ZR_ASSERT_TRUE(c != NULL);
+  ZR_ASSERT_EQ_U32(c->width, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph_len, 3u);
+  ZR_ASSERT_EQ_U32(c->glyph[0], 0xEFu);
+  ZR_ASSERT_EQ_U32(c->glyph[1], 0xBFu);
+  ZR_ASSERT_EQ_U32(c->glyph[2], 0xBDu);
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(framebuffer_put_grapheme_replaces_ascii_control_bytes) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
+
+  const zr_style_t s0 = zr_style0();
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, &s0), ZR_OK);
+
+  zr_rect_t clip_stack[2];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, clip_stack, 2u), ZR_OK);
+
+  /* U+001B ESC: printing raw ESC would corrupt the output stream. */
+  const uint8_t esc = 0x1Bu;
+  ZR_ASSERT_EQ_U32(zr_fb_put_grapheme(&p, 0, 0, &esc, 1u, 1u, &s0), ZR_OK);
+
+  const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
+  ZR_ASSERT_TRUE(c != NULL);
+  ZR_ASSERT_EQ_U32(c->width, 1u);
+  ZR_ASSERT_EQ_U32(c->glyph_len, 3u);
+  ZR_ASSERT_EQ_U32(c->glyph[0], 0xEFu);
+  ZR_ASSERT_EQ_U32(c->glyph[1], 0xBFu);
+  ZR_ASSERT_EQ_U32(c->glyph[2], 0xBDu);
+
+  zr_fb_release(&fb);
+}

@@ -59,9 +59,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_pos_forces_cup_even_at_home) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags =
-      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID |
-                ZR_TERM_STATE_SCREEN_VALID);
+  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
+                            ZR_TERM_STATE_CURSOR_SHAPE_VALID | ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();
@@ -110,9 +109,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_pos_forces_cup_without_frame_damage) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags =
-      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID |
-                ZR_TERM_STATE_SCREEN_VALID);
+  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
+                            ZR_TERM_STATE_CURSOR_SHAPE_VALID | ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_cursor_state_t desired;
@@ -171,9 +169,8 @@ ZR_TEST_UNIT(diff_unknown_style_forces_absolute_sgr_even_if_values_match) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags =
-      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID |
-                ZR_TERM_STATE_SCREEN_VALID);
+  initial.flags = (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
+                            ZR_TERM_STATE_CURSOR_SHAPE_VALID | ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();
@@ -225,9 +222,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_shape_emits_decsusr_when_showing_cursor) {
   initial.cursor_visible = 0u;
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
-  initial.flags =
-      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
-                ZR_TERM_STATE_SCREEN_VALID);
+  initial.flags = (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_STYLE_VALID |
+                            ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_cursor_state_t desired;
@@ -353,15 +349,13 @@ ZR_TEST_UNIT(diff_screen_invalid_establishes_blank_baseline) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
-  static const uint8_t expected[] =
-      "\x1b[r"
-      "\x1b[0;38;2;0;0;0;48;2;0;0;0m"
-      "\x1b[2J";
+  static const uint8_t expected[] = "\x1b[r"
+                                    "\x1b[0;38;2;0;0;0;48;2;0;0;0m"
+                                    "\x1b[2J";
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)(sizeof(expected) - 1u));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected) - 1u);
   ZR_ASSERT_TRUE((final_state.flags & ZR_TERM_STATE_SCREEN_VALID) != 0u);
@@ -406,16 +400,14 @@ ZR_TEST_UNIT(diff_screen_invalid_nonblank_prev_redraws_next_after_baseline) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
-  static const uint8_t expected[] =
-      "\x1b[r"
-      "\x1b[0;38;2;0;0;0;48;2;0;0;0m"
-      "\x1b[2J"
-      "X";
+  static const uint8_t expected[] = "\x1b[r"
+                                    "\x1b[0;38;2;0;0;0;48;2;0;0;0m"
+                                    "\x1b[2J"
+                                    "X";
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)(sizeof(expected) - 1u));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected) - 1u);
   ZR_ASSERT_TRUE((final_state.flags & ZR_TERM_STATE_SCREEN_VALID) != 0u);
@@ -465,9 +457,8 @@ ZR_TEST_UNIT(diff_screen_invalid_small_out_cap_falls_back_without_limit_error) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
   ZR_ASSERT_EQ_U32(out_len, 0u);
   ZR_ASSERT_TRUE((final_state.flags & ZR_TERM_STATE_SCREEN_VALID) == 0u);
@@ -510,9 +501,8 @@ ZR_TEST_UNIT(diff_screen_valid_does_not_emit_baseline_clear) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc =
-      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
-                     &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
   ZR_ASSERT_EQ_U32(out_len, 0u);
 

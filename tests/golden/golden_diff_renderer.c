@@ -129,8 +129,8 @@ static void zr_assert_fb_eq(zr_test_ctx_t* ctx, const zr_fb_t* a, const zr_fb_t*
 }
 
 static void zr_assert_vt_model_applies_diff(zr_test_ctx_t* ctx, const zr_fb_t* prev, const zr_fb_t* next,
-                                           const zr_term_state_t* initial_ts, const uint8_t* out, size_t out_len,
-                                           const zr_term_state_t* final_ts) {
+                                            const zr_term_state_t* initial_ts, const uint8_t* out, size_t out_len,
+                                            const zr_term_state_t* final_ts) {
   if (!prev || !next || !initial_ts || !final_ts) {
     zr_test_fail(ctx, __FILE__, __LINE__, "zr_assert_vt_model_applies_diff: NULL args");
     return;
@@ -508,9 +508,8 @@ ZR_TEST_GOLDEN(diff_008_screen_invalid_blank_baseline) {
   const plat_caps_t caps = zr_caps_rgb_all_attrs();
 
   zr_term_state_t initial = zr_term_default();
-  initial.flags =
-      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
-                ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID |
+                            ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
   initial.style = zr_style_default();
 
   zr_limits_t lim = zr_limits_default();

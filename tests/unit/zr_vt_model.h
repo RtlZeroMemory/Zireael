@@ -40,8 +40,11 @@ void zr_vt_model_release(zr_vt_model_t* m);
 zr_result_t zr_vt_model_reset(zr_vt_model_t* m, const zr_fb_t* screen, const zr_term_state_t* ts);
 zr_result_t zr_vt_model_apply(zr_vt_model_t* m, const uint8_t* bytes, size_t len);
 
-static inline const zr_fb_t* zr_vt_model_screen(const zr_vt_model_t* m) { return m ? &m->screen : NULL; }
-static inline const zr_term_state_t* zr_vt_model_term_state(const zr_vt_model_t* m) { return m ? &m->ts : NULL; }
+static inline const zr_fb_t* zr_vt_model_screen(const zr_vt_model_t* m) {
+  return m ? &m->screen : NULL;
+}
+static inline const zr_term_state_t* zr_vt_model_term_state(const zr_vt_model_t* m) {
+  return m ? &m->ts : NULL;
+}
 
 #endif /* ZR_TESTS_UNIT_ZR_VT_MODEL_H_INCLUDED */
-

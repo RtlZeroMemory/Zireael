@@ -1,0 +1,9 @@
+# fixture_id: diff_011_attr_clear_forces_absolute_sgr
+# purpose: clearing attributes (bold off) must use a reset-based absolute SGR sequence.
+#
+# pinned:
+#   - caps.color_mode = RGB (truecolor)
+#   - enable_scroll_optimizations = 0
+#   - initial_term_state.style: bold
+#   - prev: 'X' (bold)
+#   - next: 'X' (normal)

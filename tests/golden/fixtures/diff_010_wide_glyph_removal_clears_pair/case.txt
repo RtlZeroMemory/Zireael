@@ -1,0 +1,9 @@
+# fixture_id: diff_010_wide_glyph_removal_clears_pair
+# purpose: removing a wide glyph must clear both lead and continuation cells to avoid stale tail artifacts.
+#
+# pinned:
+#   - caps.color_mode = RGB (truecolor)
+#   - enable_scroll_optimizations = 0
+#   - initial_term_state.flags = VALID_ALL
+#   - prev: wide emoji at x=1
+#   - next: blanks

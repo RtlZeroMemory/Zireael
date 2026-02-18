@@ -60,7 +60,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_pos_forces_cup_even_at_home) {
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
   initial.flags =
-      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID |
+                ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();
@@ -110,7 +111,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_pos_forces_cup_without_frame_damage) {
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
   initial.flags =
-      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID |
+                ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_cursor_state_t desired;
@@ -170,7 +172,8 @@ ZR_TEST_UNIT(diff_unknown_style_forces_absolute_sgr_even_if_values_match) {
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
   initial.flags =
-      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID | ZR_TERM_STATE_CURSOR_SHAPE_VALID |
+                ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_limits_t lim = zr_limits_default();
@@ -223,7 +226,8 @@ ZR_TEST_UNIT(diff_unknown_cursor_shape_emits_decsusr_when_showing_cursor) {
   initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
   initial.cursor_blink = 0u;
   initial.flags =
-      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID);
+      (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
+                ZR_TERM_STATE_SCREEN_VALID);
   initial.style = base;
 
   zr_cursor_state_t desired;
@@ -310,6 +314,101 @@ ZR_TEST_UNIT(diff_hides_cursor_with_vt_sequence_when_requested) {
   };
   ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(diff_screen_invalid_establishes_blank_baseline) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 1u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&next, 1u, 1u), ZR_OK);
+
+  const zr_style_t base = zr_style_black_on_black();
+  (void)zr_fb_clear(&prev, &base);
+  (void)zr_fb_clear(&next, &base);
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.supports_cursor_shape = 0u;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.cursor_visible = 0u;
+  initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
+  initial.cursor_blink = 0u;
+  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID);
+  initial.style = base;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc =
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+
+  static const uint8_t expected[] =
+      "\x1b[r"
+      "\x1b[0;38;2;0;0;0;48;2;0;0;0m"
+      "\x1b[2J";
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)(sizeof(expected) - 1u));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected) - 1u);
+  ZR_ASSERT_TRUE((final_state.flags & ZR_TERM_STATE_SCREEN_VALID) != 0u);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(diff_screen_valid_does_not_emit_baseline_clear) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 1u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&next, 1u, 1u), ZR_OK);
+
+  const zr_style_t base = zr_style_black_on_black();
+  (void)zr_fb_clear(&prev, &base);
+  (void)zr_fb_clear(&next, &base);
+
+  plat_caps_t caps;
+  memset(&caps, 0, sizeof(caps));
+  caps.color_mode = PLAT_COLOR_MODE_RGB;
+  caps.supports_cursor_shape = 0u;
+  caps.sgr_attrs_supported = 0xFFFFFFFFu;
+
+  zr_term_state_t initial;
+  memset(&initial, 0, sizeof(initial));
+  initial.cursor_x = 0u;
+  initial.cursor_y = 0u;
+  initial.cursor_visible = 0u;
+  initial.cursor_shape = ZR_CURSOR_SHAPE_BLOCK;
+  initial.cursor_blink = 0u;
+  initial.flags = (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_SCREEN_VALID);
+  initial.style = base;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc =
+      zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out), &out_len,
+                     &final_state, &stats);
+  ZR_ASSERT_EQ_U32(rc, ZR_OK);
+  ZR_ASSERT_EQ_U32(out_len, 0u);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);

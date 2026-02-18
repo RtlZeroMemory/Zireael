@@ -13,6 +13,8 @@
 #include "core/zr_framebuffer.h"
 #include "platform/zr_platform.h"
 
+#include "unit/zr_vt_model.h"
+
 #include <string.h>
 
 static zr_style_t zr_style_default(void) {
@@ -79,6 +81,83 @@ static void zr_fb_fill_row_ascii(zr_fb_t* fb, uint32_t y, uint8_t ch, zr_style_t
   }
 }
 
+static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
+  if (!a || !b) {
+    return false;
+  }
+  if (a->glyph_len != b->glyph_len) {
+    return false;
+  }
+  if (a->width != b->width) {
+    return false;
+  }
+  if (a->style.fg_rgb != b->style.fg_rgb || a->style.bg_rgb != b->style.bg_rgb || a->style.attrs != b->style.attrs ||
+      a->style.reserved != b->style.reserved) {
+    return false;
+  }
+  if (a->glyph_len != 0u && memcmp(a->glyph, b->glyph, (size_t)a->glyph_len) != 0) {
+    return false;
+  }
+  return true;
+}
+
+static void zr_assert_fb_eq(zr_test_ctx_t* ctx, const zr_fb_t* a, const zr_fb_t* b) {
+  if (!a || !b) {
+    zr_test_fail(ctx, __FILE__, __LINE__, "zr_assert_fb_eq: NULL fb");
+    return;
+  }
+  if (a->cols != b->cols || a->rows != b->rows) {
+    zr_test_failf(ctx, __FILE__, __LINE__, "zr_assert_fb_eq: dims mismatch a=%ux%u b=%ux%u", (unsigned)a->cols,
+                  (unsigned)a->rows, (unsigned)b->cols, (unsigned)b->rows);
+    return;
+  }
+  if (!a->cells || !b->cells) {
+    zr_test_fail(ctx, __FILE__, __LINE__, "zr_assert_fb_eq: NULL cells");
+    return;
+  }
+
+  for (uint32_t y = 0u; y < a->rows; y++) {
+    for (uint32_t x = 0u; x < a->cols; x++) {
+      const zr_cell_t* ca = zr_fb_cell_const(a, x, y);
+      const zr_cell_t* cb = zr_fb_cell_const(b, x, y);
+      if (!zr_cell_eq(ca, cb)) {
+        zr_test_failf(ctx, __FILE__, __LINE__, "framebuffer mismatch at (%u,%u)", (unsigned)x, (unsigned)y);
+        return;
+      }
+    }
+  }
+}
+
+static void zr_assert_vt_model_applies_diff(zr_test_ctx_t* ctx, const zr_fb_t* prev, const zr_fb_t* next,
+                                           const zr_term_state_t* initial_ts, const uint8_t* out, size_t out_len,
+                                           const zr_term_state_t* final_ts) {
+  if (!prev || !next || !initial_ts || !final_ts) {
+    zr_test_fail(ctx, __FILE__, __LINE__, "zr_assert_vt_model_applies_diff: NULL args");
+    return;
+  }
+  zr_vt_model_t m;
+  ZR_ASSERT_TRUE(zr_vt_model_init(&m, next->cols, next->rows) == ZR_OK);
+  ZR_ASSERT_TRUE(zr_vt_model_reset(&m, prev, initial_ts) == ZR_OK);
+  ZR_ASSERT_TRUE(zr_vt_model_apply(&m, out, out_len) == ZR_OK);
+
+  const zr_term_state_t* model_ts = zr_vt_model_term_state(&m);
+  ZR_ASSERT_TRUE(model_ts != NULL);
+
+  ZR_ASSERT_EQ_U32(model_ts->cursor_x, final_ts->cursor_x);
+  ZR_ASSERT_EQ_U32(model_ts->cursor_y, final_ts->cursor_y);
+  ZR_ASSERT_EQ_U32(model_ts->cursor_visible, final_ts->cursor_visible);
+  ZR_ASSERT_EQ_U32(model_ts->cursor_shape, final_ts->cursor_shape);
+  ZR_ASSERT_EQ_U32(model_ts->cursor_blink, final_ts->cursor_blink);
+  ZR_ASSERT_EQ_U32(model_ts->flags, final_ts->flags);
+  ZR_ASSERT_EQ_U32(model_ts->style.fg_rgb, final_ts->style.fg_rgb);
+  ZR_ASSERT_EQ_U32(model_ts->style.bg_rgb, final_ts->style.bg_rgb);
+  ZR_ASSERT_EQ_U32(model_ts->style.attrs, final_ts->style.attrs);
+  ZR_ASSERT_EQ_U32(model_ts->style.reserved, final_ts->style.reserved);
+
+  zr_assert_fb_eq(ctx, zr_vt_model_screen(&m), next);
+  zr_vt_model_release(&m);
+}
+
 /*
  * Test: diff_001_min_text_origin
  *
@@ -115,6 +194,7 @@ ZR_TEST_GOLDEN(diff_001_min_text_origin) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_001_min_text_origin", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -153,6 +233,7 @@ ZR_TEST_GOLDEN(diff_007_sparse_single_cell_midline) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_007_sparse_single_cell_midline", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -200,6 +281,7 @@ ZR_TEST_GOLDEN(diff_004_scroll_region_scroll_up_fullscreen) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_004_scroll_region_scroll_up_fullscreen", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -248,6 +330,7 @@ ZR_TEST_GOLDEN(diff_002_style_change_single_glyph) {
 
   /* --- Assert --- */
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_002_style_change_single_glyph", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   /* --- Cleanup --- */
   zr_fb_release(&prev);
@@ -296,6 +379,7 @@ ZR_TEST_GOLDEN(diff_003_wide_glyph_lead_only) {
 
   /* --- Assert --- */
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_003_wide_glyph_lead_only", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   /* --- Cleanup --- */
   zr_fb_release(&prev);
@@ -349,6 +433,7 @@ ZR_TEST_GOLDEN(diff_005_cursor_show_shape_move) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_005_cursor_show_shape_move", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -398,6 +483,188 @@ ZR_TEST_GOLDEN(diff_006_cursor_hide_only) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_006_cursor_hide_only", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_008_screen_invalid_blank_baseline
+ *
+ * Scenario: The terminal screen contents are not trusted (e.g. resize preserved
+ * glyphs but engine reallocated prev/next to blank). The renderer must establish
+ * a blank baseline (reset scroll region + baseline SGR + ED2) before applying diffs.
+ */
+ZR_TEST_GOLDEN(diff_008_screen_invalid_blank_baseline) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 1u, 1u);
+  (void)zr_fb_init(&next, 1u, 1u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  const plat_caps_t caps = zr_caps_rgb_all_attrs();
+
+  zr_term_state_t initial = zr_term_default();
+  initial.flags =
+      (uint8_t)(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
+                ZR_TERM_STATE_CURSOR_SHAPE_VALID);
+  initial.style = zr_style_default();
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_008_screen_invalid_blank_baseline", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_009_eol_shrink_clears_trailing_cells
+ *
+ * Scenario: A line becomes shorter. The renderer must clear the trailing cells
+ * deterministically to avoid residual artifacts.
+ */
+ZR_TEST_GOLDEN(diff_009_eol_shrink_clears_trailing_cells) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 6u, 1u);
+  (void)zr_fb_init(&next, 6u, 1u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  /* prev: "ABCDEF" */
+  zr_fb_set_ascii(&prev, 0u, 0u, (uint8_t)'A', s);
+  zr_fb_set_ascii(&prev, 1u, 0u, (uint8_t)'B', s);
+  zr_fb_set_ascii(&prev, 2u, 0u, (uint8_t)'C', s);
+  zr_fb_set_ascii(&prev, 3u, 0u, (uint8_t)'D', s);
+  zr_fb_set_ascii(&prev, 4u, 0u, (uint8_t)'E', s);
+  zr_fb_set_ascii(&prev, 5u, 0u, (uint8_t)'F', s);
+
+  /* next: "AB" + blanks */
+  zr_fb_set_ascii(&next, 0u, 0u, (uint8_t)'A', s);
+  zr_fb_set_ascii(&next, 1u, 0u, (uint8_t)'B', s);
+
+  const plat_caps_t caps = zr_caps_rgb_all_attrs();
+  const zr_term_state_t initial = zr_term_default();
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_009_eol_shrink_clears_trailing_cells", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_010_wide_glyph_removal_clears_pair
+ *
+ * Scenario: A wide glyph is removed. Both the lead and the continuation cell
+ * must be cleared to avoid a stale continuation-cell artifact.
+ */
+ZR_TEST_GOLDEN(diff_010_wide_glyph_removal_clears_pair) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 4u, 1u);
+  (void)zr_fb_init(&next, 4u, 1u);
+  const zr_style_t s = zr_style_default();
+  (void)zr_fb_clear(&prev, &s);
+  (void)zr_fb_clear(&next, &s);
+
+  /* prev: wide emoji at x=1. */
+  const uint8_t emoji[4] = {0xF0u, 0x9Fu, 0x99u, 0x82u};
+  zr_fb_set_utf8(&prev, 1u, 0u, emoji, 4u, 2u, s);
+  zr_fb_set_utf8(&prev, 2u, 0u, (const uint8_t[4]){0u, 0u, 0u, 0u}, 0u, 0u, s);
+
+  const plat_caps_t caps = zr_caps_rgb_all_attrs();
+  const zr_term_state_t initial = zr_term_default();
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_010_wide_glyph_removal_clears_pair", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_011_attr_clear_forces_absolute_sgr
+ *
+ * Scenario: An attribute is cleared (bold off). Renderer must use an absolute
+ * reset-based SGR sequence rather than relying on attribute off-codes.
+ */
+ZR_TEST_GOLDEN(diff_011_attr_clear_forces_absolute_sgr) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 1u, 1u);
+  (void)zr_fb_init(&next, 1u, 1u);
+  const zr_style_t s0 = zr_style_default();
+  (void)zr_fb_clear(&prev, &s0);
+  (void)zr_fb_clear(&next, &s0);
+
+  zr_style_t bold = s0;
+  bold.attrs = 1u;
+  zr_fb_set_ascii(&prev, 0u, 0u, (uint8_t)'X', bold);
+  zr_fb_set_ascii(&next, 0u, 0u, (uint8_t)'X', s0);
+
+  const plat_caps_t caps = zr_caps_rgb_all_attrs();
+
+  zr_term_state_t initial = zr_term_default();
+  initial.cursor_x = 1u;
+  initial.cursor_y = 0u;
+  initial.flags = ZR_TERM_STATE_VALID_ALL;
+  initial.style = bold;
+
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[256];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_011_attr_clear_forces_absolute_sgr", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);

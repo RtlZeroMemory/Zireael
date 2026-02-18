@@ -1098,6 +1098,49 @@ static bool zr_emit_decstbm_reset(zr_sb_t* sb, zr_term_state_t* ts) {
   return true;
 }
 
+static bool zr_emit_ed2_clear_screen(zr_sb_t* sb) {
+  if (!sb) {
+    return false;
+  }
+  const uint8_t seq[] = "\x1b[2J";
+  return zr_sb_write_bytes(sb, seq, sizeof(seq) - 1u);
+}
+
+/*
+ * Establish a known blank baseline when screen contents are not trusted.
+ *
+ * Why: After a resize, the terminal often preserves prior glyphs while the
+ * engine reallocates and clears its prev/next buffers. Without an explicit
+ * clear, a sparse redraw can leave stale cells visible in strict terminals.
+ */
+static zr_result_t zr_diff_establish_blank_screen_baseline(zr_diff_ctx_t* ctx) {
+  if (!ctx) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  ctx->ts.flags &= (uint8_t) ~(ZR_TERM_STATE_STYLE_VALID | ZR_TERM_STATE_CURSOR_POS_VALID);
+
+  /* Reset scroll margins (homes cursor) and clear using a deterministic baseline style. */
+  if (!zr_emit_decstbm_reset(&ctx->sb, &ctx->ts)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  zr_style_t baseline;
+  baseline.fg_rgb = 0u;
+  baseline.bg_rgb = 0u;
+  baseline.attrs = 0u;
+  baseline.reserved = 0u;
+  if (!zr_emit_sgr_absolute(&ctx->sb, &ctx->ts, baseline, ctx->caps)) {
+    return ZR_ERR_LIMIT;
+  }
+  if (!zr_emit_ed2_clear_screen(&ctx->sb)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  ctx->ts.flags |= ZR_TERM_STATE_SCREEN_VALID;
+  return zr_sb_truncated(&ctx->sb) ? ZR_ERR_LIMIT : ZR_OK;
+}
+
 /* Render a contiguous span of dirty cells [start, end] on row y. */
 static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t start, uint32_t end) {
   if (!ctx || !ctx->prev || !ctx->next) {
@@ -1752,6 +1795,14 @@ zr_result_t zr_diff_render_ex(const zr_fb_t* prev, const zr_fb_t* next, const pl
   zr_sb_init(&ctx.sb, out_buf, out_cap);
   ctx.ts = *initial_term_state;
   zr_diff_prepare_row_cache(&ctx, scratch);
+
+  if ((ctx.ts.flags & ZR_TERM_STATE_SCREEN_VALID) == 0u) {
+    const zr_result_t rc = zr_diff_establish_blank_screen_baseline(&ctx);
+    if (rc != ZR_OK) {
+      zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+      return rc;
+    }
+  }
 
   bool skip = false;
   uint32_t skip_top = 0u;

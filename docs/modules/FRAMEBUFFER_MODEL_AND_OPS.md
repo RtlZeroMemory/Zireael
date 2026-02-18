@@ -61,6 +61,8 @@ create a state where a continuation cell exists without a valid lead cell immedi
 - `zr_fb_put_grapheme` — writes a pre-segmented grapheme with an explicit width (`1` or `2`):
   - If `len == 0`, normalizes to a single ASCII space (width `1`).
   - If `len > ZR_CELL_GLYPH_MAX`, writes `U+FFFD` width `1`.
+  - If bytes contain invalid UTF-8 or Unicode control scalars (C0/DEL/C1), writes `U+FFFD` width `1` to prevent
+    emitting terminal control bytes.
   - If `width == 2` but cannot write both cells within bounds+clip, writes `U+FFFD` width `1` (never half glyphs).
   - Invariant-repair exception (LOCKED): when overwriting a continuation/lead edge, it may clear exactly one adjacent
     paired cell (`x-1` or `x+1`) outside clip to prevent orphan wide-pair state.

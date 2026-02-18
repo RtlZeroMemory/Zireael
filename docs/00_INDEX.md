@@ -29,6 +29,10 @@ If code conflicts with these docs, fix the code.
 - `docs/modules/DEBUG_TRACE.md`
 - `docs/modules/DIAGNOSTICS_METRICS_DEBUG_OVERLAY.md`
 
+## Audits
+
+- Terminal correctness audit: `docs/terminal-correctness-audit.md`
+
 ## Related Wrapper-Facing Pages
 
 - `docs/abi/abi-policy.md`

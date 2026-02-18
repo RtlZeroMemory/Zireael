@@ -26,8 +26,7 @@ static zr_style_t zr_style0(void) {
   return s;
 }
 
-static void zr_painter_begin_1(zr_test_ctx_t* ctx, zr_fb_painter_t* p, zr_fb_t* fb, zr_rect_t* stack,
-                               uint32_t cap) {
+static void zr_painter_begin_1(zr_test_ctx_t* ctx, zr_fb_painter_t* p, zr_fb_t* fb, zr_rect_t* stack, uint32_t cap) {
   ZR_ASSERT_EQ_U32(zr_fb_painter_begin(p, fb, stack, cap), ZR_OK);
 }
 

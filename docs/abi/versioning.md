@@ -19,7 +19,7 @@ Current pins:
 
 - Library: v1.3.8
 - Lifecycle: alpha
-- Engine ABI: v1.1.0
+- Engine ABI: v1.2.0
 - Drawlist formats: v1 and v2
 - Event batch format: v1
 
@@ -42,6 +42,12 @@ Non-breaking examples:
 - new API function in ABI minor bump
 - new drawlist opcode introduced in a new drawlist format version
 - new event record type that remains skippable-by-size
+
+Recent ABI-minor additions in `v1.2.0`:
+
+- `engine_get_terminal_profile()` public getter
+- extended `zr_terminal_caps_t` fields (`terminal_id`, cap flags/masks)
+- create/runtime capability override masks (`cap_force_flags`, `cap_suppress_flags`)
 
 Breaking examples:
 

@@ -141,9 +141,53 @@ static bool zr_style_eq_sgr(zr_style_t a, zr_style_t b) {
   return a.underline_rgb == b.underline_rgb;
 }
 
-/* Cell equality includes link_ref so hyperlink transitions mark cells dirty. */
+/* Baseline-style equality uses raw link_ref values (same framebuffer domain). */
 static bool zr_style_eq_cell(zr_style_t a, zr_style_t b) {
   return zr_style_eq_sgr(a, b) && a.link_ref == b.link_ref;
+}
+
+/*
+  Compare hyperlink targets across framebuffer domains.
+
+  Why: link_ref is framebuffer-local interning state. Two frames can assign
+  different refs to the same URI/ID target, so diffing must compare payloads.
+*/
+static bool zr_link_targets_eq(const zr_fb_t* a_fb, uint32_t a_ref, const zr_fb_t* b_fb, uint32_t b_ref) {
+  if (a_ref == 0u || b_ref == 0u) {
+    return a_ref == b_ref;
+  }
+  if (!a_fb || !b_fb) {
+    return false;
+  }
+
+  const uint8_t* a_uri = NULL;
+  const uint8_t* a_id = NULL;
+  const uint8_t* b_uri = NULL;
+  const uint8_t* b_id = NULL;
+  size_t a_uri_len = 0u;
+  size_t a_id_len = 0u;
+  size_t b_uri_len = 0u;
+  size_t b_id_len = 0u;
+
+  if (zr_fb_link_lookup(a_fb, a_ref, &a_uri, &a_uri_len, &a_id, &a_id_len) != ZR_OK ||
+      zr_fb_link_lookup(b_fb, b_ref, &b_uri, &b_uri_len, &b_id, &b_id_len) != ZR_OK) {
+    return false;
+  }
+  if (a_uri_len != b_uri_len || a_id_len != b_id_len) {
+    return false;
+  }
+  if ((a_uri_len != 0u && memcmp(a_uri, b_uri, a_uri_len) != 0) ||
+      (a_id_len != 0u && memcmp(a_id, b_id, a_id_len) != 0)) {
+    return false;
+  }
+  return true;
+}
+
+static bool zr_style_eq_cell_for_diff(const zr_fb_t* prev_fb, zr_style_t a, const zr_fb_t* next_fb, zr_style_t b) {
+  if (!zr_style_eq_sgr(a, b)) {
+    return false;
+  }
+  return zr_link_targets_eq(prev_fb, a.link_ref, next_fb, b.link_ref);
 }
 
 static zr_style_t zr_diff_baseline_style(void) {
@@ -173,8 +217,8 @@ static bool zr_term_cursor_shape_is_valid(const zr_term_state_t* ts) {
   return ts && ((ts->flags & ZR_TERM_STATE_CURSOR_SHAPE_VALID) != 0u);
 }
 
-/* Compare two framebuffer cells for equality (glyph, flags, and style). */
-static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
+/* Compare prev/next cells for diff equality (glyph, width, style, hyperlink target). */
+static bool zr_cell_eq(const zr_fb_t* prev_fb, const zr_cell_t* a, const zr_fb_t* next_fb, const zr_cell_t* b) {
   if (!a || !b) {
     return false;
   }
@@ -184,7 +228,7 @@ static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
   if (a->width != b->width) {
     return false;
   }
-  if (!zr_style_eq_cell(a->style, b->style)) {
+  if (!zr_style_eq_cell_for_diff(prev_fb, a->style, next_fb, b->style)) {
     return false;
   }
   if (a->glyph_len != 0u && memcmp(a->glyph, b->glyph, (size_t)a->glyph_len) != 0) {
@@ -841,7 +885,7 @@ static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t 
   if (!a || !b) {
     return false;
   }
-  if (!zr_cell_eq(a, b)) {
+  if (!zr_cell_eq(prev, a, next, b)) {
     return true;
   }
   /* Wide-glyph rule: a dirty continuation forces inclusion of its lead cell. */
@@ -849,7 +893,7 @@ static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t 
     const zr_cell_t* a1 = zr_fb_cell_const(prev, x + 1u, y);
     const zr_cell_t* b1 = zr_fb_cell_const(next, x + 1u, y);
     const bool cont = zr_cell_is_continuation(a1) || zr_cell_is_continuation(b1);
-    if (cont && a1 && b1 && !zr_cell_eq(a1, b1)) {
+    if (cont && a1 && b1 && !zr_cell_eq(prev, a1, next, b1)) {
       return true;
     }
   }
@@ -933,12 +977,29 @@ static zr_result_t zr_diff_emit_link_transition(zr_diff_ctx_t* ctx, uint32_t des
     desired_link_ref = 0u;
   }
 
-  const uint32_t current_link_ref = zr_style_effective_link_ref(ctx->ts.style, ctx->caps);
-  if (current_link_ref == desired_link_ref) {
+  bool current_link_known = zr_term_style_is_valid(&ctx->ts);
+  uint32_t current_link_ref = current_link_known ? zr_style_effective_link_ref(ctx->ts.style, ctx->caps) : 0u;
+
+  /*
+    When style validity is unknown, close OSC 8 once before first transition.
+
+    Why: unknown SGR validity also means hyperlink state is unknown. Resetting
+    OSC 8 avoids stale links from earlier terminal history leaking into output.
+  */
+  if (!current_link_known && ctx->caps->supports_hyperlinks != 0u) {
+    if (!zr_emit_osc8_close(&ctx->sb)) {
+      return ZR_ERR_LIMIT;
+    }
+    current_link_ref = 0u;
+    current_link_known = true;
+  }
+
+  if (current_link_known && current_link_ref == desired_link_ref) {
+    ctx->ts.style.link_ref = desired_link_ref;
     return ZR_OK;
   }
 
-  if (current_link_ref != 0u && !zr_emit_osc8_close(&ctx->sb)) {
+  if (current_link_known && current_link_ref != 0u && !zr_emit_osc8_close(&ctx->sb)) {
     return ZR_ERR_LIMIT;
   }
 
@@ -960,7 +1021,6 @@ static zr_result_t zr_diff_emit_link_transition(zr_diff_ctx_t* ctx, uint32_t des
   }
 
   ctx->ts.style.link_ref = desired_link_ref;
-  ctx->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
   return ZR_OK;
 }
 

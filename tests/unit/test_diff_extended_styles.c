@@ -81,14 +81,24 @@ static plat_caps_t zr_caps_extended_all(void) {
   return caps;
 }
 
+static zr_diff_case_result_t zr_run_diff_case_with_flags(const zr_fb_t* prev, const zr_fb_t* next,
+                                                         const plat_caps_t* caps, zr_style_t initial_style,
+                                                         uint8_t initial_flags);
+
 static zr_diff_case_result_t zr_run_diff_case(const zr_fb_t* prev, const zr_fb_t* next, const plat_caps_t* caps,
                                               zr_style_t initial_style) {
+  return zr_run_diff_case_with_flags(prev, next, caps, initial_style, ZR_TERM_STATE_VALID_ALL);
+}
+
+static zr_diff_case_result_t zr_run_diff_case_with_flags(const zr_fb_t* prev, const zr_fb_t* next,
+                                                         const plat_caps_t* caps, zr_style_t initial_style,
+                                                         uint8_t initial_flags) {
   zr_diff_case_result_t out;
   memset(&out, 0, sizeof(out));
 
   zr_term_state_t initial;
   memset(&initial, 0, sizeof(initial));
-  initial.flags = ZR_TERM_STATE_VALID_ALL;
+  initial.flags = initial_flags;
   initial.style = initial_style;
 
   zr_limits_t lim = zr_limits_default();
@@ -554,4 +564,60 @@ ZR_TEST_UNIT(diff_hyperlink_state_does_not_leak_between_frames) {
   zr_fb_release(&blank);
   zr_fb_release(&linked);
   zr_fb_release(&unlinked);
+}
+
+ZR_TEST_UNIT(diff_hyperlink_style_unknown_still_emits_initial_sgr) {
+  zr_fb_t prev = zr_make_fb_1row_ext(1u);
+  zr_fb_t next = zr_make_fb_1row_ext(1u);
+
+  zr_style_t s = zr_style_default_ext();
+  s.link_ref = zr_add_link(&next, "https://unknown-style.example", NULL);
+  ZR_ASSERT_TRUE(s.link_ref != 0u);
+  zr_set_cell_ascii_ext(&next, 0u, (uint8_t)'X', s);
+
+  const plat_caps_t caps = zr_caps_extended_all();
+  const uint8_t flags_without_style = (uint8_t)(ZR_TERM_STATE_CURSOR_POS_VALID | ZR_TERM_STATE_CURSOR_VIS_VALID |
+                                                ZR_TERM_STATE_CURSOR_SHAPE_VALID | ZR_TERM_STATE_SCREEN_VALID);
+  const zr_diff_case_result_t res =
+      zr_run_diff_case_with_flags(&prev, &next, &caps, zr_style_default_ext(), flags_without_style);
+  ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
+  ZR_ASSERT_TRUE(
+      zr_bytes_contains(res.out, res.out_len, (const uint8_t*)"\x1b[0;38;2;0;0;0;48;2;0;0;0m", 26u));
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(diff_hyperlink_equal_targets_with_different_refs_are_clean) {
+  zr_fb_t prev = zr_make_fb_1row_ext(1u);
+  zr_fb_t next = zr_make_fb_1row_ext(1u);
+
+  const char* uri = "https://same-target.example";
+  const char* id = "same-id";
+  uint32_t prev_ref = 0u;
+  uint32_t next_ref = 0u;
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&prev, (const uint8_t*)uri, strlen(uri), (const uint8_t*)id, strlen(id), &prev_ref),
+                   ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&next, (const uint8_t*)"https://dummy.example", strlen("https://dummy.example"),
+                                     NULL, 0u, &next_ref),
+                   ZR_OK);
+  ZR_ASSERT_TRUE(next_ref != 0u);
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&next, (const uint8_t*)uri, strlen(uri), (const uint8_t*)id, strlen(id), &next_ref),
+                   ZR_OK);
+
+  zr_style_t prev_style = zr_style_default_ext();
+  prev_style.link_ref = prev_ref;
+  zr_set_cell_ascii_ext(&prev, 0u, (uint8_t)'X', prev_style);
+
+  zr_style_t next_style = zr_style_default_ext();
+  next_style.link_ref = next_ref;
+  zr_set_cell_ascii_ext(&next, 0u, (uint8_t)'X', next_style);
+
+  const plat_caps_t caps = zr_caps_extended_all();
+  const zr_diff_case_result_t res = zr_run_diff_case(&prev, &next, &caps, zr_style_default_ext());
+  ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
+  ZR_ASSERT_EQ_U32((uint32_t)res.out_len, 0u);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
 }

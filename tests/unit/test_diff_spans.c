@@ -41,6 +41,8 @@ static zr_fb_t zr_make_fb_1row(uint32_t cols) {
   s.bg_rgb = 0u;
   s.attrs = 0u;
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
   (void)zr_fb_clear(&fb, &s);
   return fb;
 }

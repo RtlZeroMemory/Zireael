@@ -483,10 +483,9 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_reset_then_add_transitions) {
   const uint32_t supported = ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE;
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, supported);
 
-  const uint8_t expected[] =
-      "\x1b[0;1;4;38;2;0;0;0;48;2;0;0;0mA"
-      "\x1b[0;38;2;0;0;0;48;2;0;0;0mB"
-      "\x1b[0;7;38;2;0;0;0;48;2;0;0;0mC";
+  const uint8_t expected[] = "\x1b[0;1;4;38;2;0;0;0;48;2;0;0;0mA"
+                             "\x1b[0;38;2;0;0;0;48;2;0;0;0mB"
+                             "\x1b[0;7;38;2;0;0;0;48;2;0;0;0mC";
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
   ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)(sizeof(expected) - 1u));
   ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected) - 1u);

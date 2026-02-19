@@ -40,6 +40,7 @@ Raw mode enables unbuffered input and disables terminal echo/line editing.
 | Function | Description |
 |----------|-------------|
 | `plat_read_input(plat, buf, cap)` | Read available input bytes (non-blocking) |
+| `plat_read_input_timed(plat, buf, cap, timeout_ms)` | Bounded wait + read for startup probing |
 | `plat_write_output(plat, bytes, len)` | Write output bytes to terminal |
 
 ### Wait/wake
@@ -50,6 +51,13 @@ Raw mode enables unbuffered input and disables terminal echo/line editing.
 | `plat_wake(plat)` | `ZR_OK` or error | Wake blocked wait (thread-safe) |
 
 `plat_wake` is the only function callable from non-engine threads.
+
+### Detection helpers
+
+| Function | Description |
+|----------|-------------|
+| `plat_supports_terminal_queries(plat)` | Returns 1 when probe queries are valid for this backend mode |
+| `plat_guess_terminal_id(plat, out_id)` | Environment-based fallback identity hint when XTVERSION is unavailable |
 
 ### Time
 

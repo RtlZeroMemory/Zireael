@@ -128,6 +128,9 @@ zr_result_t engine_get_metrics(zr_engine_t* e, zr_metrics_t* out_metrics);
 /* Return backend capability snapshot used by runtime output decisions. */
 zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps);
 
+/* Return pointer to engine-owned extended terminal profile snapshot. */
+const zr_terminal_profile_t* engine_get_terminal_profile(const zr_engine_t* e);
+
 /*
   Apply runtime config updates.
 

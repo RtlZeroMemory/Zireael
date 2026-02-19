@@ -265,6 +265,65 @@ static bool zr_posix_str_has_any_ci(const char* s, const char* const* needles, s
   return false;
 }
 
+static zr_terminal_id_t zr_posix_terminal_id_from_term_program(const char* term_program) {
+  if (!term_program) {
+    return ZR_TERM_UNKNOWN;
+  }
+  if (zr_posix_str_contains_ci(term_program, "iTerm")) {
+    return ZR_TERM_ITERM2;
+  }
+  if (zr_posix_str_contains_ci(term_program, "WezTerm")) {
+    return ZR_TERM_WEZTERM;
+  }
+  if (zr_posix_str_contains_ci(term_program, "ghostty")) {
+    return ZR_TERM_GHOSTTY;
+  }
+  if (zr_posix_str_contains_ci(term_program, "Apple_Terminal")) {
+    return ZR_TERM_XTERM;
+  }
+  return ZR_TERM_UNKNOWN;
+}
+
+static zr_terminal_id_t zr_posix_terminal_id_from_term(const char* term) {
+  if (!term) {
+    return ZR_TERM_UNKNOWN;
+  }
+  if (zr_posix_str_contains_ci(term, "kitty")) {
+    return ZR_TERM_KITTY;
+  }
+  if (zr_posix_str_contains_ci(term, "wezterm")) {
+    return ZR_TERM_WEZTERM;
+  }
+  if (zr_posix_str_contains_ci(term, "ghostty")) {
+    return ZR_TERM_GHOSTTY;
+  }
+  if (zr_posix_str_contains_ci(term, "foot")) {
+    return ZR_TERM_FOOT;
+  }
+  if (zr_posix_str_contains_ci(term, "konsole")) {
+    return ZR_TERM_KONSOLE;
+  }
+  if (zr_posix_str_contains_ci(term, "contour")) {
+    return ZR_TERM_CONTOUR;
+  }
+  if (zr_posix_str_contains_ci(term, "alacritty")) {
+    return ZR_TERM_ALACRITTY;
+  }
+  if (zr_posix_str_contains_ci(term, "mintty")) {
+    return ZR_TERM_MINTTY;
+  }
+  if (zr_posix_str_contains_ci(term, "tmux")) {
+    return ZR_TERM_TMUX;
+  }
+  if (zr_posix_str_contains_ci(term, "screen")) {
+    return ZR_TERM_SCREEN;
+  }
+  if (zr_posix_str_contains_ci(term, "xterm")) {
+    return ZR_TERM_XTERM;
+  }
+  return ZR_TERM_UNKNOWN;
+}
+
 static bool zr_posix_env_bool_override(const char* key, uint8_t* out_value) {
   if (!key || !out_value) {
     return false;
@@ -1444,6 +1503,59 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
   }
 }
 
+static int32_t zr_posix_timeout_remaining_ms(uint64_t deadline_ms) {
+  const uint64_t now_ms = plat_now_ms();
+  if (now_ms >= deadline_ms) {
+    return 0;
+  }
+  const uint64_t remaining = deadline_ms - now_ms;
+  if (remaining > (uint64_t)INT32_MAX) {
+    return INT32_MAX;
+  }
+  return (int32_t)remaining;
+}
+
+/*
+  Timed read helper for startup probes.
+
+  Why: Detection queries need bounded blocking reads while preserving normal
+  non-blocking plat_read_input semantics for the render loop hot path.
+*/
+int32_t plat_read_input_timed(plat_t* plat, uint8_t* out_buf, int32_t out_cap, int32_t timeout_ms) {
+  if (!plat) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (timeout_ms < 0) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  int32_t n = plat_read_input(plat, out_buf, out_cap);
+  if (n != 0 || timeout_ms == 0) {
+    return n;
+  }
+
+  const uint64_t deadline_ms = plat_now_ms() + (uint64_t)timeout_ms;
+  for (;;) {
+    const int32_t remaining_ms = zr_posix_timeout_remaining_ms(deadline_ms);
+    if (remaining_ms <= 0) {
+      return 0;
+    }
+
+    const int32_t wait_rc = plat_wait(plat, remaining_ms);
+    if (wait_rc < 0) {
+      return wait_rc;
+    }
+    if (wait_rc == 0) {
+      return 0;
+    }
+
+    n = plat_read_input(plat, out_buf, out_cap);
+    if (n != 0) {
+      return n;
+    }
+  }
+}
+
 zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {
   if (!plat) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1537,6 +1649,57 @@ zr_result_t plat_wake(plat_t* plat) {
     }
     return ZR_ERR_PLATFORM;
   }
+}
+
+uint8_t plat_supports_terminal_queries(plat_t* plat) {
+  if (!plat) {
+    return 0u;
+  }
+  return plat->explicit_pipe_mode ? 0u : 1u;
+}
+
+zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id) {
+  if (!plat || !out_terminal_id) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  *out_terminal_id = ZR_TERM_UNKNOWN;
+  if (plat->explicit_pipe_mode) {
+    return ZR_OK;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID")) {
+    *out_terminal_id = ZR_TERM_KITTY;
+    return ZR_OK;
+  }
+  if (zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE") || zr_posix_getenv_nonempty("WEZTERM_PANE")) {
+    *out_terminal_id = ZR_TERM_WEZTERM;
+    return ZR_OK;
+  }
+  if (zr_posix_getenv_nonempty("GHOSTTY_RESOURCES_DIR")) {
+    *out_terminal_id = ZR_TERM_GHOSTTY;
+    return ZR_OK;
+  }
+  if (zr_posix_getenv_nonempty("ITERM_SESSION_ID")) {
+    *out_terminal_id = ZR_TERM_ITERM2;
+    return ZR_OK;
+  }
+  if (zr_posix_getenv_nonempty("WT_SESSION")) {
+    *out_terminal_id = ZR_TERM_WINDOWS_TERMINAL;
+    return ZR_OK;
+  }
+  if (zr_posix_getenv_nonempty("KONSOLE_VERSION")) {
+    *out_terminal_id = ZR_TERM_KONSOLE;
+    return ZR_OK;
+  }
+
+  *out_terminal_id = zr_posix_terminal_id_from_term_program(zr_posix_getenv_nonempty("TERM_PROGRAM"));
+  if (*out_terminal_id != ZR_TERM_UNKNOWN) {
+    return ZR_OK;
+  }
+
+  *out_terminal_id = zr_posix_terminal_id_from_term(zr_posix_getenv_nonempty("TERM"));
+  return ZR_OK;
 }
 
 uint64_t plat_now_ms(void) {

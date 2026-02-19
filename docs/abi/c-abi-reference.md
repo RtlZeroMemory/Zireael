@@ -61,7 +61,7 @@ Typical sequence:
 2. set requested versions from `zr_version.h`
 3. `engine_create()`
 4. loop: `engine_poll_events()` -> build drawlist -> `engine_submit_drawlist()` -> `engine_present()`
-5. optional telemetry via `engine_get_metrics()` / `engine_get_caps()`
+5. optional telemetry via `engine_get_metrics()` / `engine_get_caps()` / `engine_get_terminal_profile()`
 6. `engine_destroy()`
 
 ## Core API Contracts
@@ -141,8 +141,13 @@ Fields include output feature gates used by the diff renderer:
 - `supports_colored_underlines` - enables SGR underline color (`58` / `59`)
 - `supports_hyperlinks` - enables OSC 8 hyperlink emission
 
-### `zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg)`
+### `const zr_terminal_profile_t* engine_get_terminal_profile(const zr_engine_t* e)`
 
+- Returns pointer to engine-owned extended profile snapshot.
+- Pointer remains owned by engine and is invalid after `engine_destroy()`.
+- Includes terminal identity, probe metadata, and extended render capability fields.
+
+### `zr_result_t engine_set_config(zr_engine_t* e, const zr_engine_runtime_config_t* cfg)`
 - Validates runtime config.
 - Applies updates with "no partial effects" allocation/commit behavior.
 - Platform sub-config changes are rejected with `ZR_ERR_UNSUPPORTED`.
@@ -171,6 +176,8 @@ From `zr_engine_config_t` at create time:
 - `requested_engine_abi_*` must match pinned ABI macros.
 - `requested_drawlist_version` must be supported (`v1`, `v2`, or `v3`).
 - `requested_event_batch_version` must match pinned event version.
+- `cap_force_flags` / `cap_suppress_flags` apply deterministic capability
+  overrides (`suppress` wins over `force`).
 
 Use values directly from `zr_version.h`; do not hardcode copies in wrappers.
 

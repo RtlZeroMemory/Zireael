@@ -28,6 +28,7 @@ typedef struct plat_t {
   size_t input_len;
   size_t input_off;
   uint32_t read_max;
+  uint32_t timed_read_calls;
 
   uint8_t write_last[ZR_MOCK_WRITE_CAPTURE_CAP];
   size_t write_last_len;
@@ -139,6 +140,10 @@ uint32_t mock_plat_wait_output_call_count(void) {
   return g_plat.wait_output_calls;
 }
 
+uint32_t mock_plat_timed_read_call_count(void) {
+  return g_plat.timed_read_calls;
+}
+
 uint64_t mock_plat_bytes_written_total(void) {
   return g_plat.write_total_len;
 }
@@ -176,6 +181,7 @@ zr_result_t plat_create(plat_t** out_plat, const plat_config_t* cfg) {
   g_plat.cfg = *cfg;
   g_plat.input_len = 0u;
   g_plat.input_off = 0u;
+  g_plat.timed_read_calls = 0u;
   g_plat.wake_pending = false;
   g_plat.wake_calls = 0u;
   mock_plat_clear_writes();
@@ -270,6 +276,7 @@ int32_t plat_read_input_timed(plat_t* plat, uint8_t* out_buf, int32_t out_cap, i
   if (timeout_ms < 0) {
     return (int32_t)ZR_ERR_INVALID_ARGUMENT;
   }
+  plat->timed_read_calls++;
   return plat_read_input(plat, out_buf, out_cap);
 }
 

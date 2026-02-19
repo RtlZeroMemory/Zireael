@@ -11,6 +11,8 @@
 
 #include "unit/mock_platform.h"
 
+#include <string.h>
+
 static zr_result_t zr_test_open_mock_platform(plat_t** out_plat, plat_caps_t* out_caps) {
   if (!out_plat || !out_caps) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -76,7 +78,7 @@ ZR_TEST_UNIT(detect_profile_known_terminal_kitty) {
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
-  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
 
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_KITTY);
   ZR_ASSERT_EQ_U32(profile.xtversion_responded, 1u);
@@ -104,7 +106,7 @@ ZR_TEST_UNIT(detect_profile_known_terminal_foot) {
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
-  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
 
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_FOOT);
   ZR_ASSERT_EQ_U32(profile.supports_kitty_graphics, 0u);
@@ -125,7 +127,7 @@ ZR_TEST_UNIT(detect_profile_unknown_terminal_is_conservative) {
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
-  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
 
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_UNKNOWN);
   ZR_ASSERT_EQ_U32(profile.supports_kitty_graphics, 0u);
@@ -145,7 +147,7 @@ ZR_TEST_UNIT(detect_profile_fallback_from_env_hint) {
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
-  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
 
   ZR_ASSERT_EQ_U32(profile.xtversion_responded, 0u);
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_WEZTERM);
@@ -163,7 +165,7 @@ ZR_TEST_UNIT(detect_profile_no_env_hint_stays_unknown) {
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
-  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
 
   ZR_ASSERT_EQ_U32(profile.xtversion_responded, 0u);
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_UNKNOWN);
@@ -182,11 +184,59 @@ ZR_TEST_UNIT(detect_profile_skips_queries_when_unsupported) {
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
-  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
 
   ZR_ASSERT_EQ_U32(profile.xtversion_responded, 0u);
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_UNKNOWN);
   ZR_ASSERT_EQ_U32((uint32_t)out_caps.supports_sync_update, (uint32_t)baseline.supports_sync_update);
+
+  zr_test_close_mock_platform(plat);
+}
+
+ZR_TEST_UNIT(detect_profile_waits_multiple_timeout_slices) {
+  mock_plat_reset();
+  mock_plat_set_terminal_id_hint(ZR_TERM_WEZTERM);
+
+  plat_t* plat = NULL;
+  plat_caps_t baseline;
+  ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
+
+  zr_terminal_profile_t profile;
+  plat_caps_t out_caps;
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
+
+  ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_WEZTERM);
+  ZR_ASSERT_EQ_U32(mock_plat_timed_read_call_count(), 5u);
+
+  zr_test_close_mock_platform(plat);
+}
+
+ZR_TEST_UNIT(detect_profile_returns_non_probe_passthrough) {
+  mock_plat_reset();
+
+  plat_t* plat = NULL;
+  plat_caps_t baseline;
+  ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
+
+  static const uint8_t kResponses[] =
+      "A\x1b[31mB"
+      "\x1bP>|kitty(0.35.0)\x1b\\"
+      "C";
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(kResponses, sizeof(kResponses) - 1u), ZR_OK);
+
+  zr_terminal_profile_t profile;
+  plat_caps_t out_caps;
+  uint8_t passthrough[64];
+  size_t passthrough_len = 0u;
+  ZR_ASSERT_EQ_U32(
+      zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, passthrough, sizeof(passthrough), &passthrough_len),
+      ZR_OK);
+
+  static const uint8_t kExpected[] = "A\x1b[31mBC";
+  ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_KITTY);
+  ZR_ASSERT_EQ_U32(profile.xtversion_responded, 1u);
+  ZR_ASSERT_EQ_U32((uint32_t)passthrough_len, (uint32_t)(sizeof(kExpected) - 1u));
+  ZR_ASSERT_TRUE(memcmp(passthrough, kExpected, sizeof(kExpected) - 1u) == 0);
 
   zr_test_close_mock_platform(plat);
 }

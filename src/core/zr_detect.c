@@ -431,7 +431,19 @@ static bool zr_detect_parse_window_report(const uint8_t* bytes, size_t len, size
   return true;
 }
 
-zr_result_t zr_detect_parse_responses(const uint8_t* bytes, size_t len, zr_detect_parsed_t* io_parsed) {
+static void zr_detect_mark_consumed(uint8_t* out_mask, size_t mask_cap, size_t begin, size_t len) {
+  if (!out_mask || len == 0u || begin >= mask_cap) {
+    return;
+  }
+  size_t n = len;
+  if (n > (mask_cap - begin)) {
+    n = mask_cap - begin;
+  }
+  memset(out_mask + begin, 1, n);
+}
+
+static zr_result_t zr_detect_parse_responses_impl(const uint8_t* bytes, size_t len, zr_detect_parsed_t* io_parsed,
+                                                  uint8_t* out_consumed_mask, size_t consumed_mask_cap) {
   if (!io_parsed) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -448,22 +460,47 @@ zr_result_t zr_detect_parse_responses(const uint8_t* bytes, size_t len, zr_detec
 
     size_t consumed = 0u;
     if (zr_detect_parse_xtversion(bytes, len, i, &consumed, io_parsed)) {
+      if (consumed == 0u || consumed > (len - i)) {
+        i++;
+        continue;
+      }
+      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
       i += consumed;
       continue;
     }
     if (zr_detect_parse_decrqm(bytes, len, i, &consumed, io_parsed)) {
+      if (consumed == 0u || consumed > (len - i)) {
+        i++;
+        continue;
+      }
+      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
       i += consumed;
       continue;
     }
     if (zr_detect_parse_da2(bytes, len, i, &consumed, io_parsed)) {
+      if (consumed == 0u || consumed > (len - i)) {
+        i++;
+        continue;
+      }
+      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
       i += consumed;
       continue;
     }
     if (zr_detect_parse_da1(bytes, len, i, &consumed, io_parsed)) {
+      if (consumed == 0u || consumed > (len - i)) {
+        i++;
+        continue;
+      }
+      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
       i += consumed;
       continue;
     }
     if (zr_detect_parse_window_report(bytes, len, i, &consumed, io_parsed)) {
+      if (consumed == 0u || consumed > (len - i)) {
+        i++;
+        continue;
+      }
+      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
       i += consumed;
       continue;
     }
@@ -472,6 +509,10 @@ zr_result_t zr_detect_parse_responses(const uint8_t* bytes, size_t len, zr_detec
   }
 
   return ZR_OK;
+}
+
+zr_result_t zr_detect_parse_responses(const uint8_t* bytes, size_t len, zr_detect_parsed_t* io_parsed) {
+  return zr_detect_parse_responses_impl(bytes, len, io_parsed, NULL, 0u);
 }
 
 static uint8_t zr_detect_mode_enabled(uint8_t seen, uint8_t value, uint8_t fallback) {
@@ -667,8 +708,19 @@ static int32_t zr_detect_remaining_timeout(uint64_t start_ms) {
   return (int32_t)((uint64_t)ZR_DETECT_TOTAL_TIMEOUT_MS - elapsed);
 }
 
-static int32_t zr_detect_read_timeout_slice(uint64_t start_ms) {
+static int32_t zr_detect_remaining_timeout_budget(uint32_t spent_ms) {
+  if (spent_ms >= (uint32_t)ZR_DETECT_TOTAL_TIMEOUT_MS) {
+    return 0;
+  }
+  return (int32_t)((uint32_t)ZR_DETECT_TOTAL_TIMEOUT_MS - spent_ms);
+}
+
+static int32_t zr_detect_read_timeout_slice(uint64_t start_ms, uint32_t spent_ms) {
   int32_t remaining = zr_detect_remaining_timeout(start_ms);
+  const int32_t remaining_budget = zr_detect_remaining_timeout_budget(spent_ms);
+  if (remaining > remaining_budget) {
+    remaining = remaining_budget;
+  }
   if (remaining <= 0) {
     return 0;
   }
@@ -718,10 +770,39 @@ static void zr_detect_build_profile(const zr_detect_parsed_t* parsed, zr_termina
   out_caps->supports_sync_update = out_profile->supports_sync_update;
 }
 
+static size_t zr_detect_copy_passthrough_bytes(const uint8_t* bytes, const uint8_t* consumed_mask, size_t len,
+                                               uint8_t* out_passthrough, size_t passthrough_cap) {
+  if (!bytes) {
+    return 0u;
+  }
+  if (!out_passthrough && passthrough_cap != 0u) {
+    return 0u;
+  }
+
+  size_t out_len = 0u;
+  for (size_t i = 0u; i < len; i++) {
+    if (consumed_mask && consumed_mask[i] != 0u) {
+      continue;
+    }
+    if (out_len >= passthrough_cap) {
+      break;
+    }
+    if (out_passthrough) {
+      out_passthrough[out_len] = bytes[i];
+    }
+    out_len++;
+  }
+  return out_len;
+}
+
 zr_result_t zr_detect_probe_terminal(plat_t* plat, const plat_caps_t* baseline_caps, zr_terminal_profile_t* out_profile,
-                                     plat_caps_t* out_caps) {
+                                     plat_caps_t* out_caps, uint8_t* out_passthrough, size_t passthrough_cap,
+                                     size_t* out_passthrough_len) {
   if (!plat || !baseline_caps || !out_profile || !out_caps) {
     return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (out_passthrough_len) {
+    *out_passthrough_len = 0u;
   }
 
   zr_detect_parsed_t parsed;
@@ -731,14 +812,17 @@ zr_result_t zr_detect_probe_terminal(plat_t* plat, const plat_caps_t* baseline_c
   const uint8_t* query_bytes = zr_detect_query_batch_bytes(&query_len);
 
   uint8_t collected[ZR_DETECT_READ_ACCUM_CAP];
+  uint8_t consumed_mask[ZR_DETECT_READ_ACCUM_CAP];
   size_t collected_len = 0u;
+  memset(consumed_mask, 0, sizeof(consumed_mask));
 
   if (plat_supports_terminal_queries(plat) != 0u) {
     (void)plat_write_output(plat, query_bytes, (int32_t)query_len);
 
     uint64_t start_ms = plat_now_ms();
-    while (zr_detect_remaining_timeout(start_ms) > 0) {
-      const int32_t timeout_ms = zr_detect_read_timeout_slice(start_ms);
+    uint32_t timeout_spent_ms = 0u;
+    while (true) {
+      const int32_t timeout_ms = zr_detect_read_timeout_slice(start_ms, timeout_spent_ms);
       if (timeout_ms <= 0) {
         break;
       }
@@ -749,7 +833,8 @@ zr_result_t zr_detect_probe_terminal(plat_t* plat, const plat_caps_t* baseline_c
         break;
       }
       if (n == 0) {
-        break;
+        timeout_spent_ms += (uint32_t)timeout_ms;
+        continue;
       }
 
       size_t copy_len = (size_t)n;
@@ -766,7 +851,13 @@ zr_result_t zr_detect_probe_terminal(plat_t* plat, const plat_caps_t* baseline_c
     }
   }
 
-  (void)zr_detect_parse_responses(collected, collected_len, &parsed);
+  (void)zr_detect_parse_responses_impl(collected, collected_len, &parsed, consumed_mask, sizeof(consumed_mask));
+  const size_t passthrough_len =
+      zr_detect_copy_passthrough_bytes(collected, consumed_mask, collected_len, out_passthrough, passthrough_cap);
+  if (out_passthrough_len) {
+    *out_passthrough_len = passthrough_len;
+  }
+
   const zr_terminal_id_t fallback_id =
       (parsed.xtversion_responded != 0u || plat_supports_terminal_queries(plat) == 0u) ? ZR_TERM_UNKNOWN
                                                                                           : zr_detect_fallback_terminal_id(plat);

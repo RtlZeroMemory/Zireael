@@ -60,9 +60,13 @@ zr_result_t zr_detect_parse_responses(const uint8_t* bytes, size_t len, zr_detec
     - ZR_ERR_INVALID_ARGUMENT on invalid pointers
     - ZR_ERR_PLATFORM when write/read probing fails
     - ZR_ERR_UNSUPPORTED when probing is unavailable for this platform mode
+
+  Optional passthrough outputs capture bytes consumed during probing that are not
+  recognized as probe replies, so startup user input can be re-queued.
 */
 zr_result_t zr_detect_probe_terminal(plat_t* plat, const plat_caps_t* baseline_caps, zr_terminal_profile_t* out_profile,
-                                     plat_caps_t* out_caps);
+                                     plat_caps_t* out_caps, uint8_t* out_passthrough, size_t passthrough_cap,
+                                     size_t* out_passthrough_len);
 
 /*
   Apply force/suppress override flags to a base profile/caps snapshot.

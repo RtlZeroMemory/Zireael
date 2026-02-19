@@ -36,6 +36,7 @@
 
 enum {
   ZR_ENGINE_INPUT_PENDING_CAP = 64u,
+  ZR_ENGINE_DETECT_PASSTHROUGH_CAP = 4096u,
   ZR_ENGINE_PASTE_MARKER_LEN = 6u,
   ZR_ENGINE_PASTE_IDLE_FLUSH_POLLS = 4u,
 };
@@ -1064,6 +1065,16 @@ static void zr_engine_terminal_profile_defaults(const plat_caps_t* caps, zr_term
   out_profile->supports_sync_update = caps->supports_sync_update;
 }
 
+static void zr_engine_requeue_probe_passthrough(zr_engine_t* e, const uint8_t* bytes, size_t len) {
+  if (!e || !bytes || len == 0u) {
+    return;
+  }
+  const uint32_t time_ms = zr_engine_now_ms_u32();
+  for (size_t i = 0u; i < len; i++) {
+    zr_engine_input_pending_append_byte(e, bytes[i], time_ms);
+  }
+}
+
 /* Recompute effective runtime caps from base detection + force/suppress flags. */
 static void zr_engine_apply_cap_overrides(zr_engine_t* e) {
   if (!e) {
@@ -1090,10 +1101,15 @@ static void zr_engine_detect_terminal_profile(zr_engine_t* e) {
 
   zr_terminal_profile_t detected_profile;
   plat_caps_t detected_caps;
-  zr_result_t rc = zr_detect_probe_terminal(e->plat, &e->caps_base, &detected_profile, &detected_caps);
+  uint8_t probe_passthrough[ZR_ENGINE_DETECT_PASSTHROUGH_CAP];
+  size_t probe_passthrough_len = 0u;
+  zr_result_t rc =
+      zr_detect_probe_terminal(e->plat, &e->caps_base, &detected_profile, &detected_caps, probe_passthrough,
+                               sizeof(probe_passthrough), &probe_passthrough_len);
   if (rc == ZR_OK) {
     e->term_profile_base = detected_profile;
     e->caps_base = detected_caps;
+    zr_engine_requeue_probe_passthrough(e, probe_passthrough, probe_passthrough_len);
   }
 
   zr_engine_apply_cap_overrides(e);

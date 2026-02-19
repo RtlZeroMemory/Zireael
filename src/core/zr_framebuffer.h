@@ -39,11 +39,7 @@ typedef struct zr_style_t {
 } zr_style_t;
 
 /* Cell model (LOCKED v1). */
-enum {
-  ZR_CELL_GLYPH_MAX = 32,
-  ZR_FB_LINK_URI_MAX_BYTES = 2083,
-  ZR_FB_LINK_ID_MAX_BYTES = 2083
-};
+enum { ZR_CELL_GLYPH_MAX = 32, ZR_FB_LINK_URI_MAX_BYTES = 2083, ZR_FB_LINK_ID_MAX_BYTES = 2083 };
 
 typedef struct zr_fb_link_t {
   uint32_t uri_off;
@@ -63,7 +59,7 @@ typedef struct zr_cell_t {
 typedef struct zr_fb_t {
   uint32_t cols;
   uint32_t rows;
-  zr_cell_t* cells; /* engine-owned backing; row-major; length cols*rows */
+  zr_cell_t* cells;    /* engine-owned backing; row-major; length cols*rows */
   zr_fb_link_t* links; /* engine-owned link entries (1-based externally) */
   uint32_t links_len;
   uint32_t links_cap;

@@ -130,12 +130,12 @@ ZR_TEST_UNIT(limits_execute_clip_depth_over_64_fails_without_partial_effects) {
   zr_dl_view_t v;
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture1, zr_test_dl_fixture1_len, &validate_lim, &v), ZR_OK);
 
-  zr_fb_t fb = {0u, 0u, NULL};
+  zr_fb_t fb = {0};
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 2u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
 
-  const zr_style_t a = {0x01020304u, 0x11121314u, 0xA5A5A5A5u, 0u};
-  const zr_style_t b = {0x21222324u, 0x31323334u, 0x5A5A5A5Au, 0u};
+  const zr_style_t a = {0x01020304u, 0x11121314u, 0xA5A5A5A5u, 0u, 0u, 0u};
+  const zr_style_t b = {0x21222324u, 0x31323334u, 0x5A5A5A5Au, 0u, 0u, 0u};
   zr_limits_set_ascii(&fb, 0u, 0u, (uint8_t)'X', a);
   zr_limits_set_ascii(&fb, 3u, 1u, (uint8_t)'Y', b);
 
@@ -163,12 +163,12 @@ ZR_TEST_UNIT(limits_execute_clip_depth_over_64_fails_without_partial_effects) {
 }
 
 ZR_TEST_UNIT(limits_diff_max_damage_rects_forces_full_frame_when_cap_exceeded) {
-  zr_fb_t prev = {0u, 0u, NULL};
-  zr_fb_t next = {0u, 0u, NULL};
+  zr_fb_t prev = {0};
+  zr_fb_t next = {0};
   ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 6u, 6u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&next, 6u, 6u), ZR_OK);
 
-  const zr_style_t s = {0u, 0u, 0u, 0u};
+  const zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   (void)zr_fb_clear(&prev, &s);
   (void)zr_fb_clear(&next, &s);
 

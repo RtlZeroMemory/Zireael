@@ -17,7 +17,7 @@ static void zr_fill_fb_ascii(zr_test_ctx_t* ctx, zr_fb_t* fb, uint8_t ch) {
   if (!fb->cells || fb->cols == 0u || fb->rows == 0u) {
     return;
   }
-  const zr_style_t s = (zr_style_t){1u, 2u, 3u, 0u};
+  const zr_style_t s = (zr_style_t){1u, 2u, 3u, 0u, 0u, 0u};
   for (uint32_t y = 0u; y < fb->rows; y++) {
     for (uint32_t x = 0u; x < fb->cols; x++) {
       zr_cell_t* c = zr_fb_cell(fb, x, y);
@@ -48,8 +48,7 @@ static void zr_assert_fb_continuations_valid(zr_test_ctx_t* ctx, const zr_fb_t* 
   }
 }
 
-static void zr_assert_overlay_cell(zr_test_ctx_t* ctx, const zr_fb_t* fb, uint32_t x, uint32_t y,
-                                   uint8_t ch) {
+static void zr_assert_overlay_cell(zr_test_ctx_t* ctx, const zr_fb_t* fb, uint32_t x, uint32_t y, uint8_t ch) {
   const zr_cell_t* c = zr_fb_cell_const(fb, x, y);
   ZR_ASSERT_TRUE(c != NULL);
   ZR_ASSERT_EQ_U32(c->glyph_len, 1u);
@@ -145,7 +144,7 @@ ZR_TEST_UNIT(overlay_does_not_split_wide_glyph_across_right_edge) {
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 41u, 1u), ZR_OK);
   zr_fill_fb_ascii(ctx, &fb, (uint8_t)'.');
 
-  const zr_style_t s = (zr_style_t){9u, 9u, 9u, 0u};
+  const zr_style_t s = (zr_style_t){9u, 9u, 9u, 0u, 0u, 0u};
   const uint8_t wide[] = {0xE7u, 0x95u, 0x8Cu}; /* U+754C '界' */
 
   zr_cell_t* lead = zr_fb_cell(&fb, 39u, 0u);

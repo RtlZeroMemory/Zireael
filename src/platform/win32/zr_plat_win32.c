@@ -235,8 +235,7 @@ static uint8_t zr_win32_detect_underline_styles(void) {
 
   const char* term = zr_win32_getenv_nonempty("TERM");
   static const char* kUnderlineTerms[] = {"kitty", "wezterm", "ghostty", "foot", "rio"};
-  return zr_win32_str_has_any_ci(term, kUnderlineTerms, sizeof(kUnderlineTerms) / sizeof(kUnderlineTerms[0])) ? 1u
-                                                                                                                : 0u;
+  return zr_win32_str_has_any_ci(term, kUnderlineTerms, sizeof(kUnderlineTerms) / sizeof(kUnderlineTerms[0])) ? 1u : 0u;
 }
 
 static uint8_t zr_win32_detect_colored_underlines(void) {
@@ -248,7 +247,7 @@ static uint8_t zr_win32_detect_colored_underlines(void) {
   const char* term = zr_win32_getenv_nonempty("TERM");
   static const char* kColoredUnderlineTerms[] = {"kitty", "wezterm", "ghostty", "foot"};
   return zr_win32_str_has_any_ci(term, kColoredUnderlineTerms,
-                                  sizeof(kColoredUnderlineTerms) / sizeof(kColoredUnderlineTerms[0]))
+                                 sizeof(kColoredUnderlineTerms) / sizeof(kColoredUnderlineTerms[0]))
              ? 1u
              : 0u;
 }
@@ -269,8 +268,7 @@ static uint8_t zr_win32_detect_hyperlinks(void) {
 
   const char* term = zr_win32_getenv_nonempty("TERM");
   static const char* kHyperlinkTerms[] = {"kitty", "wezterm", "ghostty", "foot", "rio", "alacritty"};
-  return zr_win32_str_has_any_ci(term, kHyperlinkTerms, sizeof(kHyperlinkTerms) / sizeof(kHyperlinkTerms[0])) ? 1u
-                                                                                                                : 0u;
+  return zr_win32_str_has_any_ci(term, kHyperlinkTerms, sizeof(kHyperlinkTerms) / sizeof(kHyperlinkTerms[0])) ? 1u : 0u;
 }
 
 static uint32_t zr_win32_detect_sgr_attrs_supported(void) {

@@ -24,6 +24,8 @@ ZR_TEST_UNIT(diff_xterm256_component_distance_is_symmetric) {
   base.bg_rgb = 0u;
   base.attrs = 0u;
   base.reserved = 0u;
+  base.underline_rgb = 0u;
+  base.link_ref = 0u;
   (void)zr_fb_clear(&prev, &base);
   (void)zr_fb_clear(&next, &base);
 
@@ -83,6 +85,8 @@ ZR_TEST_UNIT(diff_ansi16_emits_standard_fg_bg_codes) {
   base.bg_rgb = 0u;
   base.attrs = 0u;
   base.reserved = 0u;
+  base.underline_rgb = 0u;
+  base.link_ref = 0u;
   (void)zr_fb_clear(&prev, &base);
   (void)zr_fb_clear(&next, &base);
 

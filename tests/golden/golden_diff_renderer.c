@@ -716,8 +716,8 @@ ZR_TEST_GOLDEN(diff_012_mixed_underline_styles) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out,
-                                        sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_012_mixed_underline_styles", out, out_len) == 0);
@@ -772,8 +772,8 @@ ZR_TEST_GOLDEN(diff_013_colored_underline_transitions) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out,
-                                        sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_013_colored_underline_transitions", out, out_len) == 0);
@@ -804,9 +804,8 @@ ZR_TEST_GOLDEN(diff_014_hyperlink_span_transitions) {
   uint32_t link2 = 0u;
   ZR_ASSERT_TRUE(zr_fb_link_intern(&next, (const uint8_t*)"https://a.example", strlen("https://a.example"), NULL, 0u,
                                    &link1) == ZR_OK);
-  ZR_ASSERT_TRUE(
-      zr_fb_link_intern(&next, (const uint8_t*)"https://b.example", strlen("https://b.example"), (const uint8_t*)"grp",
-                        strlen("grp"), &link2) == ZR_OK);
+  ZR_ASSERT_TRUE(zr_fb_link_intern(&next, (const uint8_t*)"https://b.example", strlen("https://b.example"),
+                                   (const uint8_t*)"grp", strlen("grp"), &link2) == ZR_OK);
 
   zr_style_t s_link1 = base;
   s_link1.link_ref = link1;
@@ -830,8 +829,8 @@ ZR_TEST_GOLDEN(diff_014_hyperlink_span_transitions) {
   size_t out_len = 0u;
   zr_term_state_t final_state;
   zr_diff_stats_t stats;
-  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out,
-                                        sizeof(out), &out_len, &final_state, &stats);
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out, sizeof(out),
+                                        &out_len, &final_state, &stats);
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_014_hyperlink_span_transitions", out, out_len) == 0);

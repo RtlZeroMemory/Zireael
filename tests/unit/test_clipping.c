@@ -18,6 +18,8 @@ static zr_style_t zr_style0(void) {
   s.bg_rgb = 0u;
   s.attrs = 0u;
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
   return s;
 }
 

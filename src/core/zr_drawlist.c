@@ -89,8 +89,8 @@ static uint32_t zr_dl_cmd_fill_rect_size(uint32_t version) {
 }
 
 static uint32_t zr_dl_cmd_draw_text_size(uint32_t version) {
-  const uint32_t payload =
-      (uint32_t)ZR_DL_DRAW_TEXT_FIELDS_BYTES + zr_dl_style_wire_bytes(version) + (uint32_t)ZR_DL_DRAW_TEXT_TRAILER_BYTES;
+  const uint32_t payload = (uint32_t)ZR_DL_DRAW_TEXT_FIELDS_BYTES + zr_dl_style_wire_bytes(version) +
+                           (uint32_t)ZR_DL_DRAW_TEXT_TRAILER_BYTES;
   return (uint32_t)sizeof(zr_dl_cmd_header_t) + payload;
 }
 
@@ -877,7 +877,8 @@ static zr_result_t zr_dl_validate_text_run_blob_span(const zr_dl_view_t* v, uint
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_read_text_run_segment(zr_byte_reader_t* r, uint32_t version, zr_dl_text_run_segment_wire_t* out) {
+static zr_result_t zr_dl_read_text_run_segment(zr_byte_reader_t* r, uint32_t version,
+                                               zr_dl_text_run_segment_wire_t* out) {
   zr_result_t rc = ZR_OK;
   if (!r || !out) {
     return ZR_ERR_INVALID_ARGUMENT;

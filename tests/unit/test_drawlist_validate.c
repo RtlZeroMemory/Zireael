@@ -365,11 +365,22 @@ const size_t zr_test_dl_fixture6_v1_draw_text_slices_len = sizeof(zr_test_dl_fix
  *   index 2 => "id1"
  */
 const uint8_t zr_test_dl_fixture7_v3_text_link[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(3u), ZR_U32LE(64u), ZR_U32LE(172u), /* magic/version/hdr/total */
-    ZR_U32LE(64u), ZR_U32LE(68u), ZR_U32LE(2u),                        /* cmd offset/bytes/count */
-    ZR_U32LE(132u), ZR_U32LE(3u), ZR_U32LE(156u), ZR_U32LE(16u),       /* strings spans/count/bytes */
-    ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u),            /* blobs empty */
-    ZR_U32LE(0u),                                                       /* reserved0 */
+    ZR_U32LE(0x4C44525Au),
+    ZR_U32LE(3u),
+    ZR_U32LE(64u),
+    ZR_U32LE(172u), /* magic/version/hdr/total */
+    ZR_U32LE(64u),
+    ZR_U32LE(68u),
+    ZR_U32LE(2u), /* cmd offset/bytes/count */
+    ZR_U32LE(132u),
+    ZR_U32LE(3u),
+    ZR_U32LE(156u),
+    ZR_U32LE(16u), /* strings spans/count/bytes */
+    ZR_U32LE(0u),
+    ZR_U32LE(0u),
+    ZR_U32LE(0u),
+    ZR_U32LE(0u), /* blobs empty */
+    ZR_U32LE(0u), /* reserved0 */
 
     /* cmd stream @ 64 */
     ZR_DL_CMD_HDR(ZR_DL_OP_CLEAR, 8u),
@@ -390,9 +401,9 @@ const uint8_t zr_test_dl_fixture7_v3_text_link[] = {
 
     /* strings span table @ 132 */
     ZR_U32LE(0u),
-    ZR_U32LE(1u),  /* "X" */
+    ZR_U32LE(1u), /* "X" */
     ZR_U32LE(1u),
-    ZR_U32LE(9u),  /* "https://x" */
+    ZR_U32LE(9u), /* "https://x" */
     ZR_U32LE(10u),
     ZR_U32LE(3u), /* "id1" */
 

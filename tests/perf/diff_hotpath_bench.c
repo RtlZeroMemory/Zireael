@@ -125,7 +125,7 @@ static void zr_set_cell_ascii(zr_fb_t* fb, uint32_t x, uint32_t y, uint8_t ch, z
 }
 
 static void zr_case_sparse(zr_fb_t* a, zr_fb_t* b) {
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_fill_clear(a, s);
   zr_fill_clear(b, s);
 
@@ -136,7 +136,7 @@ static void zr_case_sparse(zr_fb_t* a, zr_fb_t* b) {
 }
 
 static void zr_case_dense(zr_fb_t* a, zr_fb_t* b) {
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   for (uint32_t y = 0u; y < ZR_BENCH_ROWS; y++) {
     for (uint32_t x = 0u; x < ZR_BENCH_COLS; x++) {
       zr_set_cell_ascii(a, x, y, (uint8_t)('a' + ((x + y) % 26u)), s);
@@ -146,7 +146,7 @@ static void zr_case_dense(zr_fb_t* a, zr_fb_t* b) {
 }
 
 static void zr_case_scroll_like(zr_fb_t* a, zr_fb_t* b) {
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   for (uint32_t y = 0u; y < ZR_BENCH_ROWS; y++) {
     const uint8_t ch = (uint8_t)('A' + (y % 26u));
     for (uint32_t x = 0u; x < ZR_BENCH_COLS; x++) {
@@ -168,8 +168,8 @@ static void zr_case_scroll_like(zr_fb_t* a, zr_fb_t* b) {
 static void zr_case_style_churn(zr_fb_t* a, zr_fb_t* b) {
   for (uint32_t y = 0u; y < ZR_BENCH_ROWS; y++) {
     for (uint32_t x = 0u; x < ZR_BENCH_COLS; x++) {
-      zr_style_t s0 = {0x00112233u, 0x00000000u, 0u, 0u};
-      zr_style_t s1 = {0x00D07010u, 0x00010101u, 0u, 0u};
+      zr_style_t s0 = {0x00112233u, 0x00000000u, 0u, 0u, 0u, 0u};
+      zr_style_t s1 = {0x00D07010u, 0x00010101u, 0u, 0u, 0u, 0u};
 
       if (((x + y) & 1u) != 0u) {
         s0.attrs = 1u;
@@ -212,8 +212,8 @@ static int zr_run_case(const zr_bench_case_t* bench_case, zr_bench_metrics_t* ou
     return 1;
   }
 
-  zr_fb_t fb_a = {0u, 0u, NULL};
-  zr_fb_t fb_b = {0u, 0u, NULL};
+  zr_fb_t fb_a = {0};
+  zr_fb_t fb_b = {0};
   if (zr_fb_init(&fb_a, ZR_BENCH_COLS, ZR_BENCH_ROWS) != ZR_OK ||
       zr_fb_init(&fb_b, ZR_BENCH_COLS, ZR_BENCH_ROWS) != ZR_OK) {
     zr_fb_release(&fb_a);

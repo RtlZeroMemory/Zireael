@@ -509,9 +509,9 @@ static zr_result_t zr_engine_resize_framebuffers(zr_engine_t* e, uint32_t cols, 
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_fb_t prev = {0u, 0u, NULL};
-  zr_fb_t next = {0u, 0u, NULL};
-  zr_fb_t stage = {0u, 0u, NULL};
+  zr_fb_t prev = {0};
+  zr_fb_t next = {0};
+  zr_fb_t stage = {0};
   uint64_t* new_prev_hashes = NULL;
   uint64_t* new_next_hashes = NULL;
   uint8_t* new_dirty_rows = NULL;

@@ -368,8 +368,7 @@ ZR_TEST_UNIT(diff_hyperlink_open_with_id_emits_id_param) {
   const zr_diff_case_result_t res = zr_run_diff_case(&prev, &next, &caps, zr_style_default_ext());
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
   const char* expected_fragment = "]8;id=doc-42;https://example.com/docs";
-  ZR_ASSERT_TRUE(
-      zr_bytes_contains(res.out, res.out_len, (const uint8_t*)expected_fragment, strlen(expected_fragment)));
+  ZR_ASSERT_TRUE(zr_bytes_contains(res.out, res.out_len, (const uint8_t*)expected_fragment, strlen(expected_fragment)));
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -581,8 +580,7 @@ ZR_TEST_UNIT(diff_hyperlink_style_unknown_still_emits_initial_sgr) {
   const zr_diff_case_result_t res =
       zr_run_diff_case_with_flags(&prev, &next, &caps, zr_style_default_ext(), flags_without_style);
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
-  ZR_ASSERT_TRUE(
-      zr_bytes_contains(res.out, res.out_len, (const uint8_t*)"\x1b[0;38;2;0;0;0;48;2;0;0;0m", 26u));
+  ZR_ASSERT_TRUE(zr_bytes_contains(res.out, res.out_len, (const uint8_t*)"\x1b[0;38;2;0;0;0;48;2;0;0;0m", 26u));
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -596,14 +594,14 @@ ZR_TEST_UNIT(diff_hyperlink_equal_targets_with_different_refs_are_clean) {
   const char* id = "same-id";
   uint32_t prev_ref = 0u;
   uint32_t next_ref = 0u;
-  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&prev, (const uint8_t*)uri, strlen(uri), (const uint8_t*)id, strlen(id), &prev_ref),
-                   ZR_OK);
+  ZR_ASSERT_EQ_U32(
+      zr_fb_link_intern(&prev, (const uint8_t*)uri, strlen(uri), (const uint8_t*)id, strlen(id), &prev_ref), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_link_intern(&next, (const uint8_t*)"https://dummy.example", strlen("https://dummy.example"),
                                      NULL, 0u, &next_ref),
                    ZR_OK);
   ZR_ASSERT_TRUE(next_ref != 0u);
-  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&next, (const uint8_t*)uri, strlen(uri), (const uint8_t*)id, strlen(id), &next_ref),
-                   ZR_OK);
+  ZR_ASSERT_EQ_U32(
+      zr_fb_link_intern(&next, (const uint8_t*)uri, strlen(uri), (const uint8_t*)id, strlen(id), &next_ref), ZR_OK);
 
   zr_style_t prev_style = zr_style_default_ext();
   prev_style.link_ref = prev_ref;

@@ -142,11 +142,11 @@ typedef struct zr_dl_text_run_segment_v3_t {
 } zr_dl_text_run_segment_v3_t;
 
 typedef struct zr_dl_cmd_set_cursor_t {
-  int32_t x; /* 0-based cell; -1 means "leave unchanged" */
-  int32_t y; /* 0-based cell; -1 means "leave unchanged" */
-  uint8_t shape;   /* 0=block, 1=underline, 2=bar */
-  uint8_t visible; /* 0/1 */
-  uint8_t blink;   /* 0/1 */
+  int32_t x;         /* 0-based cell; -1 means "leave unchanged" */
+  int32_t y;         /* 0-based cell; -1 means "leave unchanged" */
+  uint8_t shape;     /* 0=block, 1=underline, 2=bar */
+  uint8_t visible;   /* 0/1 */
+  uint8_t blink;     /* 0/1 */
   uint8_t reserved0; /* must be 0 */
 } zr_dl_cmd_set_cursor_t;
 

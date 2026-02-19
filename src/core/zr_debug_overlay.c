@@ -10,7 +10,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-static uint32_t zr_u32_min(uint32_t a, uint32_t b) { return (a < b) ? a : b; }
+static uint32_t zr_u32_min(uint32_t a, uint32_t b) {
+  return (a < b) ? a : b;
+}
 
 static void zr_cell_set_ascii(zr_cell_t* cell, uint8_t ch, zr_style_t style) {
   if (!cell) {
@@ -35,8 +37,8 @@ static bool zr_cell_is_continuation(const zr_cell_t* cell) {
  * clear its paired continuation cell when both are within the overlay region,
  * and must skip writes that would split a wide glyph across the overlay boundary.
  */
-static void zr_overlay_write_ascii_cell(zr_fb_t* fb, uint32_t x, uint32_t y, uint32_t overlay_cols,
-                                       uint8_t ch, zr_style_t style) {
+static void zr_overlay_write_ascii_cell(zr_fb_t* fb, uint32_t x, uint32_t y, uint32_t overlay_cols, uint8_t ch,
+                                        zr_style_t style) {
   zr_cell_t* c = zr_fb_cell(fb, x, y);
   if (!c) {
     return;
@@ -171,7 +173,7 @@ zr_result_t zr_debug_overlay_render(zr_fb_t* fb, const zr_metrics_t* metrics) {
     return ZR_OK;
   }
 
-  const zr_style_t style = (zr_style_t){0u, 0u, 0u, 0u};
+  const zr_style_t style = (zr_style_t){0u, 0u, 0u, 0u, 0u, 0u};
 
   char line[ZR_DEBUG_OVERLAY_MAX_COLS];
 

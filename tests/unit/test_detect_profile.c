@@ -65,15 +65,14 @@ ZR_TEST_UNIT(detect_profile_known_terminal_kitty) {
   plat_caps_t baseline;
   ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
 
-  static const uint8_t kResponses[] =
-      "\x1bP>|kitty(0.35.0)\x1b\\"
-      "\x1b[?1;2;22c"
-      "\x1b[>1;3500;0c"
-      "\x1b[?2026;1$y"
-      "\x1b[?2027;1$y"
-      "\x1b[?1016;1$y"
-      "\x1b[?2004;1$y"
-      "\x1b[6;20;10t";
+  static const uint8_t kResponses[] = "\x1bP>|kitty(0.35.0)\x1b\\"
+                                      "\x1b[?1;2;22c"
+                                      "\x1b[>1;3500;0c"
+                                      "\x1b[?2026;1$y"
+                                      "\x1b[?2027;1$y"
+                                      "\x1b[?1016;1$y"
+                                      "\x1b[?2004;1$y"
+                                      "\x1b[6;20;10t";
   ZR_ASSERT_EQ_U32(mock_plat_push_input(kResponses, sizeof(kResponses) - 1u), ZR_OK);
 
   zr_terminal_profile_t profile;
@@ -218,19 +217,18 @@ ZR_TEST_UNIT(detect_profile_returns_non_probe_passthrough) {
   plat_caps_t baseline;
   ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
 
-  static const uint8_t kResponses[] =
-      "A\x1b[31mB"
-      "\x1bP>|kitty(0.35.0)\x1b\\"
-      "C";
+  static const uint8_t kResponses[] = "A\x1b[31mB"
+                                      "\x1bP>|kitty(0.35.0)\x1b\\"
+                                      "C";
   ZR_ASSERT_EQ_U32(mock_plat_push_input(kResponses, sizeof(kResponses) - 1u), ZR_OK);
 
   zr_terminal_profile_t profile;
   plat_caps_t out_caps;
   uint8_t passthrough[64];
   size_t passthrough_len = 0u;
-  ZR_ASSERT_EQ_U32(
-      zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, passthrough, sizeof(passthrough), &passthrough_len),
-      ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, passthrough, sizeof(passthrough),
+                                            &passthrough_len),
+                   ZR_OK);
 
   static const uint8_t kExpected[] = "A\x1b[31mBC";
   ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_KITTY);

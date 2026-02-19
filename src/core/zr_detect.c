@@ -21,16 +21,15 @@ enum {
   ZR_DETECT_DECRQM_SET = 1u,
 };
 
-static const uint8_t ZR_DETECT_QUERY_BATCH[] =
-    "\x1b[>0q"     /* XTVERSION */
-    "\x1b[c"       /* DA1 */
-    "\x1b[>c"      /* DA2 */
-    "\x1b[?2026$p" /* DECRQM sync-update */
-    "\x1b[?2027$p" /* DECRQM grapheme clusters */
-    "\x1b[?1016$p" /* DECRQM pixel mouse */
-    "\x1b[?2004$p" /* DECRQM bracketed paste */
-    "\x1b[16t"     /* cell pixel size */
-    "\x1b[14t";    /* text area pixel size */
+static const uint8_t ZR_DETECT_QUERY_BATCH[] = "\x1b[>0q"     /* XTVERSION */
+                                               "\x1b[c"       /* DA1 */
+                                               "\x1b[>c"      /* DA2 */
+                                               "\x1b[?2026$p" /* DECRQM sync-update */
+                                               "\x1b[?2027$p" /* DECRQM grapheme clusters */
+                                               "\x1b[?1016$p" /* DECRQM pixel mouse */
+                                               "\x1b[?2004$p" /* DECRQM bracketed paste */
+                                               "\x1b[16t"     /* cell pixel size */
+                                               "\x1b[14t";    /* text area pixel size */
 
 typedef struct zr_term_known_caps_t {
   zr_terminal_id_t id;
@@ -858,9 +857,9 @@ zr_result_t zr_detect_probe_terminal(plat_t* plat, const plat_caps_t* baseline_c
     *out_passthrough_len = passthrough_len;
   }
 
-  const zr_terminal_id_t fallback_id =
-      (parsed.xtversion_responded != 0u || plat_supports_terminal_queries(plat) == 0u) ? ZR_TERM_UNKNOWN
-                                                                                          : zr_detect_fallback_terminal_id(plat);
+  const zr_terminal_id_t fallback_id = (parsed.xtversion_responded != 0u || plat_supports_terminal_queries(plat) == 0u)
+                                           ? ZR_TERM_UNKNOWN
+                                           : zr_detect_fallback_terminal_id(plat);
 
   zr_detect_build_profile(&parsed, fallback_id, baseline_caps, out_profile, out_caps);
   return ZR_OK;

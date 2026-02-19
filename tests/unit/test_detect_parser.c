@@ -25,16 +25,15 @@ ZR_TEST_UNIT(detect_parser_xtversion_known_terminal) {
 }
 
 ZR_TEST_UNIT(detect_query_batch_matches_expected_bytes) {
-  static const uint8_t kExpected[] =
-      "\x1b[>0q"
-      "\x1b[c"
-      "\x1b[>c"
-      "\x1b[?2026$p"
-      "\x1b[?2027$p"
-      "\x1b[?1016$p"
-      "\x1b[?2004$p"
-      "\x1b[16t"
-      "\x1b[14t";
+  static const uint8_t kExpected[] = "\x1b[>0q"
+                                     "\x1b[c"
+                                     "\x1b[>c"
+                                     "\x1b[?2026$p"
+                                     "\x1b[?2027$p"
+                                     "\x1b[?1016$p"
+                                     "\x1b[?2004$p"
+                                     "\x1b[16t"
+                                     "\x1b[14t";
 
   size_t batch_len = 0u;
   const uint8_t* batch = zr_detect_query_batch_bytes(&batch_len);
@@ -60,12 +59,11 @@ ZR_TEST_UNIT(detect_parser_da1_detects_sixel) {
 }
 
 ZR_TEST_UNIT(detect_parser_da2_and_decrqm_modes) {
-  static const uint8_t kBytes[] =
-      "\x1b[>65;4200;0c"
-      "\x1b[?2026;1$y"
-      "\x1b[?2027;1$y"
-      "\x1b[?1016;1$y"
-      "\x1b[?2004;2$y";
+  static const uint8_t kBytes[] = "\x1b[>65;4200;0c"
+                                  "\x1b[?2026;1$y"
+                                  "\x1b[?2027;1$y"
+                                  "\x1b[?1016;1$y"
+                                  "\x1b[?2004;2$y";
 
   const zr_detect_parsed_t parsed = zr_test_parse_bytes(kBytes, sizeof(kBytes) - 1u);
   ZR_ASSERT_EQ_U32(parsed.da2_responded, 1u);
@@ -92,15 +90,14 @@ ZR_TEST_UNIT(detect_parser_cell_and_screen_metrics) {
 }
 
 ZR_TEST_UNIT(detect_parser_combined_interleaved_stream) {
-  static const uint8_t kBytes[] =
-      "noise"
-      "\x1b[?1;2c"
-      "x"
-      "\x1bP>|WezTerm 20240203-110809-5046fc22\x1b\\"
-      "y"
-      "\x1b[>65;4200;0c"
-      "\x1b[?2026;1$y"
-      "\x1b[6;17;9t";
+  static const uint8_t kBytes[] = "noise"
+                                  "\x1b[?1;2c"
+                                  "x"
+                                  "\x1bP>|WezTerm 20240203-110809-5046fc22\x1b\\"
+                                  "y"
+                                  "\x1b[>65;4200;0c"
+                                  "\x1b[?2026;1$y"
+                                  "\x1b[6;17;9t";
 
   const zr_detect_parsed_t parsed = zr_test_parse_bytes(kBytes, sizeof(kBytes) - 1u);
   ZR_ASSERT_EQ_U32(parsed.xtversion_responded, 1u);

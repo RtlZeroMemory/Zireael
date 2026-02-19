@@ -19,15 +19,14 @@ static zr_detect_parsed_t zr_golden_parse_bytes(const uint8_t* bytes, size_t len
 }
 
 ZR_TEST_GOLDEN(detect_fixture_kitty_full_response_set) {
-  static const uint8_t kBytes[] =
-      "\x1bP>|kitty(0.35.0)\x1b\\"
-      "\x1b[?1;2;22c"
-      "\x1b[>1;3500;0c"
-      "\x1b[?2026;1$y"
-      "\x1b[?2027;1$y"
-      "\x1b[?1016;1$y"
-      "\x1b[?2004;1$y"
-      "\x1b[6;20;10t";
+  static const uint8_t kBytes[] = "\x1bP>|kitty(0.35.0)\x1b\\"
+                                  "\x1b[?1;2;22c"
+                                  "\x1b[>1;3500;0c"
+                                  "\x1b[?2026;1$y"
+                                  "\x1b[?2027;1$y"
+                                  "\x1b[?1016;1$y"
+                                  "\x1b[?2004;1$y"
+                                  "\x1b[6;20;10t";
 
   ZR_ASSERT_EQ_U32((uint32_t)zr_golden_compare_fixture("detect_kitty_full", kBytes, sizeof(kBytes) - 1u), 0u);
   const zr_detect_parsed_t parsed = zr_golden_parse_bytes(kBytes, sizeof(kBytes) - 1u);
@@ -37,10 +36,9 @@ ZR_TEST_GOLDEN(detect_fixture_kitty_full_response_set) {
 }
 
 ZR_TEST_GOLDEN(detect_fixture_xterm_sixel_response_set) {
-  static const uint8_t kBytes[] =
-      "\x1b[?1;2;4;22c"
-      "\x1b[>41;3600;0c"
-      "\x1b[6;16;8t";
+  static const uint8_t kBytes[] = "\x1b[?1;2;4;22c"
+                                  "\x1b[>41;3600;0c"
+                                  "\x1b[6;16;8t";
 
   ZR_ASSERT_EQ_U32((uint32_t)zr_golden_compare_fixture("detect_xterm_sixel", kBytes, sizeof(kBytes) - 1u), 0u);
   const zr_detect_parsed_t parsed = zr_golden_parse_bytes(kBytes, sizeof(kBytes) - 1u);
@@ -68,4 +66,3 @@ ZR_TEST_GOLDEN(detect_fixture_empty_timeout) {
   ZR_ASSERT_EQ_U32(parsed.da1_responded, 0u);
   ZR_ASSERT_EQ_U32(parsed.da2_responded, 0u);
 }
-

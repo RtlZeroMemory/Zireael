@@ -1103,9 +1103,8 @@ static void zr_engine_detect_terminal_profile(zr_engine_t* e) {
   plat_caps_t detected_caps;
   uint8_t probe_passthrough[ZR_ENGINE_DETECT_PASSTHROUGH_CAP];
   size_t probe_passthrough_len = 0u;
-  zr_result_t rc =
-      zr_detect_probe_terminal(e->plat, &e->caps_base, &detected_profile, &detected_caps, probe_passthrough,
-                               sizeof(probe_passthrough), &probe_passthrough_len);
+  zr_result_t rc = zr_detect_probe_terminal(e->plat, &e->caps_base, &detected_profile, &detected_caps,
+                                            probe_passthrough, sizeof(probe_passthrough), &probe_passthrough_len);
   if (rc == ZR_OK) {
     e->term_profile_base = detected_profile;
     e->caps_base = detected_caps;

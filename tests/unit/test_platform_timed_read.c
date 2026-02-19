@@ -78,4 +78,3 @@ ZR_TEST_UNIT(platform_timed_read_invalid_timeout_rejected) {
 
   plat_destroy(plat);
 }
-

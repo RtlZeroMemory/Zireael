@@ -16,31 +16,31 @@
 #include <stdint.h>
 
 typedef struct zr_detect_parsed_t {
-  char            xtversion_raw[64];
+  char xtversion_raw[64];
   zr_terminal_id_t xtversion_id;
-  uint8_t         xtversion_responded;
+  uint8_t xtversion_responded;
 
-  uint8_t         da1_responded;
-  uint8_t         da1_has_sixel;
-  uint8_t         da2_responded;
-  uint8_t         _pad0;
+  uint8_t da1_responded;
+  uint8_t da1_has_sixel;
+  uint8_t da2_responded;
+  uint8_t _pad0;
 
-  uint32_t        da2_model;
-  uint32_t        da2_version;
+  uint32_t da2_model;
+  uint32_t da2_version;
 
-  uint8_t         decrqm_2026_seen;
-  uint8_t         decrqm_2026_value;
-  uint8_t         decrqm_2027_seen;
-  uint8_t         decrqm_2027_value;
-  uint8_t         decrqm_1016_seen;
-  uint8_t         decrqm_1016_value;
-  uint8_t         decrqm_2004_seen;
-  uint8_t         decrqm_2004_value;
+  uint8_t decrqm_2026_seen;
+  uint8_t decrqm_2026_value;
+  uint8_t decrqm_2027_seen;
+  uint8_t decrqm_2027_value;
+  uint8_t decrqm_1016_seen;
+  uint8_t decrqm_1016_value;
+  uint8_t decrqm_2004_seen;
+  uint8_t decrqm_2004_value;
 
-  uint16_t        cell_width_px;
-  uint16_t        cell_height_px;
-  uint16_t        screen_width_px;
-  uint16_t        screen_height_px;
+  uint16_t cell_width_px;
+  uint16_t cell_height_px;
+  uint16_t screen_width_px;
+  uint16_t screen_height_px;
 } zr_detect_parsed_t;
 
 /* Return immutable startup query batch bytes (XTVERSION/DA/DECRQM/cell metrics). */

@@ -78,4 +78,3 @@ ZR_TEST_UNIT(detect_overrides_suppress_wins_over_force) {
   ZR_ASSERT_EQ_U32(out_profile.supports_sync_update, 0u);
   ZR_ASSERT_EQ_U32(out_caps.supports_mouse, 0u);
 }
-

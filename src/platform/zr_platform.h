@@ -22,7 +22,7 @@ typedef struct plat_t plat_t;
 
 /* lifecycle */
 zr_result_t plat_create(plat_t** out_plat, const plat_config_t* cfg);
-void        plat_destroy(plat_t* plat);
+void plat_destroy(plat_t* plat);
 
 /* raw mode (idempotent, best-effort) */
 zr_result_t plat_enter_raw(plat_t* plat);
@@ -33,8 +33,8 @@ zr_result_t plat_get_size(plat_t* plat, plat_size_t* out_size);
 zr_result_t plat_get_caps(plat_t* plat, plat_caps_t* out_caps);
 
 /* I/O */
-int32_t     plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap);
-int32_t     plat_read_input_timed(plat_t* plat, uint8_t* out_buf, int32_t out_cap, int32_t timeout_ms);
+int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap);
+int32_t plat_read_input_timed(plat_t* plat, uint8_t* out_buf, int32_t out_cap, int32_t timeout_ms);
 zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len);
 
 /*
@@ -55,11 +55,11 @@ zr_result_t plat_wait_output_writable(plat_t* plat, int32_t timeout_ms);
       < 0 : negative ZR_ERR_* failure
     - plat_wake is callable from non-engine threads and must not block indefinitely.
 */
-int32_t     plat_wait(plat_t* plat, int32_t timeout_ms);
+int32_t plat_wait(plat_t* plat, int32_t timeout_ms);
 zr_result_t plat_wake(plat_t* plat);
 
 /* startup detection helpers */
-uint8_t     plat_supports_terminal_queries(plat_t* plat);
+uint8_t plat_supports_terminal_queries(plat_t* plat);
 zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id);
 
 /* time */

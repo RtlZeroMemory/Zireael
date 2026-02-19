@@ -79,6 +79,9 @@ Raw mode enables unbuffered input and disables terminal echo/line editing.
 - `plat_caps_t.supports_cursor_shape` — safe to emit DECSCUSR (`ESC[Ps q`) for cursor shape/blink control
 - `plat_caps_t.supports_focus_events` — safe to enable xterm focus in/out reports (`CSI I` / `CSI O` via `?1004h`)
 - `plat_caps_t.supports_output_wait_writable` — backend supports `plat_wait_output_writable()` for bounded output pacing
+- `plat_caps_t.supports_underline_styles` — safe to emit underline variants (`SGR 4:n`)
+- `plat_caps_t.supports_colored_underlines` — safe to emit underline color/reset (`SGR 58` / `59`)
+- `plat_caps_t.supports_hyperlinks` — safe to emit OSC 8 hyperlinks
 
 Backends also support environment overrides for manual capability control in
 non-standard terminals/CI harnesses:
@@ -90,6 +93,9 @@ non-standard terminals/CI harnesses:
 - `ZIREAEL_CAP_SCROLL_REGION`
 - `ZIREAEL_CAP_CURSOR_SHAPE`
 - `ZIREAEL_CAP_FOCUS_EVENTS`
+- `ZIREAEL_CAP_UNDERLINE_STYLES`
+- `ZIREAEL_CAP_COLORED_UNDERLINES`
+- `ZIREAEL_CAP_HYPERLINKS`
 - `ZIREAEL_CAP_SGR_ATTRS_MASK` (u32, accepts decimal or `0x...` hex)
 
 Boolean overrides accept: `1/0`, `true/false`, `yes/no`, `on/off`.

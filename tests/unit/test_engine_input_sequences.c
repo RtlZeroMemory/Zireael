@@ -122,9 +122,9 @@ static void zr_mock_set_caps_with_focus(uint8_t supports_focus_events) {
   caps.supports_scroll_region = 1u;
   caps.supports_cursor_shape = 1u;
   caps.supports_output_wait_writable = 1u;
-  caps._pad0[0] = 0u;
-  caps._pad0[1] = 0u;
-  caps._pad0[2] = 0u;
+  caps.supports_underline_styles = 0u;
+  caps.supports_colored_underlines = 0u;
+  caps.supports_hyperlinks = 0u;
   caps.sgr_attrs_supported = 0xFFFFFFFFu;
   mock_plat_set_caps(caps);
 }
@@ -1700,9 +1700,9 @@ ZR_TEST_UNIT(engine_poll_events_does_not_parse_bracketed_paste_when_disabled_by_
   caps.supports_scroll_region = 1u;
   caps.supports_cursor_shape = 1u;
   caps.supports_output_wait_writable = 1u;
-  caps._pad0[0] = 0u;
-  caps._pad0[1] = 0u;
-  caps._pad0[2] = 0u;
+  caps.supports_underline_styles = 0u;
+  caps.supports_colored_underlines = 0u;
+  caps.supports_hyperlinks = 0u;
   caps.sgr_attrs_supported = 0xFFFFFFFFu;
   mock_plat_set_caps(caps);
 

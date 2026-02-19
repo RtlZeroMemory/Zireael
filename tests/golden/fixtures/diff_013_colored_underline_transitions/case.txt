@@ -1,0 +1,12 @@
+# fixture_id: diff_013_colored_underline_transitions
+# purpose: colored underline transitions emit 58 set + 59 reset deterministically.
+#
+# pinned:
+#   - caps.color_mode = RGB
+#   - caps.sgr_attrs_supported = all
+#   - caps.supports_underline_styles = 1
+#   - caps.supports_colored_underlines = 1
+#   - initial_term_state.cursor = (0,0)
+#   - initial_term_state.style = default
+#
+# next row: A(4:2 + ulrgb #112233), B(4:2 + no ulrgb), C(4:2 + ulrgb #445566)

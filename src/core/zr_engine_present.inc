@@ -35,6 +35,18 @@ static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out
   }
 
   if (e->cfg_runtime.enable_debug_overlay == 0u) {
+    /*
+      Keep fb_stage as a no-allocation clone of fb_next for commit-time
+      synchronization.
+
+      Why: Commit happens after a successful write; cloning here preserves the
+      single-flush/no-partial-effects contract by surfacing OOM/limit failures
+      before any terminal bytes are emitted.
+    */
+    const zr_result_t rc = zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
+    if (rc != ZR_OK) {
+      return rc;
+    }
     *out_present_fb = &e->fb_next;
     *out_presented_stage = false;
     return ZR_OK;
@@ -45,8 +57,11 @@ static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out
     return ZR_ERR_PLATFORM;
   }
 
-  zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
-  zr_result_t rc = zr_debug_overlay_render(&e->fb_stage, &e->metrics);
+  zr_result_t rc = zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_debug_overlay_render(&e->fb_stage, &e->metrics);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -185,14 +200,7 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
     zr_engine_fb_swap(&e->fb_prev, &e->fb_stage);
   } else {
     zr_engine_fb_swap(&e->fb_prev, &e->fb_next);
-    /*
-      Keep fb_next synchronized with the last committed app frame.
-
-      Why: Incremental drawlists apply against fb_next in engine_submit_drawlist().
-      If fb_next is left as the pre-swap "old prev" frame, incremental updates
-      are applied on a stale base and can oscillate full-screen output.
-    */
-    zr_engine_fb_copy(&e->fb_prev, &e->fb_next);
+    zr_engine_fb_swap(&e->fb_next, &e->fb_stage);
   }
   zr_engine_swap_diff_hashes_on_commit(e);
   e->term_state = *final_ts;

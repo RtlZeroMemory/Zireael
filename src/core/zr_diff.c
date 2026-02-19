@@ -63,6 +63,8 @@ static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
 #define ZR_SGR_REVERSE 7u
 #define ZR_SGR_STRIKETHROUGH 9u
 #define ZR_SGR_OVERLINE 53u
+#define ZR_SGR_UNDERLINE_COLOR 58u
+#define ZR_SGR_UNDERLINE_COLOR_DEFAULT 59u
 #define ZR_SGR_FG_256 38u        /* Extended foreground color */
 #define ZR_SGR_BG_256 48u        /* Extended background color */
 #define ZR_SGR_COLOR_MODE_256 5u /* 256-color mode selector */
@@ -83,6 +85,13 @@ static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
 #define ZR_STYLE_ATTR_STRIKE (1u << 5)
 #define ZR_STYLE_ATTR_OVERLINE (1u << 6)
 #define ZR_STYLE_ATTR_BLINK (1u << 7)
+#define ZR_STYLE_RESERVED_UNDERLINE_VARIANT_MASK 0x07u
+#define ZR_STYLE_UNDERLINE_VARIANT_MIN 1u
+#define ZR_STYLE_UNDERLINE_VARIANT_MAX 5u
+#define ZR_ASCII_ESC 0x1Bu
+#define ZR_ASCII_BEL 0x07u
+#define ZR_ASCII_ST_FINAL ((uint8_t)'\\')
+#define ZR_ASCII_DEL 0x7Fu
 
 /* Adaptive sweep threshold tuning (dirty-row density, percent). */
 #define ZR_DIFF_SWEEP_DIRTY_LINE_PCT_BASE 35u
@@ -108,15 +117,77 @@ typedef struct zr_attr_map_t {
   uint32_t sgr;
 } zr_attr_map_t;
 
-static const zr_attr_map_t ZR_SGR_ATTRS[] = {
-    {ZR_STYLE_ATTR_BOLD, ZR_SGR_BOLD},         {ZR_STYLE_ATTR_DIM, ZR_SGR_DIM},
-    {ZR_STYLE_ATTR_ITALIC, ZR_SGR_ITALIC},     {ZR_STYLE_ATTR_UNDERLINE, ZR_SGR_UNDERLINE},
-    {ZR_STYLE_ATTR_REVERSE, ZR_SGR_REVERSE},   {ZR_STYLE_ATTR_STRIKE, ZR_SGR_STRIKETHROUGH},
-    {ZR_STYLE_ATTR_OVERLINE, ZR_SGR_OVERLINE}, {ZR_STYLE_ATTR_BLINK, ZR_SGR_BLINK},
+static const zr_attr_map_t ZR_SGR_ATTRS_PRE_UNDERLINE[] = {
+    {ZR_STYLE_ATTR_BOLD, ZR_SGR_BOLD},
+    {ZR_STYLE_ATTR_DIM, ZR_SGR_DIM},
+    {ZR_STYLE_ATTR_ITALIC, ZR_SGR_ITALIC},
 };
 
-static bool zr_style_eq(zr_style_t a, zr_style_t b) {
-  return a.fg_rgb == b.fg_rgb && a.bg_rgb == b.bg_rgb && a.attrs == b.attrs && a.reserved == b.reserved;
+static const zr_attr_map_t ZR_SGR_ATTRS_POST_UNDERLINE[] = {
+    {ZR_STYLE_ATTR_REVERSE, ZR_SGR_REVERSE},
+    {ZR_STYLE_ATTR_STRIKE, ZR_SGR_STRIKETHROUGH},
+    {ZR_STYLE_ATTR_OVERLINE, ZR_SGR_OVERLINE},
+    {ZR_STYLE_ATTR_BLINK, ZR_SGR_BLINK},
+};
+
+/* Compare effective SGR style only; hyperlink state is tracked via OSC 8. */
+static bool zr_style_eq_sgr(zr_style_t a, zr_style_t b) {
+  if (a.fg_rgb != b.fg_rgb || a.bg_rgb != b.bg_rgb || a.attrs != b.attrs || a.reserved != b.reserved) {
+    return false;
+  }
+  if ((a.attrs & ZR_STYLE_ATTR_UNDERLINE) == 0u) {
+    return true;
+  }
+  return a.underline_rgb == b.underline_rgb;
+}
+
+/* Baseline-style equality uses raw link_ref values (same framebuffer domain). */
+static bool zr_style_eq_cell(zr_style_t a, zr_style_t b) {
+  return zr_style_eq_sgr(a, b) && a.link_ref == b.link_ref;
+}
+
+/*
+  Compare hyperlink targets across framebuffer domains.
+
+  Why: link_ref is framebuffer-local interning state. Two frames can assign
+  different refs to the same URI/ID target, so diffing must compare payloads.
+*/
+static bool zr_link_targets_eq(const zr_fb_t* a_fb, uint32_t a_ref, const zr_fb_t* b_fb, uint32_t b_ref) {
+  if (a_ref == 0u || b_ref == 0u) {
+    return a_ref == b_ref;
+  }
+  if (!a_fb || !b_fb) {
+    return false;
+  }
+
+  const uint8_t* a_uri = NULL;
+  const uint8_t* a_id = NULL;
+  const uint8_t* b_uri = NULL;
+  const uint8_t* b_id = NULL;
+  size_t a_uri_len = 0u;
+  size_t a_id_len = 0u;
+  size_t b_uri_len = 0u;
+  size_t b_id_len = 0u;
+
+  if (zr_fb_link_lookup(a_fb, a_ref, &a_uri, &a_uri_len, &a_id, &a_id_len) != ZR_OK ||
+      zr_fb_link_lookup(b_fb, b_ref, &b_uri, &b_uri_len, &b_id, &b_id_len) != ZR_OK) {
+    return false;
+  }
+  if (a_uri_len != b_uri_len || a_id_len != b_id_len) {
+    return false;
+  }
+  if ((a_uri_len != 0u && memcmp(a_uri, b_uri, a_uri_len) != 0) ||
+      (a_id_len != 0u && memcmp(a_id, b_id, a_id_len) != 0)) {
+    return false;
+  }
+  return true;
+}
+
+static bool zr_style_eq_cell_for_diff(const zr_fb_t* prev_fb, zr_style_t a, const zr_fb_t* next_fb, zr_style_t b) {
+  if (!zr_style_eq_sgr(a, b)) {
+    return false;
+  }
+  return zr_link_targets_eq(prev_fb, a.link_ref, next_fb, b.link_ref);
 }
 
 static zr_style_t zr_diff_baseline_style(void) {
@@ -125,6 +196,8 @@ static zr_style_t zr_diff_baseline_style(void) {
   style.bg_rgb = 0u;
   style.attrs = 0u;
   style.reserved = 0u;
+  style.underline_rgb = 0u;
+  style.link_ref = 0u;
   return style;
 }
 
@@ -144,8 +217,8 @@ static bool zr_term_cursor_shape_is_valid(const zr_term_state_t* ts) {
   return ts && ((ts->flags & ZR_TERM_STATE_CURSOR_SHAPE_VALID) != 0u);
 }
 
-/* Compare two framebuffer cells for equality (glyph, flags, and style). */
-static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
+/* Compare prev/next cells for diff equality (glyph, width, style, hyperlink target). */
+static bool zr_cell_eq(const zr_fb_t* prev_fb, const zr_cell_t* a, const zr_fb_t* next_fb, const zr_cell_t* b) {
   if (!a || !b) {
     return false;
   }
@@ -155,7 +228,7 @@ static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
   if (a->width != b->width) {
     return false;
   }
-  if (!zr_style_eq(a->style, b->style)) {
+  if (!zr_style_eq_cell_for_diff(prev_fb, a->style, next_fb, b->style)) {
     return false;
   }
   if (a->glyph_len != 0u && memcmp(a->glyph, b->glyph, (size_t)a->glyph_len) != 0) {
@@ -369,13 +442,54 @@ static uint8_t zr_rgb_to_ansi16(uint32_t rgb) {
   return best;
 }
 
-/* Downgrade style colors/attrs based on terminal capabilities (RGB → 256 → 16). */
+static uint32_t zr_style_underline_variant_bits(zr_style_t style, const plat_caps_t* caps) {
+  const uint32_t variant = style.reserved & ZR_STYLE_RESERVED_UNDERLINE_VARIANT_MASK;
+  if ((style.attrs & ZR_STYLE_ATTR_UNDERLINE) == 0u || !caps || caps->supports_underline_styles == 0u) {
+    return 0u;
+  }
+  if (variant < ZR_STYLE_UNDERLINE_VARIANT_MIN || variant > ZR_STYLE_UNDERLINE_VARIANT_MAX) {
+    return 0u;
+  }
+  return variant;
+}
+
+static uint32_t zr_style_effective_link_ref(zr_style_t style, const plat_caps_t* caps) {
+  if (!caps || caps->supports_hyperlinks == 0u) {
+    return 0u;
+  }
+  return style.link_ref;
+}
+
+static bool zr_style_has_effective_underline_color(zr_style_t style, const plat_caps_t* caps) {
+  if ((style.attrs & ZR_STYLE_ATTR_UNDERLINE) == 0u || style.underline_rgb == 0u || !caps ||
+      caps->supports_colored_underlines == 0u) {
+    return false;
+  }
+  return caps->color_mode == PLAT_COLOR_MODE_RGB || caps->color_mode == PLAT_COLOR_MODE_256;
+}
+
+/* Downgrade style attrs/colors (including underline extensions) by terminal caps. */
 static zr_style_t zr_style_apply_caps(zr_style_t in, const plat_caps_t* caps) {
   zr_style_t out = in;
   if (!caps) {
     return out;
   }
   out.attrs &= caps->sgr_attrs_supported;
+  if ((out.attrs & ZR_STYLE_ATTR_UNDERLINE) == 0u || caps->supports_underline_styles == 0u) {
+    out.reserved &= ~ZR_STYLE_RESERVED_UNDERLINE_VARIANT_MASK;
+  } else {
+    const uint32_t variant = out.reserved & ZR_STYLE_RESERVED_UNDERLINE_VARIANT_MASK;
+    if (variant < ZR_STYLE_UNDERLINE_VARIANT_MIN || variant > ZR_STYLE_UNDERLINE_VARIANT_MAX) {
+      out.reserved &= ~ZR_STYLE_RESERVED_UNDERLINE_VARIANT_MASK;
+    }
+  }
+  out.link_ref = zr_style_effective_link_ref(out, caps);
+
+  if (!zr_style_has_effective_underline_color(out, caps)) {
+    out.underline_rgb = 0u;
+  } else if (caps->color_mode == PLAT_COLOR_MODE_256) {
+    out.underline_rgb = (uint32_t)zr_rgb_to_xterm256(out.underline_rgb);
+  }
 
   if (caps->color_mode == PLAT_COLOR_MODE_RGB) {
     return out;
@@ -413,6 +527,53 @@ static bool zr_sb_write_u32_dec(zr_sb_t* sb, uint32_t v) {
     }
   }
   return true;
+}
+
+/*
+  Reject control bytes that can terminate or corrupt OSC payload parsing.
+
+  Why: Link URI/ID bytes come from wrapper-provided strings; filtering ESC/BEL/C0
+  prevents escape injection into emitted terminal control streams.
+*/
+static bool zr_osc_field_bytes_safe(const uint8_t* bytes, size_t len) {
+  if (!bytes && len != 0u) {
+    return false;
+  }
+  for (size_t i = 0u; i < len; i++) {
+    const uint8_t ch = bytes[i];
+    if (ch == ZR_ASCII_ESC || ch == ZR_ASCII_BEL || ch < 0x20u || ch == ZR_ASCII_DEL) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool zr_emit_osc8_close(zr_sb_t* sb) {
+  if (!sb) {
+    return false;
+  }
+  return zr_sb_write_u8(sb, ZR_ASCII_ESC) && zr_sb_write_u8(sb, (uint8_t)']') && zr_sb_write_u8(sb, (uint8_t)'8') &&
+         zr_sb_write_u8(sb, (uint8_t)';') && zr_sb_write_u8(sb, (uint8_t)';') && zr_sb_write_u8(sb, ZR_ASCII_ESC) &&
+         zr_sb_write_u8(sb, ZR_ASCII_ST_FINAL);
+}
+
+static bool zr_emit_osc8_open(zr_sb_t* sb, const uint8_t* uri, size_t uri_len, const uint8_t* id, size_t id_len) {
+  if (!sb || !uri || uri_len == 0u) {
+    return false;
+  }
+
+  if (!zr_sb_write_u8(sb, ZR_ASCII_ESC) || !zr_sb_write_u8(sb, (uint8_t)']') || !zr_sb_write_u8(sb, (uint8_t)'8') ||
+      !zr_sb_write_u8(sb, (uint8_t)';')) {
+    return false;
+  }
+  if (id_len != 0u) {
+    static const uint8_t kIdPrefix[] = "id=";
+    if (!zr_sb_write_bytes(sb, kIdPrefix, sizeof(kIdPrefix) - 1u) || !zr_sb_write_bytes(sb, id, id_len)) {
+      return false;
+    }
+  }
+  return zr_sb_write_u8(sb, (uint8_t)';') && zr_sb_write_bytes(sb, uri, uri_len) && zr_sb_write_u8(sb, ZR_ASCII_ESC) &&
+         zr_sb_write_u8(sb, ZR_ASCII_ST_FINAL);
 }
 
 /* Emit CUP (cursor position) escape sequence if cursor is not already at (x,y). */
@@ -601,13 +762,72 @@ static bool zr_emit_sgr_color_param(zr_sb_t* sb, zr_style_t desired, const plat_
   return zr_sb_write_u32_dec(sb, code);
 }
 
+static bool zr_emit_sgr_attr_params(zr_sb_t* sb, uint32_t attrs, const zr_attr_map_t* maps, size_t map_count) {
+  if (!sb || !maps) {
+    return false;
+  }
+  for (size_t i = 0u; i < map_count; i++) {
+    if ((attrs & maps[i].bit) == 0u) {
+      continue;
+    }
+    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, maps[i].sgr)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* Emit underline style as either legacy "4" or extended "4:n". */
+static bool zr_emit_sgr_underline_style_param(zr_sb_t* sb, zr_style_t desired, const plat_caps_t* caps) {
+  if (!sb) {
+    return false;
+  }
+  const uint32_t variant = zr_style_underline_variant_bits(desired, caps);
+  if (!zr_sb_write_u32_dec(sb, ZR_SGR_UNDERLINE)) {
+    return false;
+  }
+  if (variant == 0u) {
+    return true;
+  }
+  return zr_sb_write_u8(sb, (uint8_t)':') && zr_sb_write_u32_dec(sb, variant);
+}
+
+/* Emit SGR 58 underline-color parameter in RGB or 256 mode. */
+static bool zr_emit_sgr_underline_color_param(zr_sb_t* sb, zr_style_t desired, const plat_caps_t* caps) {
+  if (!sb || !caps) {
+    return false;
+  }
+  if (caps->color_mode == PLAT_COLOR_MODE_RGB) {
+    const uint8_t r = zr_rgb_r(desired.underline_rgb);
+    const uint8_t g = zr_rgb_g(desired.underline_rgb);
+    const uint8_t b = zr_rgb_b(desired.underline_rgb);
+    return zr_sb_write_u32_dec(sb, ZR_SGR_UNDERLINE_COLOR) && zr_sb_write_u8(sb, (uint8_t)';') &&
+           zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_RGB) && zr_sb_write_u8(sb, (uint8_t)';') &&
+           zr_sb_write_u32_dec(sb, (uint32_t)r) && zr_sb_write_u8(sb, (uint8_t)';') &&
+           zr_sb_write_u32_dec(sb, (uint32_t)g) && zr_sb_write_u8(sb, (uint8_t)';') &&
+           zr_sb_write_u32_dec(sb, (uint32_t)b);
+  }
+  if (caps->color_mode == PLAT_COLOR_MODE_256) {
+    const uint32_t idx = desired.underline_rgb & 0xFFu;
+    return zr_sb_write_u32_dec(sb, ZR_SGR_UNDERLINE_COLOR) && zr_sb_write_u8(sb, (uint8_t)';') &&
+           zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_256) && zr_sb_write_u8(sb, (uint8_t)';') &&
+           zr_sb_write_u32_dec(sb, idx);
+  }
+  return false;
+}
+
 /* Emit full SGR sequence with reset to establish an exact style baseline. */
 static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t desired, const plat_caps_t* caps) {
   if (!sb || !ts) {
     return false;
   }
   desired = zr_style_apply_caps(desired, caps);
-  if (zr_term_style_is_valid(ts) && zr_style_eq(ts->style, desired)) {
+  const bool desired_has_underline_color = zr_style_has_effective_underline_color(desired, caps);
+  const bool had_underline_color =
+      zr_term_style_is_valid(ts) && zr_style_has_effective_underline_color(ts->style, caps);
+  const bool needs_underline_color_reset =
+      caps && caps->supports_colored_underlines != 0u && had_underline_color && !desired_has_underline_color;
+  if (zr_term_style_is_valid(ts) && zr_style_eq_sgr(ts->style, desired)) {
     return true;
   }
 
@@ -615,13 +835,25 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
     return false;
   }
 
-  for (size_t i = 0u; i < (sizeof(ZR_SGR_ATTRS) / sizeof(ZR_SGR_ATTRS[0])); i++) {
-    if ((desired.attrs & ZR_SGR_ATTRS[i].bit) == 0u) {
-      continue;
-    }
-    if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_ATTRS[i].sgr)) {
-      return false;
-    }
+  if (!zr_emit_sgr_attr_params(sb, desired.attrs, ZR_SGR_ATTRS_PRE_UNDERLINE,
+                               sizeof(ZR_SGR_ATTRS_PRE_UNDERLINE) / sizeof(ZR_SGR_ATTRS_PRE_UNDERLINE[0]))) {
+    return false;
+  }
+  if ((desired.attrs & ZR_STYLE_ATTR_UNDERLINE) != 0u &&
+      (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_emit_sgr_underline_style_param(sb, desired, caps))) {
+    return false;
+  }
+  if (!zr_emit_sgr_attr_params(sb, desired.attrs, ZR_SGR_ATTRS_POST_UNDERLINE,
+                               sizeof(ZR_SGR_ATTRS_POST_UNDERLINE) / sizeof(ZR_SGR_ATTRS_POST_UNDERLINE[0]))) {
+    return false;
+  }
+  if (desired_has_underline_color &&
+      (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_emit_sgr_underline_color_param(sb, desired, caps))) {
+    return false;
+  }
+  if (needs_underline_color_reset &&
+      (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_sb_write_u32_dec(sb, ZR_SGR_UNDERLINE_COLOR_DEFAULT))) {
+    return false;
   }
 
   if (!zr_sb_write_u8(sb, (uint8_t)';') || !zr_emit_sgr_color_param(sb, desired, caps, true) ||
@@ -653,7 +885,7 @@ static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t 
   if (!a || !b) {
     return false;
   }
-  if (!zr_cell_eq(a, b)) {
+  if (!zr_cell_eq(prev, a, next, b)) {
     return true;
   }
   /* Wide-glyph rule: a dirty continuation forces inclusion of its lead cell. */
@@ -661,7 +893,7 @@ static bool zr_line_dirty_at(const zr_fb_t* prev, const zr_fb_t* next, uint32_t 
     const zr_cell_t* a1 = zr_fb_cell_const(prev, x + 1u, y);
     const zr_cell_t* b1 = zr_fb_cell_const(next, x + 1u, y);
     const bool cont = zr_cell_is_continuation(a1) || zr_cell_is_continuation(b1);
-    if (cont && a1 && b1 && !zr_cell_eq(a1, b1)) {
+    if (cont && a1 && b1 && !zr_cell_eq(prev, a1, next, b1)) {
       return true;
     }
   }
@@ -675,7 +907,7 @@ static bool zr_cell_is_blank_baseline(const zr_cell_t* c) {
   if (c->width != 1u || c->glyph_len != 1u || c->glyph[0] != ZR_DIFF_BASELINE_SPACE) {
     return false;
   }
-  return zr_style_eq(c->style, zr_diff_baseline_style());
+  return zr_style_eq_cell(c->style, zr_diff_baseline_style());
 }
 
 /*
@@ -730,6 +962,67 @@ typedef struct zr_scroll_plan_t {
   uint32_t lines;
   uint32_t moved_lines;
 } zr_scroll_plan_t;
+
+/*
+  Track OSC 8 hyperlink transitions independently from SGR style transitions.
+
+  Why: hyperlinks are terminal stateful streams (OSC), not SGR cell attrs.
+  Keeping them separate avoids redundant SGR churn when only link targets vary.
+*/
+static zr_result_t zr_diff_emit_link_transition(zr_diff_ctx_t* ctx, uint32_t desired_link_ref) {
+  if (!ctx || !ctx->caps || !ctx->next) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ctx->caps->supports_hyperlinks == 0u) {
+    desired_link_ref = 0u;
+  }
+
+  bool current_link_known = zr_term_style_is_valid(&ctx->ts);
+  uint32_t current_link_ref = current_link_known ? zr_style_effective_link_ref(ctx->ts.style, ctx->caps) : 0u;
+
+  /*
+    When style validity is unknown, close OSC 8 once before first transition.
+
+    Why: unknown SGR validity also means hyperlink state is unknown. Resetting
+    OSC 8 avoids stale links from earlier terminal history leaking into output.
+  */
+  if (!current_link_known && ctx->caps->supports_hyperlinks != 0u) {
+    if (!zr_emit_osc8_close(&ctx->sb)) {
+      return ZR_ERR_LIMIT;
+    }
+    current_link_ref = 0u;
+    current_link_known = true;
+  }
+
+  if (current_link_known && current_link_ref == desired_link_ref) {
+    ctx->ts.style.link_ref = desired_link_ref;
+    return ZR_OK;
+  }
+
+  if (current_link_known && current_link_ref != 0u && !zr_emit_osc8_close(&ctx->sb)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  if (desired_link_ref != 0u) {
+    const uint8_t* uri = NULL;
+    size_t uri_len = 0u;
+    const uint8_t* id = NULL;
+    size_t id_len = 0u;
+    const zr_result_t rc = zr_fb_link_lookup(ctx->next, desired_link_ref, &uri, &uri_len, &id, &id_len);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+    if (!zr_osc_field_bytes_safe(uri, uri_len) || !zr_osc_field_bytes_safe(id, id_len)) {
+      return ZR_ERR_FORMAT;
+    }
+    if (!zr_emit_osc8_open(&ctx->sb, uri, uri_len, id, id_len)) {
+      return ZR_ERR_LIMIT;
+    }
+  }
+
+  ctx->ts.style.link_ref = desired_link_ref;
+  return ZR_OK;
+}
 
 static void zr_diff_zero_outputs(size_t* out_len, zr_term_state_t* out_final_term_state, zr_diff_stats_t* out_stats) {
   if (out_len) {
@@ -1131,6 +1424,10 @@ static zr_result_t zr_diff_render_span(zr_diff_ctx_t* ctx, uint32_t y, uint32_t 
     /* If the cursor drifted (e.g. due to skipped continuations), use CUP only. */
     if (!zr_emit_cup(&ctx->sb, &ctx->ts, xx, y)) {
       return ZR_ERR_LIMIT;
+    }
+    const zr_result_t link_rc = zr_diff_emit_link_transition(ctx, c->style.link_ref);
+    if (link_rc != ZR_OK) {
+      return link_rc;
     }
     if (!zr_emit_sgr_delta(&ctx->sb, &ctx->ts, c->style, ctx->caps)) {
       return ZR_ERR_LIMIT;
@@ -1889,6 +2186,12 @@ zr_result_t zr_diff_render_ex(const zr_fb_t* prev, const zr_fb_t* next, const pl
         }
       }
     }
+  }
+
+  const zr_result_t link_close_rc = zr_diff_emit_link_transition(&ctx, 0u);
+  if (link_close_rc != ZR_OK) {
+    zr_diff_zero_outputs(out_len, out_final_term_state, out_stats);
+    return link_close_rc;
   }
 
   if (!zr_emit_cursor_desired(&ctx.sb, &ctx.ts, desired_cursor_state, next, caps)) {

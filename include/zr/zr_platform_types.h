@@ -16,9 +16,9 @@
 */
 typedef uint8_t plat_color_mode_t;
 #define PLAT_COLOR_MODE_UNKNOWN ((plat_color_mode_t)0u)
-#define PLAT_COLOR_MODE_16      ((plat_color_mode_t)1u)
-#define PLAT_COLOR_MODE_256     ((plat_color_mode_t)2u)
-#define PLAT_COLOR_MODE_RGB     ((plat_color_mode_t)3u)
+#define PLAT_COLOR_MODE_16 ((plat_color_mode_t)1u)
+#define PLAT_COLOR_MODE_256 ((plat_color_mode_t)2u)
+#define PLAT_COLOR_MODE_RGB ((plat_color_mode_t)3u)
 
 /*
   plat_size_t:
@@ -36,22 +36,24 @@ typedef struct plat_size_t {
 */
 typedef struct plat_caps_t {
   plat_color_mode_t color_mode;
-  uint8_t           supports_mouse;
-  uint8_t           supports_bracketed_paste;
-  uint8_t           supports_focus_events;
-  uint8_t           supports_osc52;
-  uint8_t           supports_sync_update;
-  uint8_t           supports_scroll_region;
-  uint8_t           supports_cursor_shape;
-  uint8_t           supports_output_wait_writable;
-  uint8_t           _pad0[3];
+  uint8_t supports_mouse;
+  uint8_t supports_bracketed_paste;
+  uint8_t supports_focus_events;
+  uint8_t supports_osc52;
+  uint8_t supports_sync_update;
+  uint8_t supports_scroll_region;
+  uint8_t supports_cursor_shape;
+  uint8_t supports_output_wait_writable;
+  uint8_t supports_underline_styles;
+  uint8_t supports_colored_underlines;
+  uint8_t supports_hyperlinks;
 
   /*
     sgr_attrs_supported:
       - Bitmask of supported zr_style_t attrs for SGR emission.
       - Diff renderer must AND desired attrs with this mask deterministically.
   */
-  uint32_t          sgr_attrs_supported;
+  uint32_t sgr_attrs_supported;
 } plat_caps_t;
 
 /*
@@ -60,11 +62,11 @@ typedef struct plat_caps_t {
 */
 typedef struct plat_config_t {
   plat_color_mode_t requested_color_mode;
-  uint8_t           enable_mouse;
-  uint8_t           enable_bracketed_paste;
-  uint8_t           enable_focus_events;
-  uint8_t           enable_osc52;
-  uint8_t           _pad[3];
+  uint8_t enable_mouse;
+  uint8_t enable_bracketed_paste;
+  uint8_t enable_focus_events;
+  uint8_t enable_osc52;
+  uint8_t _pad[3];
 } plat_config_t;
 
 #endif /* ZR_ZR_PLATFORM_TYPES_H_INCLUDED */

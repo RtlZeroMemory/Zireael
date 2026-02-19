@@ -503,6 +503,63 @@ static uint8_t zr_posix_detect_focus_events(void) {
   return zr_posix_str_has_any_ci(term, kFocusTerms, sizeof(kFocusTerms) / sizeof(kFocusTerms[0])) ? 1u : 0u;
 }
 
+static uint8_t zr_posix_detect_underline_styles(void) {
+  if (zr_posix_term_is_dumb()) {
+    return 0u;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID") || zr_posix_getenv_nonempty("WEZTERM_PANE") ||
+      zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE") || zr_posix_getenv_nonempty("GHOSTTY_RESOURCES_DIR")) {
+    return 1u;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  static const char* kUnderlineTerms[] = {"kitty", "wezterm", "ghostty", "foot", "rio"};
+  return zr_posix_str_has_any_ci(term, kUnderlineTerms, sizeof(kUnderlineTerms) / sizeof(kUnderlineTerms[0])) ? 1u : 0u;
+}
+
+static uint8_t zr_posix_detect_colored_underlines(void) {
+  if (zr_posix_term_is_dumb()) {
+    return 0u;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID") || zr_posix_getenv_nonempty("WEZTERM_PANE") ||
+      zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE") || zr_posix_getenv_nonempty("GHOSTTY_RESOURCES_DIR")) {
+    return 1u;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  static const char* kColoredUnderlineTerms[] = {"kitty", "wezterm", "ghostty", "foot"};
+  return zr_posix_str_has_any_ci(term, kColoredUnderlineTerms,
+                                 sizeof(kColoredUnderlineTerms) / sizeof(kColoredUnderlineTerms[0]))
+             ? 1u
+             : 0u;
+}
+
+static uint8_t zr_posix_detect_hyperlinks(void) {
+  if (zr_posix_term_is_dumb()) {
+    return 0u;
+  }
+
+  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID") || zr_posix_getenv_nonempty("WEZTERM_PANE") ||
+      zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE") || zr_posix_getenv_nonempty("GHOSTTY_RESOURCES_DIR") ||
+      zr_posix_getenv_nonempty("VTE_VERSION") || zr_posix_getenv_nonempty("KONSOLE_VERSION") ||
+      zr_posix_getenv_nonempty("WT_SESSION")) {
+    return 1u;
+  }
+
+  const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
+  static const char* kHyperlinkPrograms[] = {"iTerm.app", "WezTerm", "Rio", "WarpTerminal", "vscode"};
+  if (zr_posix_str_has_any_ci(term_program, kHyperlinkPrograms,
+                              sizeof(kHyperlinkPrograms) / sizeof(kHyperlinkPrograms[0]))) {
+    return 1u;
+  }
+
+  const char* term = zr_posix_getenv_nonempty("TERM");
+  static const char* kHyperlinkTerms[] = {"kitty", "wezterm", "ghostty", "foot", "rio", "alacritty"};
+  return zr_posix_str_has_any_ci(term, kHyperlinkTerms, sizeof(kHyperlinkTerms) / sizeof(kHyperlinkTerms[0])) ? 1u : 0u;
+}
+
 static uint8_t zr_posix_detect_cursor_shape(void) {
   if (zr_posix_term_is_dumb()) {
     return 0u;
@@ -1116,6 +1173,9 @@ static void zr_posix_set_caps_from_cfg(plat_t* plat, const plat_config_t* cfg) {
   plat->caps.supports_scroll_region = zr_posix_detect_scroll_region();
   plat->caps.supports_cursor_shape = zr_posix_detect_cursor_shape();
   plat->caps.supports_output_wait_writable = 1u;
+  plat->caps.supports_underline_styles = zr_posix_detect_underline_styles();
+  plat->caps.supports_colored_underlines = zr_posix_detect_colored_underlines();
+  plat->caps.supports_hyperlinks = zr_posix_detect_hyperlinks();
   plat->caps.sgr_attrs_supported = zr_posix_detect_sgr_attrs_supported();
 
   /*
@@ -1130,15 +1190,14 @@ static void zr_posix_set_caps_from_cfg(plat_t* plat, const plat_config_t* cfg) {
   zr_posix_cap_override("ZIREAEL_CAP_SCROLL_REGION", &plat->caps.supports_scroll_region);
   zr_posix_cap_override("ZIREAEL_CAP_CURSOR_SHAPE", &plat->caps.supports_cursor_shape);
   zr_posix_cap_override("ZIREAEL_CAP_FOCUS_EVENTS", &plat->caps.supports_focus_events);
+  zr_posix_cap_override("ZIREAEL_CAP_UNDERLINE_STYLES", &plat->caps.supports_underline_styles);
+  zr_posix_cap_override("ZIREAEL_CAP_COLORED_UNDERLINES", &plat->caps.supports_colored_underlines);
+  zr_posix_cap_override("ZIREAEL_CAP_HYPERLINKS", &plat->caps.supports_hyperlinks);
 
   /* Optional attr-mask override (decimal or 0x... hex). */
   zr_posix_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS", &plat->caps.sgr_attrs_supported);
   zr_posix_cap_u32_override("ZIREAEL_CAP_SGR_ATTRS_MASK", &plat->caps.sgr_attrs_supported);
   plat->caps.sgr_attrs_supported &= ZR_STYLE_ATTR_ALL_MASK;
-
-  plat->caps._pad0[0] = 0u;
-  plat->caps._pad0[1] = 0u;
-  plat->caps._pad0[2] = 0u;
 }
 
 static void zr_posix_create_cleanup(plat_t* plat) {

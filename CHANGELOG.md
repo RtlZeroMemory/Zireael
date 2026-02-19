@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- core/diff + framebuffer: OSC 8 hyperlink support with framebuffer-owned link interning (`uri` + optional `id`) and deterministic open/close transitions during span rendering.
+- drawlist: added v3 style extension payload support (underline color + hyperlink URI/ID refs) while preserving v1/v2 framing/opcode compatibility.
+- tests: added unit coverage for underline variants, colored-underlines, hyperlink transitions/capability gating, and v3 drawlist validate/execute paths.
+- tests: added golden fixtures for mixed underline variants, colored underline transitions, and hyperlink span transitions.
 - core/platform: startup terminal probing for XTVERSION, DA1/DA2, DECRQM (2026/2027/1016/2004), and cell/text-area pixel metrics with bounded detection timeouts.
 - abi: new terminal identity/profile surface (`zr_terminal_id_t`, `zr_terminal_profile_t`) and `engine_get_terminal_profile()` getter.
 - config: capability override masks (`cap_force_flags`, `cap_suppress_flags`) with deterministic precedence (`suppress` wins).
@@ -14,6 +18,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- diff renderer: underline style variants now emit colon-subparameter SGR forms (`4:1..4:5`) with legacy `4` fallback for variant `0`.
+- diff renderer: colored underline emission now supports `58`/`59`, capability-gated and color-mode-aware (RGB/256 downgrade).
+- platform caps: POSIX/Win32 capability snapshots now expose `supports_underline_styles`, `supports_colored_underlines`, and `supports_hyperlinks`, including environment override knobs.
+- config negotiation: `engine_create()` now accepts `ZR_DRAWLIST_VERSION_V3` as a supported drawlist version.
 - abi: engine ABI minor bumped to `1.2.0` to account for extended capability/profile surface.
 - engine: `engine_get_caps()` now includes terminal-id and capability-flag metadata while preserving legacy capability fields.
 - docs: added `docs/modules/TERMINAL_DETECTION.md` and updated platform/ABI/versioning references for detection behavior.

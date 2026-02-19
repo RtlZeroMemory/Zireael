@@ -63,9 +63,9 @@ static void zr_mock_plat_default_caps(plat_caps_t* out) {
   out->supports_scroll_region = 1u;
   out->supports_cursor_shape = 1u;
   out->supports_output_wait_writable = 1u;
-  out->_pad0[0] = 0u;
-  out->_pad0[1] = 0u;
-  out->_pad0[2] = 0u;
+  out->supports_underline_styles = 0u;
+  out->supports_colored_underlines = 0u;
+  out->supports_hyperlinks = 0u;
 
   /* Allow all style attrs in unit tests. */
   out->sgr_attrs_supported = 0xFFFFFFFFu;

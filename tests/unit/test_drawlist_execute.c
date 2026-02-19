@@ -30,6 +30,8 @@ extern const uint8_t zr_test_dl_fixture5_v2_cursor[];
 extern const size_t zr_test_dl_fixture5_v2_cursor_len;
 extern const uint8_t zr_test_dl_fixture6_v1_draw_text_slices[];
 extern const size_t zr_test_dl_fixture6_v1_draw_text_slices_len;
+extern const uint8_t zr_test_dl_fixture7_v3_text_link[];
+extern const size_t zr_test_dl_fixture7_v3_text_link_len;
 
 /* Assert a cell contains a single ASCII byte with width=1. */
 static void zr_assert_cell_glyph(zr_test_ctx_t* ctx, const zr_cell_t* c, uint8_t byte) {
@@ -273,6 +275,46 @@ ZR_TEST_UNIT(drawlist_execute_v1_draw_text_slices_share_string_bytes) {
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 2u, 0u), (uint8_t)'l');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 3u, 0u), (uint8_t)'l');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 4u, 0u), (uint8_t)'o');
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(drawlist_execute_fixture7_v3_applies_extended_style_and_link) {
+  zr_limits_t lim = zr_limits_default();
+  zr_dl_view_t v;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture7_v3_text_link, zr_test_dl_fixture7_v3_text_link_len, &lim, &v),
+                   ZR_OK);
+
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
+
+  zr_cursor_state_t cursor = {0};
+  cursor.x = -1;
+  cursor.y = -1;
+  cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
+  cursor.visible = 0u;
+  cursor.blink = 0u;
+  cursor.reserved0 = 0u;
+
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, &cursor), ZR_OK);
+
+  const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
+  zr_assert_cell_glyph(ctx, c, (uint8_t)'X');
+  ZR_ASSERT_EQ_U32(c->style.attrs, 0x00000004u);
+  ZR_ASSERT_EQ_U32(c->style.reserved, 0x00000003u);
+  ZR_ASSERT_EQ_U32(c->style.underline_rgb, 0x00010203u);
+  ZR_ASSERT_TRUE(c->style.link_ref != 0u);
+
+  const uint8_t* uri = NULL;
+  size_t uri_len = 0u;
+  const uint8_t* id = NULL;
+  size_t id_len = 0u;
+  ZR_ASSERT_EQ_U32(zr_fb_link_lookup(&fb, c->style.link_ref, &uri, &uri_len, &id, &id_len), ZR_OK);
+  ZR_ASSERT_EQ_U32(uri_len, 9u);
+  ZR_ASSERT_MEMEQ(uri, (const uint8_t*)"https://x", 9u);
+  ZR_ASSERT_EQ_U32(id_len, 3u);
+  ZR_ASSERT_MEMEQ(id, (const uint8_t*)"id1", 3u);
 
   zr_fb_release(&fb);
 }

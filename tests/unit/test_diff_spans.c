@@ -41,6 +41,8 @@ static zr_fb_t zr_make_fb_1row(uint32_t cols) {
   s.bg_rgb = 0u;
   s.attrs = 0u;
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
   (void)zr_fb_clear(&fb, &s);
   return fb;
 }
@@ -115,7 +117,7 @@ ZR_TEST_UNIT(diff_span_separates_and_uses_cup) {
   zr_fb_t prev = zr_make_fb_1row(4u);
   zr_fb_t next = zr_make_fb_1row(4u);
 
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_set_cell_ascii(&next, 0u, (uint8_t)'A', s);
   zr_set_cell_ascii(&next, 2u, (uint8_t)'B', s);
 
@@ -157,7 +159,7 @@ ZR_TEST_UNIT(diff_continuation_includes_lead) {
   zr_fb_t prev = zr_make_fb_1row(4u);
   zr_fb_t next = zr_make_fb_1row(4u);
 
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   const uint8_t emoji[4] = {0xF0u, 0x9Fu, 0x99u, 0x82u};
 
   /* Lead is identical in prev/next; only the continuation cell differs. */
@@ -206,7 +208,7 @@ ZR_TEST_UNIT(diff_reanchors_after_non_ascii_width1_cell) {
   zr_fb_t prev = zr_make_fb_1row(2u);
   zr_fb_t next = zr_make_fb_1row(2u);
 
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   const uint8_t e_acute[4] = {0xC3u, 0xA9u, 0u, 0u}; /* U+00E9 */
   zr_set_cell_utf8(&next, 0u, e_acute, 2u, 1u, s);
   zr_set_cell_ascii(&next, 1u, (uint8_t)'X', s);
@@ -249,7 +251,7 @@ ZR_TEST_UNIT(diff_renders_space_for_empty_width1_cell) {
   zr_fb_t prev = zr_make_fb_1row(2u);
   zr_fb_t next = zr_make_fb_1row(2u);
 
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_set_cell_utf8(&next, 0u, (const uint8_t[4]){0u, 0u, 0u, 0u}, 0u, 1u, s);
   zr_set_cell_ascii(&next, 1u, (uint8_t)'X', s);
 
@@ -294,6 +296,8 @@ ZR_TEST_UNIT(diff_avoids_redundant_cup_and_sgr) {
   s.bg_rgb = 0x445566u;
   s.attrs = 1u; /* bold (v1) */
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
 
   zr_set_cell_ascii(&next, 0u, (uint8_t)'X', s);
 
@@ -338,6 +342,8 @@ ZR_TEST_UNIT(diff_sgr_attr_clear_falls_back_to_reset) {
   s_prev.bg_rgb = 0x00000000u;
   s_prev.attrs = 1u;
   s_prev.reserved = 0u;
+  s_prev.underline_rgb = 0u;
+  s_prev.link_ref = 0u;
 
   zr_style_t s_next = s_prev;
   s_next.attrs = 0u;
@@ -396,7 +402,7 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_per_attr_controls_emission) {
       {ZR_TEST_ATTR_OVERLINE, (const uint8_t*)"53", 2u}, {ZR_TEST_ATTR_BLINK, (const uint8_t*)"5", 1u},
   };
 
-  const zr_style_t base = {0u, 0u, 0u, 0u};
+  const zr_style_t base = {0u, 0u, 0u, 0u, 0u, 0u};
   for (size_t i = 0u; i < (sizeof(cases) / sizeof(cases[0])); i++) {
     zr_fb_t prev = zr_make_fb_1row(1u);
     zr_fb_t next = zr_make_fb_1row(1u);
@@ -440,7 +446,7 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_add_subset_is_ordered) {
   zr_fb_t prev = zr_make_fb_1row(1u);
   zr_fb_t next = zr_make_fb_1row(1u);
 
-  const zr_style_t base = {0u, 0u, 0u, 0u};
+  const zr_style_t base = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_style_t want = base;
   want.attrs = ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_ITALIC | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE |
                ZR_TEST_ATTR_STRIKE | ZR_TEST_ATTR_OVERLINE | ZR_TEST_ATTR_BLINK;
@@ -465,7 +471,7 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_reset_then_add_transitions) {
   zr_fb_t prev = zr_make_fb_1row(3u);
   zr_fb_t next = zr_make_fb_1row(3u);
 
-  const zr_style_t base = {0u, 0u, 0u, 0u};
+  const zr_style_t base = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_set_cell_ascii(&prev, 0u, (uint8_t)'A', base);
   zr_set_cell_ascii(&prev, 1u, (uint8_t)'B', base);
   zr_set_cell_ascii(&prev, 2u, (uint8_t)'C', base);
@@ -499,7 +505,7 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_ignores_masked_attr_clear_between_cells) {
   zr_fb_t prev = zr_make_fb_1row(2u);
   zr_fb_t next = zr_make_fb_1row(2u);
 
-  const zr_style_t base = {0u, 0u, 0u, 0u};
+  const zr_style_t base = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_set_cell_ascii(&prev, 0u, (uint8_t)'A', base);
   zr_set_cell_ascii(&prev, 1u, (uint8_t)'B', base);
 
@@ -527,7 +533,7 @@ ZR_TEST_UNIT(diff_damage_coalescing_keeps_unsorted_spans) {
   ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 64u, 2u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&next, 64u, 2u), ZR_OK);
 
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   (void)zr_fb_clear(&prev, &s);
   (void)zr_fb_clear(&next, &s);
 
@@ -586,11 +592,11 @@ ZR_TEST_UNIT(diff_damage_coalescing_keeps_unsorted_spans) {
   zr_fb_release(&next);
 }
 
-ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
+ZR_TEST_UNIT(diff_reserved_without_underline_is_ignored) {
   zr_fb_t prev = zr_make_fb_1row(1u);
   zr_fb_t next = zr_make_fb_1row(1u);
 
-  zr_style_t s_prev = {0x00112233u, 0x00000000u, 0u, 0u};
+  zr_style_t s_prev = {0x00112233u, 0x00000000u, 0u, 0u, 0u, 0u};
   zr_style_t s_next = s_prev;
   s_next.reserved = 1u;
 
@@ -621,9 +627,9 @@ ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
                                         &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
-  const uint8_t expected[] = "\x1b[0;38;2;17;34;51;48;2;0;0;0mX";
-  ZR_ASSERT_EQ_U32(out_len, (uint32_t)(sizeof(expected) - 1u));
-  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected) - 1u);
+  const uint8_t expected[] = {(uint8_t)'X'};
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
@@ -633,7 +639,7 @@ ZR_TEST_UNIT(diff_returns_limit_without_claiming_bytes) {
   zr_fb_t prev = zr_make_fb_1row(2u);
   zr_fb_t next = zr_make_fb_1row(2u);
 
-  zr_style_t s = {0u, 0u, 0u, 0u};
+  zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   zr_set_cell_ascii(&next, 0u, (uint8_t)'H', s);
   zr_set_cell_ascii(&next, 1u, (uint8_t)'i', s);
 

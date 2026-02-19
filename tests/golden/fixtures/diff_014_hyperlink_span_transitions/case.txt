@@ -1,0 +1,11 @@
+# fixture_id: diff_014_hyperlink_span_transitions
+# purpose: OSC 8 hyperlink open/close transitions across adjacent cells.
+#
+# pinned:
+#   - caps.color_mode = RGB
+#   - caps.sgr_attrs_supported = all
+#   - caps.supports_hyperlinks = 1
+#   - initial_term_state.cursor = (0,0)
+#   - initial_term_state.style = default
+#
+# next row: A,B linked to https://a.example ; C linked to id=grp;https://b.example ; D unlinked

@@ -44,12 +44,12 @@ static void zr_term_state_default(zr_term_state_t* ts, zr_style_t style) {
 }
 
 ZR_TEST_UNIT(diff_telemetry_marks_damage_path_on_sparse_frame) {
-  zr_fb_t prev = {0u, 0u, NULL};
-  zr_fb_t next = {0u, 0u, NULL};
+  zr_fb_t prev = {0};
+  zr_fb_t next = {0};
   ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 24u, 12u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&next, 24u, 12u), ZR_OK);
 
-  const zr_style_t s = {0u, 0u, 0u, 0u};
+  const zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   (void)zr_fb_clear(&prev, &s);
   (void)zr_fb_clear(&next, &s);
   zr_set_cell_ascii(&next, 3u, 4u, (uint8_t)'X', s);
@@ -95,12 +95,12 @@ ZR_TEST_UNIT(diff_telemetry_marks_damage_path_on_sparse_frame) {
 }
 
 ZR_TEST_UNIT(diff_telemetry_marks_sweep_path_on_dense_frame) {
-  zr_fb_t prev = {0u, 0u, NULL};
-  zr_fb_t next = {0u, 0u, NULL};
+  zr_fb_t prev = {0};
+  zr_fb_t next = {0};
   ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 48u, 24u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&next, 48u, 24u), ZR_OK);
 
-  const zr_style_t s = {0u, 0u, 0u, 0u};
+  const zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   (void)zr_fb_clear(&prev, &s);
   (void)zr_fb_clear(&next, &s);
 
@@ -150,12 +150,12 @@ ZR_TEST_UNIT(diff_telemetry_marks_sweep_path_on_dense_frame) {
 }
 
 ZR_TEST_UNIT(diff_telemetry_marks_scroll_attempt_and_hit) {
-  zr_fb_t prev = {0u, 0u, NULL};
-  zr_fb_t next = {0u, 0u, NULL};
+  zr_fb_t prev = {0};
+  zr_fb_t next = {0};
   ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 80u, 12u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&next, 80u, 12u), ZR_OK);
 
-  const zr_style_t s = {0u, 0u, 0u, 0u};
+  const zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   for (uint32_t y = 0u; y < 12u; y++) {
     const uint8_t ch = (uint8_t)('A' + (y % 26u));
     for (uint32_t x = 0u; x < 80u; x++) {
@@ -213,12 +213,12 @@ ZR_TEST_UNIT(diff_telemetry_marks_scroll_attempt_and_hit) {
 }
 
 ZR_TEST_UNIT(diff_telemetry_counts_collision_guard_hits_with_reused_hashes) {
-  zr_fb_t prev = {0u, 0u, NULL};
-  zr_fb_t next = {0u, 0u, NULL};
+  zr_fb_t prev = {0};
+  zr_fb_t next = {0};
   ZR_ASSERT_EQ_U32(zr_fb_init(&prev, 32u, 10u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&next, 32u, 10u), ZR_OK);
 
-  const zr_style_t s = {0u, 0u, 0u, 0u};
+  const zr_style_t s = {0u, 0u, 0u, 0u, 0u, 0u};
   (void)zr_fb_clear(&prev, &s);
   (void)zr_fb_clear(&next, &s);
   zr_set_cell_ascii(&next, 5u, 1u, (uint8_t)'R', s);

@@ -117,7 +117,9 @@ typedef struct zr_terminal_caps_t {
   uint8_t supports_scroll_region;
   uint8_t supports_cursor_shape;
   uint8_t supports_output_wait_writable;
-  uint8_t _pad0[3];
+  uint8_t supports_underline_styles;
+  uint8_t supports_colored_underlines;
+  uint8_t supports_hyperlinks;
 
   uint32_t sgr_attrs_supported;
 

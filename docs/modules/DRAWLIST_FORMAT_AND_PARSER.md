@@ -36,6 +36,14 @@ Supported drawlist versions are pinned in `include/zr/zr_version.h` and negotiat
 
 - **v1 (`ZR_DRAWLIST_VERSION_V1`)**: Stable baseline format and opcode set. MUST remain behavior-stable.
 - **v2 (`ZR_DRAWLIST_VERSION_V2`)**: Preserves v1 header layout and framing rules. Adds new opcodes.
+- **v3 (`ZR_DRAWLIST_VERSION_V3`)**: Preserves v1/v2 framing and opcode set. Extends style payloads with underline color
+  and hyperlink string-table references.
+
+Hyperlink architecture decision:
+
+- No hyperlink opcode was added.
+- Hyperlinks flow through existing draw ops by carrying URI/ID references in v3 style payloads, resolved to framebuffer
+  `link_ref` values during execution.
 
 Unknown opcodes MUST be rejected with `ZR_ERR_UNSUPPORTED`.
 
@@ -44,15 +52,23 @@ Unknown opcodes MUST be rejected with `ZR_ERR_UNSUPPORTED`.
 | Opcode | Value | Version | Payload | Description |
 |--------|-------|---------|---------|-------------|
 | `ZR_DL_OP_INVALID` | 0 | — | — | Invalid (rejected) |
-| `ZR_DL_OP_CLEAR` | 1 | v1 | 0B | Clear framebuffer to default style |
-| `ZR_DL_OP_FILL_RECT` | 2 | v1 | 32B | Fill rectangle with style |
-| `ZR_DL_OP_DRAW_TEXT` | 3 | v1 | 40B | Draw text from string table |
-| `ZR_DL_OP_PUSH_CLIP` | 4 | v1 | 16B | Push clipping rectangle |
-| `ZR_DL_OP_POP_CLIP` | 5 | v1 | 0B | Pop clipping rectangle |
-| `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1 | 16B | Draw pre-measured text run (blob) |
-| `ZR_DL_OP_SET_CURSOR` | 7 | v2 | 12B | Set cursor position/shape/visibility |
+| `ZR_DL_OP_CLEAR` | 1 | v1+ | 0B | Clear framebuffer to default style |
+| `ZR_DL_OP_FILL_RECT` | 2 | v1+ | 32B | Fill rectangle with style |
+| `ZR_DL_OP_DRAW_TEXT` | 3 | v1+ | 40B | Draw text from string table |
+| `ZR_DL_OP_PUSH_CLIP` | 4 | v1+ | 16B | Push clipping rectangle |
+| `ZR_DL_OP_POP_CLIP` | 5 | v1+ | 0B | Pop clipping rectangle |
+| `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1+ | 16B | Draw pre-measured text run (blob) |
+| `ZR_DL_OP_SET_CURSOR` | 7 | v2+ | 12B | Set cursor position/shape/visibility |
 
 Command sizes include the 8-byte header (`zr_dl_cmd_header_t`).
+
+Version-specific command sizes:
+
+- `CLEAR`: 8B in all versions
+- `FILL_RECT`: 40B in v1/v2, 52B in v3
+- `DRAW_TEXT`: 48B in v1/v2, 60B in v3
+- `DRAW_TEXT_RUN`: 24B in all versions (segment payload inside blob changes in v3)
+- `SET_CURSOR`: 20B in v2/v3
 
 ## Cursor control (v2)
 
@@ -100,6 +116,24 @@ typedef struct zr_dl_style_t {
 } zr_dl_style_t;
 ```
 
+v3 adds a style extension payload after `zr_dl_style_t`:
+
+```c
+typedef struct zr_dl_style_v3_ext_t {
+  uint32_t underline_rgb; // 0x00RRGGBB; 0 = terminal default underline color
+  uint32_t link_uri_ref;  // 1-based string-table ref; 0 = no hyperlink
+  uint32_t link_id_ref;   // optional 1-based string-table ref; 0 = no id param
+} zr_dl_style_v3_ext_t;
+```
+
+Validation rules for v3 extension:
+
+- `link_uri_ref == 0` means no link; `link_id_ref` may be zero/non-zero but must be in range if non-zero.
+- Non-zero refs must point to valid string spans.
+- URI span length must be `1..ZR_FB_LINK_URI_MAX_BYTES`.
+- ID span length must be `0..ZR_FB_LINK_ID_MAX_BYTES`.
+- During execute, URI/ID bytes are interned into framebuffer link table and converted to `style.link_ref`.
+
 ## Text runs
 
 `DRAW_TEXT_RUN` references a blob containing multiple styled segments:
@@ -107,13 +141,16 @@ typedef struct zr_dl_style_t {
 ```
 u32 seg_count
 repeat seg_count times:
-  zr_dl_style_t style   (16B)
+  style payload         (16B in v1/v2, 28B in v3)
   u32 string_index
   u32 byte_off
   u32 byte_len
 ```
 
-Total blob length: `4 + seg_count * 28` bytes.
+Total blob length:
+
+- v1/v2: `4 + seg_count * 28`
+- v3: `4 + seg_count * 40`
 
 See:
 

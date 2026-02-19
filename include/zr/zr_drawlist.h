@@ -1,10 +1,10 @@
 /*
-  include/zr/zr_drawlist.h — Drawlist ABI structs (v1 + v2).
+  include/zr/zr_drawlist.h — Drawlist ABI structs (v1 + v2 + v3).
 
   Why: Defines the versioned, little-endian drawlist command stream used by
-  wrappers to drive rendering through engine_submit_drawlist(). v1 remains
-  supported and behavior-stable; v2 adds new opcodes without changing v1
-  layouts.
+  wrappers to drive rendering through engine_submit_drawlist(). v1/v2 layouts
+  remain behavior-stable; v3 extends style payloads for underline color + links
+  without changing v1/v2 byte layouts.
 */
 
 #ifndef ZR_ZR_DRAWLIST_H_INCLUDED
@@ -67,6 +67,23 @@ typedef struct zr_dl_style_t {
   uint32_t reserved0; /* must be 0 in v1 */
 } zr_dl_style_t;
 
+/*
+  v3 style extension:
+    - underline_rgb: 0x00RRGGBB underline color (0 means default underline color)
+    - link_uri_ref: 1-based string-table reference to a URI; 0 means no hyperlink
+    - link_id_ref: optional 1-based string-table reference to OSC 8 id param
+*/
+typedef struct zr_dl_style_v3_ext_t {
+  uint32_t underline_rgb;
+  uint32_t link_uri_ref;
+  uint32_t link_id_ref;
+} zr_dl_style_v3_ext_t;
+
+typedef struct zr_dl_style_v3_t {
+  zr_dl_style_t base;
+  zr_dl_style_v3_ext_t ext;
+} zr_dl_style_v3_t;
+
 typedef struct zr_dl_cmd_fill_rect_t {
   int32_t x;
   int32_t y;
@@ -85,6 +102,24 @@ typedef struct zr_dl_cmd_draw_text_t {
   uint32_t reserved0; /* must be 0 in v1 */
 } zr_dl_cmd_draw_text_t;
 
+typedef struct zr_dl_cmd_fill_rect_v3_t {
+  int32_t x;
+  int32_t y;
+  int32_t w;
+  int32_t h;
+  zr_dl_style_v3_t style;
+} zr_dl_cmd_fill_rect_v3_t;
+
+typedef struct zr_dl_cmd_draw_text_v3_t {
+  int32_t x;
+  int32_t y;
+  uint32_t string_index;
+  uint32_t byte_off;
+  uint32_t byte_len;
+  zr_dl_style_v3_t style;
+  uint32_t reserved0; /* reserved; must be 0 */
+} zr_dl_cmd_draw_text_v3_t;
+
 typedef struct zr_dl_cmd_push_clip_t {
   int32_t x;
   int32_t y;
@@ -99,12 +134,19 @@ typedef struct zr_dl_cmd_draw_text_run_t {
   uint32_t reserved0; /* must be 0 in v1 */
 } zr_dl_cmd_draw_text_run_t;
 
+typedef struct zr_dl_text_run_segment_v3_t {
+  zr_dl_style_v3_t style;
+  uint32_t string_index;
+  uint32_t byte_off;
+  uint32_t byte_len;
+} zr_dl_text_run_segment_v3_t;
+
 typedef struct zr_dl_cmd_set_cursor_t {
-  int32_t x; /* 0-based cell; -1 means "leave unchanged" */
-  int32_t y; /* 0-based cell; -1 means "leave unchanged" */
-  uint8_t shape;   /* 0=block, 1=underline, 2=bar */
-  uint8_t visible; /* 0/1 */
-  uint8_t blink;   /* 0/1 */
+  int32_t x;         /* 0-based cell; -1 means "leave unchanged" */
+  int32_t y;         /* 0-based cell; -1 means "leave unchanged" */
+  uint8_t shape;     /* 0=block, 1=underline, 2=bar */
+  uint8_t visible;   /* 0/1 */
+  uint8_t blink;     /* 0/1 */
   uint8_t reserved0; /* must be 0 */
 } zr_dl_cmd_set_cursor_t;
 

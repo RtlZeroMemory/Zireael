@@ -11,8 +11,10 @@ Compatibility shim: `src/core/zr_fb.h` includes `core/zr_framebuffer.h`.
 ### Shared structs
 
 - `zr_rect_t { int32_t x, y, w, h; }`
-- `zr_style_t { uint32_t fg_rgb, bg_rgb, attrs, reserved; }`
-  - `reserved` is a v1 field and MUST be `0`.
+- `zr_style_t { uint32_t fg_rgb, bg_rgb, attrs, reserved, underline_rgb, link_ref; }`
+  - `reserved` low bits carry underline variant in drawlist v3/style v3 (`0` keeps legacy underline behavior).
+  - `underline_rgb` is underline color (`0x00RRGGBB`; `0` means terminal default underline color).
+  - `link_ref` is a framebuffer-owned 1-based hyperlink reference (`0` means no link).
 
 ### Cells
 
@@ -25,6 +27,21 @@ Each cell (`zr_cell_t`) stores:
   - `1` for a normal cell
   - `2` for a wide lead cell (spans this cell + the next cell)
   - `0` for a wide continuation cell (must be empty)
+
+### Hyperlink table
+
+Framebuffer hyperlink references are interned in framebuffer-owned storage:
+
+- `zr_fb_link_t { uri_off, uri_len, id_off, id_len }` points into `fb.link_bytes`
+- `zr_fb_link_intern()` deduplicates `(uri,id)` pairs and returns stable 1-based refs
+- `zr_fb_link_lookup()` resolves refs for OSC 8 emission in the diff renderer
+- `zr_fb_links_reset()` clears per-frame link usage without reallocating buffers
+- `zr_fb_links_clone_from()` copies link tables between framebuffers for deterministic model replay/tests
+
+Limits:
+
+- URI max bytes: `ZR_FB_LINK_URI_MAX_BYTES` (2083)
+- ID max bytes: `ZR_FB_LINK_ID_MAX_BYTES` (2083)
 
 ### Grapheme size cap
 
@@ -52,6 +69,7 @@ create a state where a continuation cell exists without a valid lead cell immedi
 - `zr_fb_init` / `zr_fb_release` — framebuffer lifetime; `zr_fb_init` allocates backing cells.
 - `zr_fb_resize` — resizes backing store with a no-partial-effects contract (on failure, the framebuffer is unchanged).
 - `zr_fb_cell` / `zr_fb_cell_const` — cell lookup helpers (return `NULL` if out of bounds).
+- `zr_fb_link_intern` / `zr_fb_link_lookup` / `zr_fb_links_reset` / `zr_fb_links_clone_from` — hyperlink table helpers.
 - `zr_fb_painter_begin` — starts a painter with a caller-provided clip stack.
 - `zr_fb_clip_push` / `zr_fb_clip_pop` — deterministic clip stack; effective clip is the intersection of framebuffer bounds
   and all pushed clips.

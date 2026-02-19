@@ -33,11 +33,20 @@ typedef struct zr_style_t {
   uint32_t fg_rgb;
   uint32_t bg_rgb;
   uint32_t attrs;
-  uint32_t reserved;
+  uint32_t reserved;      /* v3+: underline variant (0 keeps v1 semantics) */
+  uint32_t underline_rgb; /* v3+: 0x00RRGGBB underline color (0 = default) */
+  uint32_t link_ref;      /* framebuffer link table ref; 0 means no link */
 } zr_style_t;
 
 /* Cell model (LOCKED v1). */
-enum { ZR_CELL_GLYPH_MAX = 32 };
+enum { ZR_CELL_GLYPH_MAX = 32, ZR_FB_LINK_URI_MAX_BYTES = 2083, ZR_FB_LINK_ID_MAX_BYTES = 2083 };
+
+typedef struct zr_fb_link_t {
+  uint32_t uri_off;
+  uint32_t uri_len;
+  uint32_t id_off;
+  uint32_t id_len;
+} zr_fb_link_t;
 
 typedef struct zr_cell_t {
   uint8_t glyph[ZR_CELL_GLYPH_MAX]; /* UTF-8 bytes for one grapheme cluster (or ASCII) */
@@ -50,7 +59,13 @@ typedef struct zr_cell_t {
 typedef struct zr_fb_t {
   uint32_t cols;
   uint32_t rows;
-  zr_cell_t* cells; /* engine-owned backing; row-major; length cols*rows */
+  zr_cell_t* cells;    /* engine-owned backing; row-major; length cols*rows */
+  zr_fb_link_t* links; /* engine-owned link entries (1-based externally) */
+  uint32_t links_len;
+  uint32_t links_cap;
+  uint8_t* link_bytes; /* packed URI/ID bytes used by links[] offsets */
+  uint32_t link_bytes_len;
+  uint32_t link_bytes_cap;
 } zr_fb_t;
 
 zr_result_t zr_fb_init(zr_fb_t* fb, uint32_t cols, uint32_t rows);
@@ -65,6 +80,14 @@ zr_result_t zr_fb_resize(zr_fb_t* fb, uint32_t cols, uint32_t rows);
 
 zr_cell_t* zr_fb_cell(zr_fb_t* fb, uint32_t x, uint32_t y);
 const zr_cell_t* zr_fb_cell_const(const zr_fb_t* fb, uint32_t x, uint32_t y);
+
+/* Hyperlink intern/lookup. link_ref values are 1-based (0 means no link). */
+void zr_fb_links_reset(zr_fb_t* fb);
+zr_result_t zr_fb_links_clone_from(zr_fb_t* dst, const zr_fb_t* src);
+zr_result_t zr_fb_link_intern(zr_fb_t* fb, const uint8_t* uri, size_t uri_len, const uint8_t* id, size_t id_len,
+                              uint32_t* out_link_ref);
+zr_result_t zr_fb_link_lookup(const zr_fb_t* fb, uint32_t link_ref, const uint8_t** out_uri, size_t* out_uri_len,
+                              const uint8_t** out_id, size_t* out_id_len);
 
 /*
   Painter + clip stack:

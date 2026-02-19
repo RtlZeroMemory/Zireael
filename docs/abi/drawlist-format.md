@@ -69,6 +69,26 @@ Capability note:
 
 - Runtime SGR capability mask from terminal caps may downgrade emitted attributes deterministically.
 
+### Drawlist v3 style extension
+
+For drawlist v3 commands and text-run segments, style payload extends with:
+
+- `underline_rgb` (`0x00RRGGBB`; `0` means default underline color)
+- `link_uri_ref` (1-based string-table ref, `0` means no hyperlink)
+- `link_id_ref` (optional 1-based string-table ref, `0` means no OSC 8 id param)
+
+v3 keeps v1/v2 opcodes and framing. Only style payload size changes:
+
+- `FILL_RECT`: 52 bytes total in v3
+- `DRAW_TEXT`: 60 bytes total in v3
+- `DRAW_TEXT_RUN` segment payload: 40 bytes in v3 (`style 28 + index/off/len 12`)
+
+Validation rules:
+
+- URI ref must be in range when non-zero, and URI length must be `1..2083`.
+- ID ref must be in range when non-zero, and ID length must be `0..2083`.
+- Invalid refs/lengths are rejected with `ZR_ERR_FORMAT` before execution.
+
 ## String and Blob Tables
 
 `zr_dl_span_t { off, len }` entries index into contiguous byte sections.

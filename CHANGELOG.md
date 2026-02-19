@@ -5,6 +5,27 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+### Added
+
+- core/diff + framebuffer: OSC 8 hyperlink support with framebuffer-owned link interning (`uri` + optional `id`) and
+  deterministic open/close transitions during span rendering.
+- drawlist: added v3 style extension payload support (underline color + hyperlink URI/ID refs) while preserving v1/v2
+  framing/opcode compatibility.
+- tests: added unit coverage for underline variants, colored-underlines, hyperlink transitions/capability gating, and
+  v3 drawlist validate/execute paths.
+- tests: added golden fixtures for mixed underline variants, colored underline transitions, and hyperlink span
+  transitions.
+
+### Changed
+
+- diff renderer: underline style variants now emit colon-subparameter SGR forms (`4:1..4:5`) with legacy `4` fallback
+  for variant `0`.
+- diff renderer: colored underline emission now supports `58`/`59`, capability-gated and color-mode-aware (RGB/256
+  downgrade).
+- platform caps: POSIX/Win32 capability snapshots now expose `supports_underline_styles`,
+  `supports_colored_underlines`, and `supports_hyperlinks`, including environment override knobs.
+- config negotiation: `engine_create()` now accepts `ZR_DRAWLIST_VERSION_V3` as a supported drawlist version.
+
 ## 1.3.8-alpha.4 — 2026-02-19
 
 ### Fixed

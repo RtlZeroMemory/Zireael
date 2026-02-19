@@ -22,15 +22,17 @@ See also:
 
 - engine ABI (`ZR_ENGINE_ABI_*`)
 - drawlist format (`ZR_DRAWLIST_VERSION_V1`)
+- drawlist format (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, or `ZR_DRAWLIST_VERSION_V3`)
 - packed event batch format (`ZR_EVENT_BATCH_VERSION_V1`)
 
 Negotiation rules:
 
 - Requested engine ABI and event batch versions MUST match pinned versions exactly.
-- Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1` or `ZR_DRAWLIST_VERSION_V2`).
+- Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, or
+  `ZR_DRAWLIST_VERSION_V3`).
 - If any requested version is not supported, `engine_create()` fails with `ZR_ERR_UNSUPPORTED` and performs no partial effects.
 
-Pinned versions are defined in `src/core/zr_version.h`.
+Pinned versions are defined in `include/zr/zr_version.h`.
 
 ## Config structs (public ABI)
 
@@ -119,6 +121,12 @@ The engine exposes runtime terminal capabilities via:
 - `engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out)`
 
 This returns the backend-discovered and engine-derived capability snapshot used for output emission decisions.
+
+Notable style/output capability gates include:
+
+- `supports_underline_styles`
+- `supports_colored_underlines`
+- `supports_hyperlinks`
 
 ## Defaults and validation
 

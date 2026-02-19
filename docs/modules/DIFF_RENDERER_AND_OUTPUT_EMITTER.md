@@ -102,6 +102,35 @@ Style changes use a deterministic compatibility-first policy:
 - this avoids renderer-specific retained-state drift observed in stricter terminals
 - no partial SGR sequences are emitted; each emitted CSI is syntactically complete
 
+Extended style behavior:
+
+- Underline variants use colon subparameters when supported:
+  - straight `4:1`, double `4:2`, curly `4:3`, dotted `4:4`, dashed `4:5`
+  - when underline is on and variant is `0`, renderer emits legacy `4` for compatibility
+- Colored underline uses SGR `58`:
+  - RGB mode: `58;2;R;G;B`
+  - 256 mode: `58;5;idx` (deterministic RGB->xterm256 mapping)
+  - reset on transition to uncolored underline: `59`
+- All underline extensions are capability-gated:
+  - `caps.supports_underline_styles == 0` -> variant bits are ignored, plain underline behavior only
+  - `caps.supports_colored_underlines == 0` -> underline color is omitted
+
+#### OSC 8 hyperlink emission
+
+Hyperlinks are tracked independently from SGR style:
+
+- hyperlink state is cell-scoped through framebuffer `style.link_ref` values
+- renderer emits OSC 8 transitions when `link_ref` changes between rendered cells:
+  - open: `ESC ] 8 ; params ; URI ESC \`
+  - close: `ESC ] 8 ; ; ESC \`
+- transitions are ordered as close-then-open when switching links
+- redundant transitions are skipped when adjacent cells share the same link
+- renderer emits a final close at end-of-frame if a link is still open
+
+Capability gate:
+
+- `caps.supports_hyperlinks == 0` forces effective `link_ref = 0`, so text renders normally with no OSC bytes.
+
 ### Cursor control
 
 Cursor control is applied as part of output emission:

@@ -22,7 +22,7 @@ Pinned versions:
 
 Binary formats:
 
-- `include/zr/zr_drawlist.h` (drawlist v1 + v2)
+- `include/zr/zr_drawlist.h` (drawlist v1 + v2 + v3)
 - `include/zr/zr_event.h` (packed event batch v1)
 
 ## Result / error model
@@ -75,7 +75,7 @@ Canonical source:
 - Reserved/padding fields in v1 structs **MUST be 0** when passed by the caller.
 - `ZR_EV_TEXT.codepoint` carries Unicode scalar values; invalid UTF-8 input emits U+FFFD.
 
-Drawlist v1/v2 and event batch v1 are specified by:
+Drawlist v1/v2/v3 and event batch v1 are specified by:
 
 - `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
 - `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`
@@ -97,6 +97,17 @@ typedef struct zr_dl_cmd_set_cursor_t {
 } zr_dl_cmd_set_cursor_t;
 ```
 
+## Drawlist v3 style extension
+
+Drawlist v3 keeps v1/v2 framing and opcodes but extends style payloads with:
+
+- underline color (`underline_rgb`)
+- hyperlink URI reference (`link_uri_ref`)
+- optional hyperlink id reference (`link_id_ref`)
+
+Hyperlink references use the drawlist string table and are resolved into
+framebuffer-owned link refs during execute.
+
 ## Platform capabilities
 
 The engine detects terminal capabilities at init. Wrappers can query these
@@ -112,6 +123,9 @@ through `engine_get_caps()` (which returns `zr_terminal_caps_t`):
 | `supports_sync_update` | Synchronized output (CSI ?2026) |
 | `supports_scroll_region` | DECSTBM scroll regions |
 | `supports_cursor_shape` | DECSCUSR cursor shapes |
+| `supports_underline_styles` | SGR underline variants (`4:n`) |
+| `supports_colored_underlines` | SGR underline color (`58`/`59`) |
+| `supports_hyperlinks` | OSC 8 hyperlink open/close emission |
 
 ## Damage tracking
 

@@ -20,7 +20,7 @@ Current pins:
 - Library: v1.3.8
 - Lifecycle: alpha
 - Engine ABI: v1.1.0
-- Drawlist formats: v1 and v2
+- Drawlist formats: v1, v2, and v3
 - Event batch format: v1
 
 ## Compatibility Expectations

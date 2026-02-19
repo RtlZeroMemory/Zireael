@@ -61,7 +61,137 @@ static zr_style_t zr_style_default(void) {
   s.bg_rgb = 0u;
   s.attrs = 0u;
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
   return s;
+}
+
+static void zr_fb_links_zero(zr_fb_t* fb) {
+  if (!fb) {
+    return;
+  }
+  fb->links = NULL;
+  fb->links_len = 0u;
+  fb->links_cap = 0u;
+  fb->link_bytes = NULL;
+  fb->link_bytes_len = 0u;
+  fb->link_bytes_cap = 0u;
+}
+
+static void zr_fb_links_release(zr_fb_t* fb) {
+  if (!fb) {
+    return;
+  }
+  free(fb->links);
+  free(fb->link_bytes);
+  zr_fb_links_zero(fb);
+}
+
+void zr_fb_links_reset(zr_fb_t* fb) {
+  if (!fb) {
+    return;
+  }
+  fb->links_len = 0u;
+  fb->link_bytes_len = 0u;
+}
+
+static bool zr_fb_link_span_eq(const zr_fb_t* fb, const zr_fb_link_t* e, const uint8_t* uri, size_t uri_len,
+                               const uint8_t* id, size_t id_len) {
+  if (!fb || !e || !uri) {
+    return false;
+  }
+  if ((size_t)e->uri_len != uri_len || (size_t)e->id_len != id_len) {
+    return false;
+  }
+  if (uri_len != 0u && memcmp(fb->link_bytes + e->uri_off, uri, uri_len) != 0) {
+    return false;
+  }
+  if (id_len != 0u && memcmp(fb->link_bytes + e->id_off, id, id_len) != 0) {
+    return false;
+  }
+  return true;
+}
+
+static zr_result_t zr_fb_links_ensure_cap(zr_fb_t* fb, uint32_t need_links) {
+  if (!fb) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (need_links <= fb->links_cap) {
+    return ZR_OK;
+  }
+
+  uint32_t next_cap = (fb->links_cap == 0u) ? 8u : fb->links_cap;
+  while (next_cap < need_links) {
+    if (next_cap > (UINT32_MAX / 2u)) {
+      next_cap = need_links;
+      break;
+    }
+    next_cap *= 2u;
+  }
+
+  size_t bytes = 0u;
+  if (!zr_checked_mul_size((size_t)next_cap, sizeof(zr_fb_link_t), &bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+  zr_fb_link_t* next = (zr_fb_link_t*)realloc(fb->links, bytes);
+  if (!next) {
+    return ZR_ERR_OOM;
+  }
+  fb->links = next;
+  fb->links_cap = next_cap;
+  return ZR_OK;
+}
+
+static zr_result_t zr_fb_link_bytes_ensure_cap(zr_fb_t* fb, uint32_t need_bytes) {
+  if (!fb) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (need_bytes <= fb->link_bytes_cap) {
+    return ZR_OK;
+  }
+
+  uint32_t next_cap = (fb->link_bytes_cap == 0u) ? 256u : fb->link_bytes_cap;
+  while (next_cap < need_bytes) {
+    if (next_cap > (UINT32_MAX / 2u)) {
+      next_cap = need_bytes;
+      break;
+    }
+    next_cap *= 2u;
+  }
+
+  uint8_t* next = (uint8_t*)realloc(fb->link_bytes, (size_t)next_cap);
+  if (!next) {
+    return ZR_ERR_OOM;
+  }
+  fb->link_bytes = next;
+  fb->link_bytes_cap = next_cap;
+  return ZR_OK;
+}
+
+zr_result_t zr_fb_links_clone_from(zr_fb_t* dst, const zr_fb_t* src) {
+  if (!dst || !src) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  zr_fb_links_reset(dst);
+
+  if (src->links_len == 0u) {
+    return ZR_OK;
+  }
+
+  zr_result_t rc = zr_fb_links_ensure_cap(dst, src->links_len);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_fb_link_bytes_ensure_cap(dst, src->link_bytes_len);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  memcpy(dst->links, src->links, (size_t)src->links_len * sizeof(zr_fb_link_t));
+  memcpy(dst->link_bytes, src->link_bytes, (size_t)src->link_bytes_len);
+  dst->links_len = src->links_len;
+  dst->link_bytes_len = src->link_bytes_len;
+  return ZR_OK;
 }
 
 static zr_rect_t zr_rect_empty(void) {
@@ -227,6 +357,7 @@ zr_result_t zr_fb_init(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
   fb->cols = 0u;
   fb->rows = 0u;
   fb->cells = NULL;
+  zr_fb_links_zero(fb);
   return zr_fb_resize(fb, cols, rows);
 }
 
@@ -236,6 +367,7 @@ void zr_fb_release(zr_fb_t* fb) {
     return;
   }
   free(fb->cells);
+  zr_fb_links_release(fb);
   fb->cells = NULL;
   fb->cols = 0u;
   fb->rows = 0u;
@@ -259,11 +391,104 @@ const zr_cell_t* zr_fb_cell_const(const zr_fb_t* fb, uint32_t x, uint32_t y) {
   return &fb->cells[idx];
 }
 
+/*
+ * Intern a framebuffer-owned hyperlink target and return a 1-based reference.
+ *
+ * Why: Draw commands can share link targets across many cells; interning keeps
+ * style payloads compact and deterministic.
+ */
+zr_result_t zr_fb_link_intern(zr_fb_t* fb, const uint8_t* uri, size_t uri_len, const uint8_t* id, size_t id_len,
+                              uint32_t* out_link_ref) {
+  if (!fb || !uri || !out_link_ref) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (uri_len == 0u || uri_len > (size_t)ZR_FB_LINK_URI_MAX_BYTES) {
+    return ZR_ERR_LIMIT;
+  }
+  if (id_len != 0u && !id) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (id_len > (size_t)ZR_FB_LINK_ID_MAX_BYTES) {
+    return ZR_ERR_LIMIT;
+  }
+  if (uri_len > (size_t)UINT32_MAX || id_len > (size_t)UINT32_MAX) {
+    return ZR_ERR_LIMIT;
+  }
+
+  for (uint32_t i = 0u; i < fb->links_len; i++) {
+    const zr_fb_link_t* e = &fb->links[i];
+    if (zr_fb_link_span_eq(fb, e, uri, uri_len, id, id_len)) {
+      *out_link_ref = i + 1u;
+      return ZR_OK;
+    }
+  }
+
+  uint32_t need_links = 0u;
+  uint32_t need_bytes = 0u;
+  if (!zr_checked_add_u32(fb->links_len, 1u, &need_links)) {
+    return ZR_ERR_LIMIT;
+  }
+  if (!zr_checked_add_u32(fb->link_bytes_len, (uint32_t)uri_len, &need_bytes) ||
+      !zr_checked_add_u32(need_bytes, (uint32_t)id_len, &need_bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  zr_result_t rc = zr_fb_links_ensure_cap(fb, need_links);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  rc = zr_fb_link_bytes_ensure_cap(fb, need_bytes);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  zr_fb_link_t e;
+  e.uri_off = fb->link_bytes_len;
+  e.uri_len = (uint32_t)uri_len;
+  e.id_off = fb->link_bytes_len + (uint32_t)uri_len;
+  e.id_len = (uint32_t)id_len;
+
+  memcpy(fb->link_bytes + e.uri_off, uri, uri_len);
+  if (id_len != 0u) {
+    memcpy(fb->link_bytes + e.id_off, id, id_len);
+  }
+
+  fb->links[fb->links_len] = e;
+  fb->links_len = need_links;
+  fb->link_bytes_len = need_bytes;
+  *out_link_ref = fb->links_len;
+  return ZR_OK;
+}
+
+/* Resolve a 1-based framebuffer link reference to URI + optional ID bytes. */
+zr_result_t zr_fb_link_lookup(const zr_fb_t* fb, uint32_t link_ref, const uint8_t** out_uri, size_t* out_uri_len,
+                              const uint8_t** out_id, size_t* out_id_len) {
+  if (!fb || !out_uri || !out_uri_len || !out_id || !out_id_len) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (link_ref == 0u || link_ref > fb->links_len) {
+    return ZR_ERR_FORMAT;
+  }
+
+  const zr_fb_link_t* e = &fb->links[link_ref - 1u];
+  if ((size_t)e->uri_off + (size_t)e->uri_len > (size_t)fb->link_bytes_len ||
+      (size_t)e->id_off + (size_t)e->id_len > (size_t)fb->link_bytes_len) {
+    return ZR_ERR_FORMAT;
+  }
+
+  *out_uri = fb->link_bytes + e->uri_off;
+  *out_uri_len = (size_t)e->uri_len;
+  *out_id = (e->id_len != 0u) ? (fb->link_bytes + e->id_off) : NULL;
+  *out_id_len = (size_t)e->id_len;
+  return ZR_OK;
+}
+
 /* Fill all cells with spaces using the given style; ignores clip stack. */
 zr_result_t zr_fb_clear(zr_fb_t* fb, const zr_style_t* style) {
   if (!fb) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  zr_fb_links_reset(fb);
   if (!zr_fb_has_backing(fb)) {
     return ZR_OK;
   }
@@ -381,12 +606,21 @@ zr_result_t zr_fb_resize(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
   }
 
   zr_fb_t tmp;
+  memset(&tmp, 0, sizeof(tmp));
   tmp.cols = cols;
   tmp.rows = rows;
   tmp.cells = new_cells;
+  zr_fb_links_zero(&tmp);
   (void)zr_fb_clear(&tmp, NULL);
 
   if (zr_fb_has_backing(fb) && zr_fb_has_backing(&tmp)) {
+    rc = zr_fb_links_clone_from(&tmp, fb);
+    if (rc != ZR_OK) {
+      free(new_cells);
+      zr_fb_links_release(&tmp);
+      return rc;
+    }
+
     const uint32_t copy_cols = (fb->cols < tmp.cols) ? fb->cols : tmp.cols;
     const uint32_t copy_rows = (fb->rows < tmp.rows) ? fb->rows : tmp.rows;
     for (uint32_t y = 0u; y < copy_rows; y++) {
@@ -404,9 +638,16 @@ zr_result_t zr_fb_resize(zr_fb_t* fb, uint32_t cols, uint32_t rows) {
 
   /* Commit. */
   free(fb->cells);
+  zr_fb_links_release(fb);
   fb->cells = new_cells;
   fb->cols = cols;
   fb->rows = rows;
+  fb->links = tmp.links;
+  fb->links_len = tmp.links_len;
+  fb->links_cap = tmp.links_cap;
+  fb->link_bytes = tmp.link_bytes;
+  fb->link_bytes_len = tmp.link_bytes_len;
+  fb->link_bytes_cap = tmp.link_bytes_cap;
   return ZR_OK;
 }
 

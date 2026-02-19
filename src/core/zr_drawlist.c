@@ -1,5 +1,5 @@
 /*
-  src/core/zr_drawlist.c — Drawlist validator + executor (v1 + v2).
+  src/core/zr_drawlist.c — Drawlist validator + executor (v1 + v2 + v3).
 
   Why: Validates wrapper-provided drawlist bytes (bounds/caps/version) and
   executes deterministic drawing into the framebuffer without UB.
@@ -30,8 +30,73 @@
 
 /* DRAW_TEXT_RUN blob framing: u32 seg_count + repeated fixed-size segments. */
 #define ZR_DL_TEXT_RUN_HEADER_BYTES sizeof(uint32_t)
-#define ZR_DL_TEXT_RUN_SEGMENT_U32_COUNT 3u
-#define ZR_DL_TEXT_RUN_SEGMENT_BYTES (sizeof(zr_dl_style_t) + (ZR_DL_TEXT_RUN_SEGMENT_U32_COUNT * sizeof(uint32_t)))
+#define ZR_DL_TEXT_RUN_SEGMENT_TAIL_BYTES (3u * sizeof(uint32_t))
+
+/* Fixed field groups (without style payload). */
+#define ZR_DL_FILL_RECT_FIELDS_BYTES (4u * sizeof(int32_t))
+#define ZR_DL_DRAW_TEXT_FIELDS_BYTES ((2u * sizeof(int32_t)) + (3u * sizeof(uint32_t)))
+#define ZR_DL_DRAW_TEXT_TRAILER_BYTES sizeof(uint32_t)
+
+/* v3 style extension payload (underline color + hyperlink URI/ID refs). */
+#define ZR_DL_STYLE_V3_EXT_BYTES (3u * sizeof(uint32_t))
+
+typedef struct zr_dl_style_wire_t {
+  uint32_t fg;
+  uint32_t bg;
+  uint32_t attrs;
+  uint32_t reserved0;
+  uint32_t underline_rgb;
+  uint32_t link_uri_ref;
+  uint32_t link_id_ref;
+} zr_dl_style_wire_t;
+
+typedef struct zr_dl_cmd_fill_rect_wire_t {
+  int32_t x;
+  int32_t y;
+  int32_t w;
+  int32_t h;
+  zr_dl_style_wire_t style;
+} zr_dl_cmd_fill_rect_wire_t;
+
+typedef struct zr_dl_cmd_draw_text_wire_t {
+  int32_t x;
+  int32_t y;
+  uint32_t string_index;
+  uint32_t byte_off;
+  uint32_t byte_len;
+  zr_dl_style_wire_t style;
+  uint32_t reserved0;
+} zr_dl_cmd_draw_text_wire_t;
+
+typedef struct zr_dl_text_run_segment_wire_t {
+  zr_dl_style_wire_t style;
+  uint32_t string_index;
+  uint32_t byte_off;
+  uint32_t byte_len;
+} zr_dl_text_run_segment_wire_t;
+
+static uint32_t zr_dl_style_wire_bytes(uint32_t version) {
+  uint32_t n = (uint32_t)sizeof(zr_dl_style_t);
+  if (version >= ZR_DRAWLIST_VERSION_V3) {
+    n += (uint32_t)ZR_DL_STYLE_V3_EXT_BYTES;
+  }
+  return n;
+}
+
+static uint32_t zr_dl_cmd_fill_rect_size(uint32_t version) {
+  const uint32_t payload = (uint32_t)ZR_DL_FILL_RECT_FIELDS_BYTES + zr_dl_style_wire_bytes(version);
+  return (uint32_t)sizeof(zr_dl_cmd_header_t) + payload;
+}
+
+static uint32_t zr_dl_cmd_draw_text_size(uint32_t version) {
+  const uint32_t payload =
+      (uint32_t)ZR_DL_DRAW_TEXT_FIELDS_BYTES + zr_dl_style_wire_bytes(version) + (uint32_t)ZR_DL_DRAW_TEXT_TRAILER_BYTES;
+  return (uint32_t)sizeof(zr_dl_cmd_header_t) + payload;
+}
+
+static size_t zr_dl_text_run_segment_bytes(uint32_t version) {
+  return (size_t)zr_dl_style_wire_bytes(version) + ZR_DL_TEXT_RUN_SEGMENT_TAIL_BYTES;
+}
 
 static bool zr_is_aligned4_u32(uint32_t v) {
   return (v & (ZR_DL_ALIGNMENT - 1u)) == 0u;
@@ -78,6 +143,33 @@ static zr_result_t zr_dl_read_style(zr_byte_reader_t* r, zr_dl_style_t* out) {
   return ZR_OK;
 }
 
+static zr_result_t zr_dl_read_style_wire(zr_byte_reader_t* r, uint32_t version, zr_dl_style_wire_t* out) {
+  zr_dl_style_t base;
+  zr_result_t rc = ZR_OK;
+  if (!out) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  memset(out, 0, sizeof(*out));
+  rc = zr_dl_read_style(r, &base);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  out->fg = base.fg;
+  out->bg = base.bg;
+  out->attrs = base.attrs;
+  out->reserved0 = base.reserved0;
+
+  if (version >= ZR_DRAWLIST_VERSION_V3) {
+    if (!zr_byte_reader_read_u32le(r, &out->underline_rgb) || !zr_byte_reader_read_u32le(r, &out->link_uri_ref) ||
+        !zr_byte_reader_read_u32le(r, &out->link_id_ref)) {
+      return ZR_ERR_FORMAT;
+    }
+  }
+
+  return ZR_OK;
+}
+
 static zr_result_t zr_dl_read_cmd_header(zr_byte_reader_t* r, zr_dl_cmd_header_t* out) {
   uint16_t opcode = 0u;
   uint16_t flags = 0u;
@@ -95,7 +187,7 @@ static zr_result_t zr_dl_read_cmd_header(zr_byte_reader_t* r, zr_dl_cmd_header_t
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_read_cmd_fill_rect(zr_byte_reader_t* r, zr_dl_cmd_fill_rect_t* out) {
+static zr_result_t zr_dl_read_cmd_fill_rect(zr_byte_reader_t* r, uint32_t version, zr_dl_cmd_fill_rect_wire_t* out) {
   zr_result_t rc = ZR_OK;
   if (!out) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -116,14 +208,14 @@ static zr_result_t zr_dl_read_cmd_fill_rect(zr_byte_reader_t* r, zr_dl_cmd_fill_
   if (rc != ZR_OK) {
     return rc;
   }
-  rc = zr_dl_read_style(r, &out->style);
+  rc = zr_dl_read_style_wire(r, version, &out->style);
   if (rc != ZR_OK) {
     return rc;
   }
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_read_cmd_draw_text(zr_byte_reader_t* r, zr_dl_cmd_draw_text_t* out) {
+static zr_result_t zr_dl_read_cmd_draw_text(zr_byte_reader_t* r, uint32_t version, zr_dl_cmd_draw_text_wire_t* out) {
   zr_result_t rc = ZR_OK;
   if (!out) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -140,7 +232,7 @@ static zr_result_t zr_dl_read_cmd_draw_text(zr_byte_reader_t* r, zr_dl_cmd_draw_
       !zr_byte_reader_read_u32le(r, &out->byte_len)) {
     return ZR_ERR_FORMAT;
   }
-  rc = zr_dl_read_style(r, &out->style);
+  rc = zr_dl_read_style_wire(r, version, &out->style);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -319,7 +411,8 @@ static zr_result_t zr_dl_validate_header(const zr_dl_header_t* hdr, size_t bytes
   if (hdr->magic != ZR_DL_MAGIC) {
     return ZR_ERR_FORMAT;
   }
-  if (hdr->version != ZR_DRAWLIST_VERSION_V1 && hdr->version != ZR_DRAWLIST_VERSION_V2) {
+  if (hdr->version != ZR_DRAWLIST_VERSION_V1 && hdr->version != ZR_DRAWLIST_VERSION_V2 &&
+      hdr->version != ZR_DRAWLIST_VERSION_V3) {
     return ZR_ERR_UNSUPPORTED;
   }
   if (hdr->header_size != (uint32_t)sizeof(zr_dl_header_t)) {
@@ -478,22 +571,63 @@ static zr_result_t zr_dl_validate_cmd_clear(const zr_dl_cmd_header_t* ch) {
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_validate_cmd_fill_rect(const zr_dl_cmd_header_t* ch, zr_byte_reader_t* r) {
-  if (!ch || !r) {
+static zr_result_t zr_dl_validate_style_link_ref(const zr_dl_view_t* view, uint32_t link_ref, uint32_t max_len,
+                                                 bool require_non_empty) {
+  if (!view) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_fill_rect_t))) {
+  if (link_ref == 0u) {
+    return ZR_OK;
+  }
+  if (link_ref > view->hdr.strings_count) {
     return ZR_ERR_FORMAT;
   }
-  zr_dl_cmd_fill_rect_t cmd;
-  zr_result_t rc = zr_dl_read_cmd_fill_rect(r, &cmd);
-  if (rc != ZR_OK) {
-    return rc;
+
+  const uint32_t span_index = link_ref - 1u;
+  size_t span_off = 0u;
+  if (!zr_checked_mul_size((size_t)span_index, sizeof(zr_dl_span_t), &span_off)) {
+    return ZR_ERR_FORMAT;
   }
-  if (cmd.style.reserved0 != 0u) {
+
+  zr_dl_span_t span;
+  if (zr_dl_span_read_host(view->strings_span_bytes + span_off, &span) != ZR_OK) {
+    return ZR_ERR_FORMAT;
+  }
+  if ((require_non_empty && span.len == 0u) || span.len > max_len) {
     return ZR_ERR_FORMAT;
   }
   return ZR_OK;
+}
+
+static zr_result_t zr_dl_validate_style(const zr_dl_view_t* view, const zr_dl_style_wire_t* style, uint32_t version) {
+  if (!view || !style) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (version < ZR_DRAWLIST_VERSION_V3 && style->reserved0 != 0u) {
+    return ZR_ERR_FORMAT;
+  }
+  zr_result_t rc = zr_dl_validate_style_link_ref(view, style->link_uri_ref, (uint32_t)ZR_FB_LINK_URI_MAX_BYTES, true);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  return zr_dl_validate_style_link_ref(view, style->link_id_ref, (uint32_t)ZR_FB_LINK_ID_MAX_BYTES, false);
+}
+
+static zr_result_t zr_dl_validate_cmd_fill_rect(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch,
+                                                zr_byte_reader_t* r) {
+  if (!view || !ch || !r) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != zr_dl_cmd_fill_rect_size(view->hdr.version)) {
+    return ZR_ERR_FORMAT;
+  }
+
+  zr_dl_cmd_fill_rect_wire_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_fill_rect(r, view->hdr.version, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  return zr_dl_validate_style(view, &cmd.style, view->hdr.version);
 }
 
 static zr_result_t zr_dl_validate_cmd_draw_text(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch,
@@ -501,17 +635,21 @@ static zr_result_t zr_dl_validate_cmd_draw_text(const zr_dl_view_t* view, const 
   if (!view || !ch || !r) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_text_t))) {
+  if (ch->size != zr_dl_cmd_draw_text_size(view->hdr.version)) {
     return ZR_ERR_FORMAT;
   }
 
-  zr_dl_cmd_draw_text_t cmd;
-  zr_result_t rc = zr_dl_read_cmd_draw_text(r, &cmd);
+  zr_dl_cmd_draw_text_wire_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_draw_text(r, view->hdr.version, &cmd);
   if (rc != ZR_OK) {
     return rc;
   }
-  if (cmd.style.reserved0 != 0u || cmd.reserved0 != 0u || cmd.string_index >= view->hdr.strings_count) {
+  if (cmd.reserved0 != 0u || cmd.string_index >= view->hdr.strings_count) {
     return ZR_ERR_FORMAT;
+  }
+  rc = zr_dl_validate_style(view, &cmd.style, view->hdr.version);
+  if (rc != ZR_OK) {
+    return rc;
   }
 
   zr_dl_span_t span;
@@ -612,7 +750,7 @@ static zr_result_t zr_dl_validate_cmd_payload(const zr_dl_view_t* view, const zr
   case ZR_DL_OP_CLEAR:
     return zr_dl_validate_cmd_clear(ch);
   case ZR_DL_OP_FILL_RECT:
-    return zr_dl_validate_cmd_fill_rect(ch, r);
+    return zr_dl_validate_cmd_fill_rect(view, ch, r);
   case ZR_DL_OP_DRAW_TEXT:
     return zr_dl_validate_cmd_draw_text(view, ch, r);
   case ZR_DL_OP_PUSH_CLIP:
@@ -671,6 +809,11 @@ static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const 
 
 /* Walk and validate every command in the command stream (v2: includes cursor op). */
 static zr_result_t zr_dl_validate_cmd_stream_v2(const zr_dl_view_t* view, const zr_limits_t* lim) {
+  return zr_dl_validate_cmd_stream_common(view, lim, true);
+}
+
+/* Walk and validate every command in the command stream (v3: v2 opcodes + style extension). */
+static zr_result_t zr_dl_validate_cmd_stream_v3(const zr_dl_view_t* view, const zr_limits_t* lim) {
   return zr_dl_validate_cmd_stream_common(view, lim, true);
 }
 
@@ -734,13 +877,32 @@ static zr_result_t zr_dl_validate_text_run_blob_span(const zr_dl_view_t* v, uint
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_text_run_expected_bytes(uint32_t seg_count, size_t* out_expected) {
+static zr_result_t zr_dl_read_text_run_segment(zr_byte_reader_t* r, uint32_t version, zr_dl_text_run_segment_wire_t* out) {
+  zr_result_t rc = ZR_OK;
+  if (!r || !out) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  rc = zr_dl_read_style_wire(r, version, &out->style);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (!zr_byte_reader_read_u32le(r, &out->string_index) || !zr_byte_reader_read_u32le(r, &out->byte_off) ||
+      !zr_byte_reader_read_u32le(r, &out->byte_len)) {
+    return ZR_ERR_FORMAT;
+  }
+
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_text_run_expected_bytes(uint32_t seg_count, uint32_t version, size_t* out_expected) {
   if (!out_expected) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
   size_t expected = 0u;
-  if (!zr_checked_mul_size((size_t)seg_count, ZR_DL_TEXT_RUN_SEGMENT_BYTES, &expected)) {
+  const size_t seg_bytes = zr_dl_text_run_segment_bytes(version);
+  if (!zr_checked_mul_size((size_t)seg_count, seg_bytes, &expected)) {
     return ZR_ERR_FORMAT;
   }
   if (!zr_checked_add_size(expected, ZR_DL_TEXT_RUN_HEADER_BYTES, &expected)) {
@@ -756,25 +918,22 @@ static zr_result_t zr_dl_validate_text_run_segment(const zr_dl_view_t* v, zr_byt
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  zr_dl_style_t style;
-  if (zr_dl_read_style(r, &style) != ZR_OK || style.reserved0 != 0u) {
-    return ZR_ERR_FORMAT;
-  }
-
-  uint32_t string_index = 0u;
-  uint32_t byte_off = 0u;
-  uint32_t byte_len = 0u;
-  if (!zr_byte_reader_read_u32le(r, &string_index) || !zr_byte_reader_read_u32le(r, &byte_off) ||
-      !zr_byte_reader_read_u32le(r, &byte_len)) {
-    return ZR_ERR_FORMAT;
-  }
-
-  zr_dl_span_t str_span;
-  zr_result_t rc = zr_dl_span_table_read_checked(v->strings_span_bytes, v->strings_count, string_index, &str_span);
+  zr_dl_text_run_segment_wire_t seg;
+  zr_result_t rc = zr_dl_read_text_run_segment(r, v->hdr.version, &seg);
   if (rc != ZR_OK) {
     return rc;
   }
-  return zr_dl_validate_span_slice_u32(byte_off, byte_len, str_span.len);
+  rc = zr_dl_validate_style(v, &seg.style, v->hdr.version);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  zr_dl_span_t str_span;
+  rc = zr_dl_span_table_read_checked(v->strings_span_bytes, v->strings_count, seg.string_index, &str_span);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  return zr_dl_validate_span_slice_u32(seg.byte_off, seg.byte_len, str_span.len);
 }
 
 /* Validate a text run blob: segment count, alignment, and all string references. */
@@ -802,7 +961,7 @@ static zr_result_t zr_dl_validate_text_run_blob(const zr_dl_view_t* v, uint32_t 
   }
 
   size_t expected = 0u;
-  rc = zr_dl_text_run_expected_bytes(seg_count, &expected);
+  rc = zr_dl_text_run_expected_bytes(seg_count, v->hdr.version, &expected);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -881,6 +1040,8 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
     rc = zr_dl_validate_cmd_stream_v1(&view, lim);
   } else if (hdr.version == ZR_DRAWLIST_VERSION_V2) {
     rc = zr_dl_validate_cmd_stream_v2(&view, lim);
+  } else if (hdr.version == ZR_DRAWLIST_VERSION_V3) {
+    rc = zr_dl_validate_cmd_stream_v3(&view, lim);
   } else {
     rc = ZR_ERR_UNSUPPORTED;
   }
@@ -892,13 +1053,69 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
   return ZR_OK;
 }
 
-static zr_style_t zr_style_from_dl(zr_dl_style_t s) {
-  zr_style_t out;
-  out.fg_rgb = s.fg;
-  out.bg_rgb = s.bg;
-  out.attrs = s.attrs;
-  out.reserved = s.reserved0;
-  return out;
+static zr_result_t zr_dl_style_resolve_link(const zr_dl_view_t* v, zr_fb_t* fb, uint32_t link_uri_ref,
+                                            uint32_t link_id_ref, uint32_t* out_fb_link_ref) {
+  if (!v || !fb || !out_fb_link_ref) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  *out_fb_link_ref = 0u;
+
+  if (link_uri_ref == 0u) {
+    return ZR_OK;
+  }
+  if (link_uri_ref > v->hdr.strings_count) {
+    return ZR_ERR_FORMAT;
+  }
+  if (link_id_ref > v->hdr.strings_count) {
+    return ZR_ERR_FORMAT;
+  }
+
+  zr_dl_span_t uri_span;
+  zr_result_t rc = zr_dl_span_table_read_checked(v->strings_span_bytes, v->strings_count, link_uri_ref - 1u, &uri_span);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (uri_span.len == 0u || uri_span.len > (uint32_t)ZR_FB_LINK_URI_MAX_BYTES) {
+    return ZR_ERR_FORMAT;
+  }
+
+  const uint8_t* id = NULL;
+  size_t id_len = 0u;
+  if (link_id_ref != 0u) {
+    zr_dl_span_t id_span;
+    rc = zr_dl_span_table_read_checked(v->strings_span_bytes, v->strings_count, link_id_ref - 1u, &id_span);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+    if (id_span.len > (uint32_t)ZR_FB_LINK_ID_MAX_BYTES) {
+      return ZR_ERR_FORMAT;
+    }
+    id = v->strings_bytes + id_span.off;
+    id_len = (size_t)id_span.len;
+  }
+
+  const uint8_t* uri = v->strings_bytes + uri_span.off;
+  return zr_fb_link_intern(fb, uri, (size_t)uri_span.len, id, id_len, out_fb_link_ref);
+}
+
+static zr_result_t zr_style_from_dl(const zr_dl_view_t* v, zr_fb_t* fb, const zr_dl_style_wire_t* in, zr_style_t* out) {
+  zr_result_t rc = ZR_OK;
+  if (!v || !fb || !in || !out) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  out->fg_rgb = in->fg;
+  out->bg_rgb = in->bg;
+  out->attrs = in->attrs;
+  out->reserved = in->reserved0;
+  out->underline_rgb = in->underline_rgb;
+  out->link_ref = 0u;
+
+  rc = zr_dl_style_resolve_link(v, fb, in->link_uri_ref, in->link_id_ref, &out->link_ref);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  return ZR_OK;
 }
 
 static zr_result_t zr_dl_exec_clear(zr_fb_t* dst) {
@@ -990,20 +1207,24 @@ static zr_result_t zr_dl_draw_text_utf8(zr_fb_painter_t* p, int32_t y, int32_t* 
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, zr_fb_painter_t* p) {
-  zr_dl_cmd_fill_rect_t cmd;
-  zr_result_t rc = zr_dl_read_cmd_fill_rect(r, &cmd);
+static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
+  zr_dl_cmd_fill_rect_wire_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_fill_rect(r, v->hdr.version, &cmd);
   if (rc != ZR_OK) {
     return rc;
   }
   zr_rect_t rr = {cmd.x, cmd.y, cmd.w, cmd.h};
-  zr_style_t s = zr_style_from_dl(cmd.style);
+  zr_style_t s;
+  rc = zr_style_from_dl(v, p->fb, &cmd.style, &s);
+  if (rc != ZR_OK) {
+    return rc;
+  }
   return zr_fb_fill_rect(p, rr, &s);
 }
 
 static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
-  zr_dl_cmd_draw_text_t cmd;
-  zr_result_t rc = zr_dl_read_cmd_draw_text(r, &cmd);
+  zr_dl_cmd_draw_text_wire_t cmd;
+  zr_result_t rc = zr_dl_read_cmd_draw_text(r, v->hdr.version, &cmd);
   if (rc != ZR_OK) {
     return rc;
   }
@@ -1015,7 +1236,11 @@ static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t*
   }
 
   const uint8_t* sbytes = v->strings_bytes + sspan.off + cmd.byte_off;
-  zr_style_t s = zr_style_from_dl(cmd.style);
+  zr_style_t s;
+  rc = zr_style_from_dl(v, p->fb, &cmd.style, &s);
+  if (rc != ZR_OK) {
+    return rc;
+  }
   int32_t cx = cmd.x;
   return zr_dl_draw_text_utf8(p, cmd.y, &cx, sbytes, (size_t)cmd.byte_len, v->text.tab_width, v->text.width_policy, &s);
 }
@@ -1045,29 +1270,26 @@ static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v, zr_by
     spans are in-bounds). Execution is structured as a straight-line interpreter
     for readability.
   */
-  zr_dl_style_t style;
-  if (zr_dl_read_style(br, &style) != ZR_OK) {
-    return ZR_ERR_FORMAT;
+  zr_dl_text_run_segment_wire_t seg;
+  zr_result_t rc = zr_dl_read_text_run_segment(br, v->hdr.version, &seg);
+  if (rc != ZR_OK) {
+    return rc;
   }
 
-  uint32_t string_index = 0u;
-  uint32_t byte_off = 0u;
-  uint32_t byte_len = 0u;
-  if (!zr_byte_reader_read_u32le(br, &string_index) || !zr_byte_reader_read_u32le(br, &byte_off) ||
-      !zr_byte_reader_read_u32le(br, &byte_len)) {
-    return ZR_ERR_FORMAT;
-  }
-
-  const size_t sspan_off = (size_t)string_index * sizeof(zr_dl_span_t);
+  const size_t sspan_off = (size_t)seg.string_index * sizeof(zr_dl_span_t);
   zr_dl_span_t sspan;
   if (zr_dl_span_read_host(v->strings_span_bytes + sspan_off, &sspan) != ZR_OK) {
     return ZR_ERR_FORMAT;
   }
 
-  const uint8_t* sbytes = v->strings_bytes + sspan.off + byte_off;
-  zr_style_t s = zr_style_from_dl(style);
+  const uint8_t* sbytes = v->strings_bytes + sspan.off + seg.byte_off;
+  zr_style_t s;
+  rc = zr_style_from_dl(v, p->fb, &seg.style, &s);
+  if (rc != ZR_OK) {
+    return rc;
+  }
 
-  return zr_dl_draw_text_utf8(p, y, inout_x, sbytes, (size_t)byte_len, v->text.tab_width, v->text.width_policy, &s);
+  return zr_dl_draw_text_utf8(p, y, inout_x, sbytes, (size_t)seg.byte_len, v->text.tab_width, v->text.width_policy, &s);
 }
 
 static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p) {
@@ -1179,7 +1401,7 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
       break;
     }
     case ZR_DL_OP_FILL_RECT: {
-      rc = zr_dl_exec_fill_rect(&r, &painter);
+      rc = zr_dl_exec_fill_rect(&r, &view, &painter);
       if (rc != ZR_OK) {
         return rc;
       }

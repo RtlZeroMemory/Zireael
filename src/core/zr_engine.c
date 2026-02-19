@@ -471,17 +471,19 @@ static zr_result_t zr_engine_alloc_diff_row_scratch(uint32_t rows, uint64_t** ou
   return ZR_OK;
 }
 
-static void zr_engine_fb_copy(const zr_fb_t* src, zr_fb_t* dst) {
-  if (!src || !dst || !src->cells || !dst->cells) {
-    return;
+static zr_result_t zr_engine_fb_copy(const zr_fb_t* src, zr_fb_t* dst) {
+  if (!src || !dst) {
+    return ZR_ERR_INVALID_ARGUMENT;
   }
   if (src->cols != dst->cols || src->rows != dst->rows) {
-    return;
+    return ZR_ERR_INVALID_ARGUMENT;
   }
   const size_t n = zr_engine_cells_bytes(src);
-  if (n != 0u) {
+  if (n != 0u && src->cells && dst->cells) {
     memcpy(dst->cells, src->cells, n);
   }
+  zr_fb_links_reset(dst);
+  return zr_fb_links_clone_from(dst, src);
 }
 
 static void zr_engine_fb_swap(zr_fb_t* a, zr_fb_t* b) {
@@ -1340,7 +1342,12 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
     return ZR_ERR_UNSUPPORTED;
   }
 
-  zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
+  rc = zr_engine_fb_copy(&e->fb_next, &e->fb_stage);
+  if (rc != ZR_OK) {
+    zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
+                             v.hdr.version, ZR_OK, rc);
+    return rc;
+  }
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
   rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
@@ -1422,9 +1429,9 @@ zr_result_t engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out_caps) {
   c.supports_scroll_region = e->caps.supports_scroll_region;
   c.supports_cursor_shape = e->caps.supports_cursor_shape;
   c.supports_output_wait_writable = e->caps.supports_output_wait_writable;
-  c._pad0[0] = 0u;
-  c._pad0[1] = 0u;
-  c._pad0[2] = 0u;
+  c.supports_underline_styles = e->caps.supports_underline_styles;
+  c.supports_colored_underlines = e->caps.supports_colored_underlines;
+  c.supports_hyperlinks = e->caps.supports_hyperlinks;
   c.sgr_attrs_supported = e->caps.sgr_attrs_supported;
 
   *out_caps = c;

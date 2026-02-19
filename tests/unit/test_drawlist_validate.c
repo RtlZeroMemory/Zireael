@@ -357,6 +357,67 @@ const uint8_t zr_test_dl_fixture6_v1_draw_text_slices[] = {
 const size_t zr_test_dl_fixture6_v1_draw_text_slices_len = sizeof(zr_test_dl_fixture6_v1_draw_text_slices);
 
 /*
+ * Fixture 7 (v3): CLEAR + DRAW_TEXT with underline color + hyperlink refs.
+ *
+ * Strings:
+ *   index 0 => "X"
+ *   index 1 => "https://x"
+ *   index 2 => "id1"
+ */
+const uint8_t zr_test_dl_fixture7_v3_text_link[] = {
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(3u), ZR_U32LE(64u), ZR_U32LE(172u), /* magic/version/hdr/total */
+    ZR_U32LE(64u), ZR_U32LE(68u), ZR_U32LE(2u),                        /* cmd offset/bytes/count */
+    ZR_U32LE(132u), ZR_U32LE(3u), ZR_U32LE(156u), ZR_U32LE(16u),       /* strings spans/count/bytes */
+    ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u), ZR_U32LE(0u),            /* blobs empty */
+    ZR_U32LE(0u),                                                       /* reserved0 */
+
+    /* cmd stream @ 64 */
+    ZR_DL_CMD_HDR(ZR_DL_OP_CLEAR, 8u),
+    ZR_DL_CMD_HDR(ZR_DL_OP_DRAW_TEXT, 60u),
+    ZR_I32LE(0),
+    ZR_I32LE(0),
+    ZR_U32LE(0u),
+    ZR_U32LE(0u),
+    ZR_U32LE(1u), /* x,y,string,off,len */
+    ZR_U32LE(0x01020304u),
+    ZR_U32LE(0u),
+    ZR_U32LE(0x00000004u),
+    ZR_U32LE(0x00000003u), /* style base (underline attr + variant=3) */
+    ZR_U32LE(0x00010203u),
+    ZR_U32LE(2u),
+    ZR_U32LE(3u), /* style ext: underline rgb + uri/id refs */
+    ZR_U32LE(0u), /* cmd reserved0 */
+
+    /* strings span table @ 132 */
+    ZR_U32LE(0u),
+    ZR_U32LE(1u),  /* "X" */
+    ZR_U32LE(1u),
+    ZR_U32LE(9u),  /* "https://x" */
+    ZR_U32LE(10u),
+    ZR_U32LE(3u), /* "id1" */
+
+    /* strings bytes @ 156 (len=16) */
+    (uint8_t)'X',
+    (uint8_t)'h',
+    (uint8_t)'t',
+    (uint8_t)'t',
+    (uint8_t)'p',
+    (uint8_t)'s',
+    (uint8_t)':',
+    (uint8_t)'/',
+    (uint8_t)'/',
+    (uint8_t)'x',
+    (uint8_t)'i',
+    (uint8_t)'d',
+    (uint8_t)'1',
+    (uint8_t)0u,
+    (uint8_t)0u,
+    (uint8_t)0u,
+};
+
+const size_t zr_test_dl_fixture7_v3_text_link_len = sizeof(zr_test_dl_fixture7_v3_text_link);
+
+/*
  * Test: drawlist_validate_fixtures_1_2_3_4_ok
  *
  * Scenario: All hand-crafted test fixtures pass validation with default limits.
@@ -577,4 +638,28 @@ ZR_TEST_UNIT(drawlist_validate_enforces_caps) {
   lim = zr_limits_default();
   lim.dl_max_blobs = 1u;
   ZR_ASSERT_EQ_U32(zr_dl_validate(blobs_over_cap, sizeof(blobs_over_cap), &lim, &v), ZR_ERR_LIMIT);
+}
+
+ZR_TEST_UNIT(drawlist_validate_fixture7_v3_text_link_ok) {
+  zr_limits_t lim = zr_limits_default();
+  zr_dl_view_t v;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture7_v3_text_link, zr_test_dl_fixture7_v3_text_link_len, &lim, &v),
+                   ZR_OK);
+  ZR_ASSERT_EQ_U32(v.hdr.version, 3u);
+}
+
+ZR_TEST_UNIT(drawlist_validate_v3_rejects_link_ref_out_of_bounds) {
+  uint8_t buf[172];
+  memcpy(buf, zr_test_dl_fixture7_v3_text_link, sizeof(buf));
+
+  /* Patch link_uri_ref (u32) to 99 inside DRAW_TEXT v3 payload. */
+  const size_t link_uri_ref_off = 64u + 8u + 8u + 20u + 16u + 4u;
+  buf[link_uri_ref_off + 0u] = 99u;
+  buf[link_uri_ref_off + 1u] = 0u;
+  buf[link_uri_ref_off + 2u] = 0u;
+  buf[link_uri_ref_off + 3u] = 0u;
+
+  zr_limits_t lim = zr_limits_default();
+  zr_dl_view_t v;
+  ZR_ASSERT_EQ_U32(zr_dl_validate(buf, sizeof(buf), &lim, &v), ZR_ERR_FORMAT);
 }

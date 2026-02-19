@@ -96,10 +96,10 @@ The diff renderer records internal counters for diagnostics/debug trace plumbing
 
 #### SGR emission policy
 
-Style changes use a deterministic delta-then-fallback policy:
+Style changes use a deterministic compatibility-first policy:
 
-- add-only attr/color changes emit compact delta SGR parameters
-- any attribute clear falls back to absolute reset-based SGR (`0;...m`) to avoid backend-specific clear-code assumptions
+- every style transition emits an absolute reset-based SGR (`0;...m`) that fully re-establishes the desired style
+- this avoids renderer-specific retained-state drift observed in stricter terminals
 - no partial SGR sequences are emitted; each emitted CSI is syntactically complete
 
 ### Cursor control

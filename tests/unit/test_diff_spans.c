@@ -407,13 +407,18 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_per_attr_controls_emission) {
     zr_set_cell_ascii(&next, 0u, (uint8_t)'X', want);
 
     const zr_diff_render_result_t with_support = zr_run_diff_render(&prev, &next, base, cases[i].bit);
-    uint8_t expected_with_support[8];
+    uint8_t expected_with_support[64];
+    const uint8_t suffix[] = ";38;2;0;0;0;48;2;0;0;0mX";
+    size_t expected_with_support_len = 0u;
     expected_with_support[0] = 0x1Bu;
     expected_with_support[1] = (uint8_t)'[';
-    memcpy(&expected_with_support[2], cases[i].sgr_code, cases[i].sgr_code_len);
-    expected_with_support[2u + cases[i].sgr_code_len] = (uint8_t)'m';
-    expected_with_support[3u + cases[i].sgr_code_len] = (uint8_t)'X';
-    const size_t expected_with_support_len = 4u + cases[i].sgr_code_len;
+    expected_with_support[2] = (uint8_t)'0';
+    expected_with_support[3] = (uint8_t)';';
+    expected_with_support_len = 4u;
+    memcpy(&expected_with_support[expected_with_support_len], cases[i].sgr_code, cases[i].sgr_code_len);
+    expected_with_support_len += cases[i].sgr_code_len;
+    memcpy(&expected_with_support[expected_with_support_len], suffix, sizeof(suffix) - 1u);
+    expected_with_support_len += sizeof(suffix) - 1u;
     ZR_ASSERT_EQ_U32(with_support.rc, ZR_OK);
     ZR_ASSERT_EQ_U32(with_support.out_len, (uint32_t)expected_with_support_len);
     ZR_ASSERT_MEMEQ(with_support.out, expected_with_support, expected_with_support_len);
@@ -446,13 +451,10 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_add_subset_is_ordered) {
       ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_STRIKE | ZR_TEST_ATTR_OVERLINE | ZR_TEST_ATTR_BLINK;
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, supported);
 
-  const uint8_t expected[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4', (uint8_t)';', (uint8_t)'9',
-      (uint8_t)';', (uint8_t)'5', (uint8_t)'3', (uint8_t)';', (uint8_t)'5', (uint8_t)'m', (uint8_t)'X',
-  };
+  const uint8_t expected[] = "\x1b[0;1;4;9;53;5;38;2;0;0;0;48;2;0;0;0mX";
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
-  ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)sizeof(expected));
-  ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected));
+  ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)(sizeof(expected) - 1u));
+  ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected) - 1u);
   ZR_ASSERT_EQ_U32(res.final_state.style.attrs, supported);
 
   zr_fb_release(&prev);
@@ -481,16 +483,12 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_mixed_reset_then_add_transitions) {
   const uint32_t supported = ZR_TEST_ATTR_BOLD | ZR_TEST_ATTR_UNDERLINE | ZR_TEST_ATTR_REVERSE;
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, supported);
 
-  const uint8_t expected[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'4', (uint8_t)'m', (uint8_t)'A', 0x1Bu,
-      (uint8_t)'[', (uint8_t)'0', (uint8_t)';', (uint8_t)'3', (uint8_t)'8', (uint8_t)';', (uint8_t)'2', (uint8_t)';',
-      (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'4', (uint8_t)'8',
-      (uint8_t)';', (uint8_t)'2', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0', (uint8_t)';', (uint8_t)'0',
-      (uint8_t)'m', (uint8_t)'B', 0x1Bu,        (uint8_t)'[', (uint8_t)'7', (uint8_t)'m', (uint8_t)'C',
-  };
+  const uint8_t expected[] = "\x1b[0;1;4;38;2;0;0;0;48;2;0;0;0mA"
+                             "\x1b[0;38;2;0;0;0;48;2;0;0;0mB"
+                             "\x1b[0;7;38;2;0;0;0;48;2;0;0;0mC";
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
-  ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)sizeof(expected));
-  ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected));
+  ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)(sizeof(expected) - 1u));
+  ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected) - 1u);
   ZR_ASSERT_EQ_U32(res.final_state.style.attrs, ZR_TEST_ATTR_REVERSE);
 
   zr_fb_release(&prev);
@@ -513,10 +511,10 @@ ZR_TEST_UNIT(diff_sgr_attr_mask_ignores_masked_attr_clear_between_cells) {
   zr_set_cell_ascii(&next, 1u, (uint8_t)'B', s1);
 
   const zr_diff_render_result_t res = zr_run_diff_render(&prev, &next, base, ZR_TEST_ATTR_BOLD);
-  const uint8_t expected[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'m', (uint8_t)'A', (uint8_t)'B'};
+  const uint8_t expected[] = "\x1b[0;1;38;2;0;0;0;48;2;0;0;0mAB";
   ZR_ASSERT_EQ_U32(res.rc, ZR_OK);
-  ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)sizeof(expected));
-  ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected));
+  ZR_ASSERT_EQ_U32(res.out_len, (uint32_t)(sizeof(expected) - 1u));
+  ZR_ASSERT_MEMEQ(res.out, expected, sizeof(expected) - 1u);
   ZR_ASSERT_EQ_U32(res.final_state.style.attrs, ZR_TEST_ATTR_BOLD);
 
   zr_fb_release(&prev);
@@ -623,9 +621,9 @@ ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
                                         &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
-  const uint8_t expected[] = {(uint8_t)'X'};
-  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
-  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+  const uint8_t expected[] = "\x1b[0;38;2;17;34;51;48;2;0;0;0mX";
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)(sizeof(expected) - 1u));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected) - 1u);
 
   zr_fb_release(&prev);
   zr_fb_release(&next);

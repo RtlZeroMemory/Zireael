@@ -25,6 +25,7 @@ If code conflicts with these docs, fix the code.
 - `docs/modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md`
 - `docs/modules/PLATFORM_INTERFACE.md`
 - `docs/modules/TERMINAL_DETECTION.md`
+- `docs/modules/SUB_CELL_BLITTER.md`
 - `docs/modules/UNICODE_TEXT.md`
 - `docs/modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md`
 - `docs/modules/DEBUG_TRACE.md`

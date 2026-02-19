@@ -38,6 +38,7 @@ Supported drawlist versions are pinned in `include/zr/zr_version.h` and negotiat
 - **v2 (`ZR_DRAWLIST_VERSION_V2`)**: Preserves v1 header layout and framing rules. Adds new opcodes.
 - **v3 (`ZR_DRAWLIST_VERSION_V3`)**: Preserves v1/v2 framing and opcode set. Extends style payloads with underline color
   and hyperlink string-table references.
+- **v4 (`ZR_DRAWLIST_VERSION_V4`)**: Preserves v1/v2/v3 framing rules. Adds `DRAW_CANVAS` for RGBA sub-cell blitting.
 
 Hyperlink architecture decision:
 
@@ -59,6 +60,7 @@ Unknown opcodes MUST be rejected with `ZR_ERR_UNSUPPORTED`.
 | `ZR_DL_OP_POP_CLIP` | 5 | v1+ | 0B | Pop clipping rectangle |
 | `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1+ | 16B | Draw pre-measured text run (blob) |
 | `ZR_DL_OP_SET_CURSOR` | 7 | v2+ | 12B | Set cursor position/shape/visibility |
+| `ZR_DL_OP_DRAW_CANVAS` | 8 | v4+ | 24B | Blit RGBA canvas bytes into framebuffer cells |
 
 Command sizes include the 8-byte header (`zr_dl_cmd_header_t`).
 
@@ -68,7 +70,8 @@ Version-specific command sizes:
 - `FILL_RECT`: 40B in v1/v2, 52B in v3
 - `DRAW_TEXT`: 48B in v1/v2, 60B in v3
 - `DRAW_TEXT_RUN`: 24B in all versions (segment payload inside blob changes in v3)
-- `SET_CURSOR`: 20B in v2/v3
+- `SET_CURSOR`: 20B in v2/v3/v4
+- `DRAW_CANVAS`: 32B in v4
 
 ## Cursor control (v2)
 
@@ -89,6 +92,33 @@ Fixed-width fields (little-endian on-buffer):
 - This opcode does **not** draw glyphs into the framebuffer.
 - The desired cursor state persists until changed by a subsequent `ZR_DL_OP_SET_CURSOR`.
 - During `engine_present()`, output emission applies the desired cursor state *after* emitting framebuffer diff bytes.
+
+## Canvas blit (v4)
+
+Drawlist v4 adds `ZR_DL_OP_DRAW_CANVAS` (`zr_dl_cmd_draw_canvas_t`), which renders RGBA bytes through the sub-cell
+blitter pipeline into framebuffer cells.
+
+Payload fields:
+
+- `dst_col`, `dst_row`, `dst_cols`, `dst_rows` — destination rectangle in cells
+- `px_width`, `px_height` — source rectangle in pixels
+- `blob_offset`, `blob_len` — byte range inside blob-bytes section
+- `blitter` — `zr_blitter_t` selector (`AUTO`, `BRAILLE`, `SEXTANT`, etc.)
+- `flags`, `reserved` — must be `0`
+
+Validation rules:
+
+- zero dimensions are rejected
+- `blob_len` must equal `px_width * px_height * 4` (checked arithmetic)
+- `blob_offset + blob_len` must be in-bounds of `blobs_bytes`
+- unknown `blitter` values are rejected
+- command is `ZR_ERR_UNSUPPORTED` on drawlist versions `< v4`
+
+Execution notes:
+
+- nearest-neighbor integer sampling maps source pixels to destination sub-cells
+- transparent-only cells are skipped (existing framebuffer content preserved)
+- writes use framebuffer painter path, so clip stack behavior matches `FILL_RECT`/`DRAW_TEXT`
 
 ## Validation contract
 

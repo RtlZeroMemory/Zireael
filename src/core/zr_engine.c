@@ -14,6 +14,7 @@
 #include "core/zr_debug_trace.h"
 #include "core/zr_detect.h"
 #include "core/zr_diff.h"
+#include "core/zr_blit.h"
 #include "core/zr_drawlist.h"
 #include "core/zr_event_pack.h"
 #include "core/zr_event_queue.h"
@@ -1423,8 +1424,10 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   }
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
+  zr_blit_caps_t blit_caps;
+  zr_blit_caps_from_profile(&e->term_profile, &blit_caps);
   rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
-                     &cursor_stage);
+                     &blit_caps, &cursor_stage);
   if (rc != ZR_OK) {
     zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
                              v.hdr.version, ZR_OK, rc);

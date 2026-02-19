@@ -1,0 +1,5 @@
+id: blit_quadrant_001_checkerboard
+kind: subcell-blitter
+blitter: quadrant
+input: 2x2 checkerboard (white/black)
+expected: deterministic tie-break glyph/mask serialization

@@ -5,6 +5,12 @@ add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/core/zr_diff.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_debug_overlay.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_debug_trace.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_blit.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_blit_ascii.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_blit_braille.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_blit_halfblock.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_blit_quadrant.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_blit_sextant.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_drawlist.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_engine.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_event_pack.c
@@ -69,6 +75,15 @@ add_executable(zireael_unit_tests
         unit/test_cell_invariants.c
         unit/test_clipping.c
         unit/test_blit.c
+        unit/test_blit_ascii.c
+        unit/test_blit_braille.c
+        unit/test_blit_color.c
+        unit/test_blit_halfblock.c
+        unit/test_blit_quadrant.c
+        unit/test_blit_sampling.c
+        unit/test_blit_selector.c
+        unit/test_blit_sextant.c
+        unit/test_drawlist_canvas.c
         unit/test_framebuffer_text.c
         unit/test_framebuffer_primitives.c
         unit/test_drawlist_validate.c
@@ -89,6 +104,7 @@ add_executable(zireael_unit_tests
         unit/test_wrap.c
         unit/zr_vt_model.c
         golden/zr_golden.c
+        golden/golden_blit_subcell.c
         golden/golden_detect_parser.c
         golden/golden_diff_renderer.c
         golden/golden_runner_smoke.c
@@ -116,6 +132,17 @@ target_include_directories(zireael_perf_diff_hotpath PRIVATE
 )
 target_link_libraries(zireael_perf_diff_hotpath PRIVATE zireael_build_settings)
 target_link_libraries(zireael_perf_diff_hotpath PRIVATE zireael_unit_lib)
+
+add_executable(zireael_perf_blit_bench
+        perf/blit_bench.c
+)
+target_include_directories(zireael_perf_blit_bench PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/tests
+)
+target_link_libraries(zireael_perf_blit_bench PRIVATE zireael_build_settings)
+target_link_libraries(zireael_perf_blit_bench PRIVATE zireael_unit_lib)
 
 add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)

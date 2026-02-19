@@ -1,0 +1,5 @@
+id: blit_halfblock_001_upper_half
+kind: subcell-blitter
+blitter: halfblock
+input: 1x2 (top red, bottom blue)
+expected: upper-half glyph with fg=red bg=blue

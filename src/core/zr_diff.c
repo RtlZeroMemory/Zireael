@@ -636,90 +636,13 @@ static bool zr_emit_sgr_absolute(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t de
 }
 
 static bool zr_emit_sgr_delta(zr_sb_t* sb, zr_term_state_t* ts, zr_style_t desired, const plat_caps_t* caps) {
-  if (!sb || !ts) {
-    return false;
-  }
-  desired = zr_style_apply_caps(desired, caps);
-  if (!zr_term_style_is_valid(ts)) {
-    return zr_emit_sgr_absolute(sb, ts, desired, caps);
-  }
-  if (zr_style_eq(ts->style, desired)) {
-    return true;
-  }
-
   /*
-    Delta-safe subset:
-      - add attrs (1/2/3/4/5/7/9/53) without reset
-      - update fg/bg colors directly
-    Attr clears require reset to avoid backend-specific off-code assumptions.
+    Compatibility-first policy:
+    strict terminals/renderers (notably some GPU-backed ones) may expose visual artifacts
+    when incremental style transitions rely on retained renderer state. To keep output
+    deterministic across terminals, use absolute reset-based SGR for every style transition.
   */
-  if ((ts->style.attrs & ~desired.attrs) != 0u) {
-    return zr_emit_sgr_absolute(sb, ts, desired, caps);
-  }
-
-  const bool fg_changed = (ts->style.fg_rgb != desired.fg_rgb);
-  const bool bg_changed = (ts->style.bg_rgb != desired.bg_rgb);
-  bool attrs_added = false;
-  for (size_t i = 0u; i < (sizeof(ZR_SGR_ATTRS) / sizeof(ZR_SGR_ATTRS[0])); i++) {
-    if ((desired.attrs & ZR_SGR_ATTRS[i].bit) != 0u && (ts->style.attrs & ZR_SGR_ATTRS[i].bit) == 0u) {
-      attrs_added = true;
-      break;
-    }
-  }
-
-  if (!attrs_added && !fg_changed && !bg_changed) {
-    ts->style = desired;
-    return true;
-  }
-
-  if (!zr_sb_write_u8(sb, 0x1Bu) || !zr_sb_write_u8(sb, (uint8_t)'[')) {
-    return false;
-  }
-
-  bool wrote_any = false;
-  for (size_t i = 0u; i < (sizeof(ZR_SGR_ATTRS) / sizeof(ZR_SGR_ATTRS[0])); i++) {
-    if ((desired.attrs & ZR_SGR_ATTRS[i].bit) == 0u || (ts->style.attrs & ZR_SGR_ATTRS[i].bit) != 0u) {
-      continue;
-    }
-    if (wrote_any && !zr_sb_write_u8(sb, (uint8_t)';')) {
-      return false;
-    }
-    if (!zr_sb_write_u32_dec(sb, ZR_SGR_ATTRS[i].sgr)) {
-      return false;
-    }
-    wrote_any = true;
-  }
-
-  if (fg_changed) {
-    if (wrote_any && !zr_sb_write_u8(sb, (uint8_t)';')) {
-      return false;
-    }
-    if (!zr_emit_sgr_color_param(sb, desired, caps, true)) {
-      return false;
-    }
-    wrote_any = true;
-  }
-  if (bg_changed) {
-    if (wrote_any && !zr_sb_write_u8(sb, (uint8_t)';')) {
-      return false;
-    }
-    if (!zr_emit_sgr_color_param(sb, desired, caps, false)) {
-      return false;
-    }
-    wrote_any = true;
-  }
-
-  if (!wrote_any) {
-    ts->style = desired;
-    return true;
-  }
-
-  if (!zr_sb_write_u8(sb, (uint8_t)'m')) {
-    return false;
-  }
-  ts->style = desired;
-  ts->flags |= ZR_TERM_STATE_STYLE_VALID;
-  return true;
+  return zr_emit_sgr_absolute(sb, ts, desired, caps);
 }
 
 /* Check if cell at (x,y) differs between prev and next framebuffers.

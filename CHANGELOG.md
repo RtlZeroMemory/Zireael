@@ -5,6 +5,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.8-alpha.3 — 2026-02-19
+
+### Fixed
+
+- core/engine: keep `fb_next` synchronized with the last committed frame after present so incremental drawlists stage from the latest framebuffer baseline (prevents stale-baseline oscillation/flicker under animation-heavy updates).
+
 ## 1.3.8-alpha.1 — 2026-02-18
 
 ### Changed

@@ -33,7 +33,7 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
   ZR_ASSERT_TRUE(e != NULL);
 
-  zr_engine_runtime_config_t r;
+  zr_engine_runtime_config_t r = {0};
   r.limits = cfg.limits;
   r.plat = cfg.plat;
   r.tab_width = cfg.tab_width;
@@ -43,6 +43,8 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   r.enable_debug_overlay = cfg.enable_debug_overlay;
   r.enable_replay_recording = cfg.enable_replay_recording;
   r.wait_for_output_drain = cfg.wait_for_output_drain;
+  r.cap_force_flags = cfg.cap_force_flags;
+  r.cap_suppress_flags = cfg.cap_suppress_flags;
 
   ZR_ASSERT_TRUE(zr_engine_runtime_config_validate(&r) == ZR_OK);
 
@@ -74,6 +76,12 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   dl.reserved0 = 0u;
   (void)h;
   (void)dl;
+
+  zr_terminal_caps_t caps;
+  ZR_ASSERT_TRUE(engine_get_caps(e, &caps) == ZR_OK);
+
+  const zr_terminal_profile_t* profile = engine_get_terminal_profile(e);
+  ZR_ASSERT_TRUE(profile != NULL);
 
   engine_destroy(e);
 }

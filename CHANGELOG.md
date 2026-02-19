@@ -5,6 +5,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+### Added
+
+- core/platform: startup terminal probing for XTVERSION, DA1/DA2, DECRQM (2026/2027/1016/2004), and cell/text-area pixel metrics with bounded detection timeouts.
+- abi: new terminal identity/profile surface (`zr_terminal_id_t`, `zr_terminal_profile_t`) and `engine_get_terminal_profile()` getter.
+- config: capability override masks (`cap_force_flags`, `cap_suppress_flags`) with deterministic precedence (`suppress` wins).
+- tests/docs: new parser/profile/override/timed-read unit coverage and detection golden fixtures (`detect_*`).
+
+### Changed
+
+- abi: engine ABI minor bumped to `1.2.0` to account for extended capability/profile surface.
+- engine: `engine_get_caps()` now includes terminal-id and capability-flag metadata while preserving legacy capability fields.
+- docs: added `docs/modules/TERMINAL_DETECTION.md` and updated platform/ABI/versioning references for detection behavior.
+
 ## 1.3.8-alpha.4 — 2026-02-19
 
 ### Fixed

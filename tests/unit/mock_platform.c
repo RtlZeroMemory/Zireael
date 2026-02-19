@@ -40,6 +40,9 @@ typedef struct plat_t {
   bool output_writable;
   uint32_t wait_output_calls;
 
+  bool terminal_query_support;
+  zr_terminal_id_t terminal_id_hint;
+
   uint64_t now_ms;
 } plat_t;
 
@@ -74,6 +77,8 @@ void mock_plat_reset(void) {
   g_plat.read_max = 0u;
   g_plat.output_writable = true;
   g_plat.wait_output_calls = 0u;
+  g_plat.terminal_query_support = true;
+  g_plat.terminal_id_hint = ZR_TERM_UNKNOWN;
   zr_mock_plat_default_caps(&g_plat.caps);
 }
 
@@ -96,6 +101,14 @@ void mock_plat_set_output_writable(uint8_t writable) {
 
 void mock_plat_set_read_max(uint32_t max_bytes) {
   g_plat.read_max = max_bytes;
+}
+
+void mock_plat_set_terminal_query_support(uint8_t enabled) {
+  g_plat.terminal_query_support = (enabled != 0u);
+}
+
+void mock_plat_set_terminal_id_hint(zr_terminal_id_t id) {
+  g_plat.terminal_id_hint = id;
 }
 
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len) {
@@ -249,6 +262,17 @@ int32_t plat_read_input(plat_t* plat, uint8_t* out_buf, int32_t out_cap) {
   return (int32_t)n;
 }
 
+int32_t plat_read_input_timed(plat_t* plat, uint8_t* out_buf, int32_t out_cap, int32_t timeout_ms) {
+  (void)timeout_ms;
+  if (!plat) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (timeout_ms < 0) {
+    return (int32_t)ZR_ERR_INVALID_ARGUMENT;
+  }
+  return plat_read_input(plat, out_buf, out_cap);
+}
+
 zr_result_t plat_write_output(plat_t* plat, const uint8_t* bytes, int32_t len) {
   if (!plat || (!bytes && len != 0)) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -308,6 +332,21 @@ zr_result_t plat_wake(plat_t* plat) {
   }
   plat->wake_pending = true;
   plat->wake_calls++;
+  return ZR_OK;
+}
+
+uint8_t plat_supports_terminal_queries(plat_t* plat) {
+  if (!plat) {
+    return 0u;
+  }
+  return plat->terminal_query_support ? 1u : 0u;
+}
+
+zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id) {
+  if (!plat || !out_terminal_id) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  *out_terminal_id = plat->terminal_id_hint;
   return ZR_OK;
 }
 

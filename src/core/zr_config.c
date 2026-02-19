@@ -45,7 +45,9 @@ static zr_result_t zr_cfg_validate_plat(const plat_config_t* cfg) {
 static zr_result_t zr_cfg_validate_runtime_common(const zr_limits_t* lim, const plat_config_t* plat, uint32_t tab_width,
                                                  uint32_t width_policy, uint32_t target_fps,
                                                  uint8_t enable_scroll_optimizations, uint8_t enable_debug_overlay,
-                                                 uint8_t enable_replay_recording, uint8_t wait_for_output_drain) {
+                                                 uint8_t enable_replay_recording, uint8_t wait_for_output_drain,
+                                                 zr_terminal_cap_flags_t cap_force_flags,
+                                                 zr_terminal_cap_flags_t cap_suppress_flags) {
 
   /* --- Validate pointers and caps --- */
   if (!lim || !plat) {
@@ -77,6 +79,12 @@ static zr_result_t zr_cfg_validate_runtime_common(const zr_limits_t* lim, const 
     return ZR_ERR_INVALID_ARGUMENT;
   }
   if (wait_for_output_drain != 0u && target_fps == 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if ((cap_force_flags & ~ZR_TERM_CAP_ALL_MASK) != 0u) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if ((cap_suppress_flags & ~ZR_TERM_CAP_ALL_MASK) != 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -112,6 +120,8 @@ zr_engine_config_t zr_engine_config_default(void) {
   cfg.enable_debug_overlay = 0u;
   cfg.enable_replay_recording = 0u;
   cfg.wait_for_output_drain = 0u;
+  cfg.cap_force_flags = 0u;
+  cfg.cap_suppress_flags = 0u;
 
   return cfg;
 }
@@ -136,7 +146,8 @@ zr_result_t zr_engine_config_validate(const zr_engine_config_t* cfg) {
 
   return zr_cfg_validate_runtime_common(&cfg->limits, &cfg->plat, cfg->tab_width, cfg->width_policy, cfg->target_fps,
                                         cfg->enable_scroll_optimizations, cfg->enable_debug_overlay,
-                                        cfg->enable_replay_recording, cfg->wait_for_output_drain);
+                                        cfg->enable_replay_recording, cfg->wait_for_output_drain,
+                                        cfg->cap_force_flags, cfg->cap_suppress_flags);
 }
 
 /* Validate the runtime-only config surface for engine_set_config(). */
@@ -147,5 +158,6 @@ zr_result_t zr_engine_runtime_config_validate(const zr_engine_runtime_config_t* 
 
   return zr_cfg_validate_runtime_common(&cfg->limits, &cfg->plat, cfg->tab_width, cfg->width_policy, cfg->target_fps,
                                         cfg->enable_scroll_optimizations, cfg->enable_debug_overlay,
-                                        cfg->enable_replay_recording, cfg->wait_for_output_drain);
+                                        cfg->enable_replay_recording, cfg->wait_for_output_drain,
+                                        cfg->cap_force_flags, cfg->cap_suppress_flags);
 }

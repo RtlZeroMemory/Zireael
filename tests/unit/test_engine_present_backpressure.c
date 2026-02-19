@@ -29,6 +29,8 @@ static zr_engine_runtime_config_t zr_runtime_cfg_from_create_cfg(const zr_engine
   runtime.enable_debug_overlay = cfg->enable_debug_overlay;
   runtime.enable_replay_recording = cfg->enable_replay_recording;
   runtime.wait_for_output_drain = cfg->wait_for_output_drain;
+  runtime.cap_force_flags = cfg->cap_force_flags;
+  runtime.cap_suppress_flags = cfg->cap_suppress_flags;
   return runtime;
 }
 

@@ -81,6 +81,9 @@ typedef struct zr_engine_config_t {
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
   uint8_t wait_for_output_drain;
+
+  uint32_t cap_force_flags;
+  uint32_t cap_suppress_flags;
 } zr_engine_config_t;
 ```
 
@@ -101,6 +104,9 @@ typedef struct zr_engine_runtime_config_t {
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
   uint8_t wait_for_output_drain;
+
+  uint32_t cap_force_flags;
+  uint32_t cap_suppress_flags;
 } zr_engine_runtime_config_t;
 ```
 
@@ -117,6 +123,7 @@ Notes:
 The engine exposes runtime terminal capabilities via:
 
 - `engine_get_caps(zr_engine_t* e, zr_terminal_caps_t* out)`
+- `engine_get_terminal_profile(const zr_engine_t* e)`
 
 This returns the backend-discovered and engine-derived capability snapshot used for output emission decisions.
 

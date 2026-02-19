@@ -11,6 +11,7 @@
 #include "zr/zr_caps.h"
 #include "zr/zr_platform_types.h"
 #include "zr/zr_result.h"
+#include "zr/zr_terminal_caps.h"
 #include "zr/zr_version.h"
 
 #include <stdint.h>
@@ -52,6 +53,10 @@ typedef struct zr_engine_config_t {
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
   uint8_t wait_for_output_drain;
+
+  /* --- Terminal capability override policy --- */
+  zr_terminal_cap_flags_t cap_force_flags;    /* force ON for listed caps */
+  zr_terminal_cap_flags_t cap_suppress_flags; /* force OFF for listed caps */
 } zr_engine_config_t;
 
 /*
@@ -73,6 +78,9 @@ typedef struct zr_engine_runtime_config_t {
   uint8_t enable_debug_overlay;
   uint8_t enable_replay_recording;
   uint8_t wait_for_output_drain;
+
+  zr_terminal_cap_flags_t cap_force_flags;
+  zr_terminal_cap_flags_t cap_suppress_flags;
 } zr_engine_runtime_config_t;
 
 /* Return deterministic default config values suitable for initial integration. */

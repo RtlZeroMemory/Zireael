@@ -146,6 +146,7 @@ nav:
           - Framebuffer: modules/FRAMEBUFFER_MODEL_AND_OPS.md
           - Diff + Output: modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md
           - Platform Interface: modules/PLATFORM_INTERFACE.md
+          - Terminal Detection: modules/TERMINAL_DETECTION.md
           - Unicode/Text: modules/UNICODE_TEXT.md
           - Testing: modules/TESTING_GOLDENS_FUZZ_INTEGRATION.md
           - Debug Trace: modules/DEBUG_TRACE.md

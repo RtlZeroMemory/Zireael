@@ -16,7 +16,7 @@ Pinned library version (see `include/zr/zr_version.h`):
 Pinned engine ABI version (see `include/zr/zr_version.h`):
 
 - `ZR_ENGINE_ABI_MAJOR = 1`
-- `ZR_ENGINE_ABI_MINOR = 1`
+- `ZR_ENGINE_ABI_MINOR = 2`
 - `ZR_ENGINE_ABI_PATCH = 0`
 
 ## Unicode

@@ -1,6 +1,7 @@
 add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/core/zr_config.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_damage.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_detect.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_diff.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_debug_overlay.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_debug_trace.c
@@ -45,6 +46,9 @@ add_executable(zireael_unit_tests
         unit/test_checked.c
         unit/test_damage_rects.c
         unit/test_debug_trace.c
+        unit/test_detect_overrides.c
+        unit/test_detect_parser.c
+        unit/test_detect_profile.c
         unit/test_diff_color_quant.c
         unit/test_diff_hotpath_telemetry.c
         unit/test_diff_spans.c
@@ -77,12 +81,14 @@ add_executable(zireael_unit_tests
         unit/test_string_builder.c
         unit/test_user_event_injection.c
         unit/test_vec.c
+        unit/test_platform_timed_read.c
         unit/test_utf8_decode.c
         unit/test_grapheme_iter.c
         unit/test_width.c
         unit/test_wrap.c
         unit/zr_vt_model.c
         golden/zr_golden.c
+        golden/golden_detect_parser.c
         golden/golden_diff_renderer.c
         golden/golden_runner_smoke.c
 )

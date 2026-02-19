@@ -20,6 +20,8 @@ static zr_style_t zr_style_default(void) {
   s.bg_rgb = 0u;
   s.attrs = 0u;
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
   return s;
 }
 
@@ -216,14 +218,17 @@ static uint32_t zr_vt_parse_u32(const uint8_t* bytes, size_t len, size_t* inout_
   return v;
 }
 
-static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, size_t count) {
+static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, const uint8_t* param_is_colon,
+                                  size_t count) {
   if (!m) {
     return;
   }
+  const uint32_t active_link_ref = m->ts.style.link_ref;
 
   if (!params || count == 0u) {
     /* Empty SGR is equivalent to reset. */
     m->ts.style = zr_style_default();
+    m->ts.style.link_ref = active_link_ref;
     m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
     return;
   }
@@ -233,6 +238,7 @@ static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, size
     const uint32_t p = params[i++];
     if (p == 0u) {
       m->ts.style = zr_style_default();
+      m->ts.style.link_ref = active_link_ref;
       m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
       continue;
     }
@@ -255,6 +261,13 @@ static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, size
     }
     if (p == 4u) {
       m->ts.style.attrs |= (1u << 2);
+      m->ts.style.reserved &= ~0x07u;
+      if (i < count && param_is_colon && param_is_colon[i] != 0u) {
+        const uint32_t variant = params[i++];
+        if (variant >= 1u && variant <= 5u) {
+          m->ts.style.reserved |= (variant & 0x07u);
+        }
+      }
       m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
       continue;
     }
@@ -301,6 +314,35 @@ static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, size
       continue;
     }
 
+    if (p == 58u) {
+      if (i >= count) {
+        break;
+      }
+      const uint32_t mode = params[i++];
+      if (mode == 2u) {
+        if (i + 2u >= count) {
+          break;
+        }
+        const uint32_t r = params[i++] & 0xFFu;
+        const uint32_t g = params[i++] & 0xFFu;
+        const uint32_t b = params[i++] & 0xFFu;
+        m->ts.style.underline_rgb = (r << 16) | (g << 8) | b;
+        m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
+      } else if (mode == 5u) {
+        if (i >= count) {
+          break;
+        }
+        m->ts.style.underline_rgb = params[i++] & 0xFFu;
+        m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
+      }
+      continue;
+    }
+    if (p == 59u) {
+      m->ts.style.underline_rgb = 0u;
+      m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
+      continue;
+    }
+
     /* --- Extended colors --- */
     if (p == 38u || p == 48u) {
       const bool fg = (p == 38u);
@@ -337,6 +379,83 @@ static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, size
       continue;
     }
   }
+}
+
+static zr_result_t zr_vt_model_apply_osc8_payload(zr_vt_model_t* m, const uint8_t* payload, size_t payload_len) {
+  if (!m || (!payload && payload_len != 0u)) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!payload || payload_len < 3u || payload[0] != (uint8_t)'8' || payload[1] != (uint8_t)';') {
+    return ZR_OK;
+  }
+
+  size_t params_start = 2u;
+  size_t params_end = params_start;
+  while (params_end < payload_len && payload[params_end] != (uint8_t)';') {
+    params_end++;
+  }
+  if (params_end >= payload_len) {
+    return ZR_OK;
+  }
+
+  const size_t uri_start = params_end + 1u;
+  const uint8_t* uri = payload + uri_start;
+  const size_t uri_len = payload_len - uri_start;
+  if (uri_len == 0u) {
+    m->ts.style.link_ref = 0u;
+    m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
+    return ZR_OK;
+  }
+
+  const uint8_t* id = NULL;
+  size_t id_len = 0u;
+  const size_t params_len = params_end - params_start;
+  if (params_len >= 3u && payload[params_start] == (uint8_t)'i' && payload[params_start + 1u] == (uint8_t)'d' &&
+      payload[params_start + 2u] == (uint8_t)'=') {
+    id = payload + params_start + 3u;
+    id_len = params_len - 3u;
+  }
+
+  uint32_t link_ref = 0u;
+  const zr_result_t rc = zr_fb_link_intern(&m->screen, uri, uri_len, id, id_len, &link_ref);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  m->ts.style.link_ref = link_ref;
+  m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
+  return ZR_OK;
+}
+
+static zr_result_t zr_vt_model_apply_osc(zr_vt_model_t* m, const uint8_t* bytes, size_t len, size_t* inout_i) {
+  if (!m || !bytes || !inout_i) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (*inout_i + 1u >= len || bytes[*inout_i] != 0x1Bu || bytes[*inout_i + 1u] != (uint8_t)']') {
+    return ZR_ERR_FORMAT;
+  }
+
+  size_t j = *inout_i + 2u;
+  while (j < len) {
+    if (bytes[j] == 0x07u) {
+      const zr_result_t rc = zr_vt_model_apply_osc8_payload(m, bytes + *inout_i + 2u, j - (*inout_i + 2u));
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      *inout_i = j + 1u;
+      return ZR_OK;
+    }
+    if (bytes[j] == 0x1Bu && (j + 1u) < len && bytes[j + 1u] == (uint8_t)'\\') {
+      const zr_result_t rc = zr_vt_model_apply_osc8_payload(m, bytes + *inout_i + 2u, j - (*inout_i + 2u));
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      *inout_i = j + 2u;
+      return ZR_OK;
+    }
+    j++;
+  }
+  return ZR_ERR_FORMAT;
 }
 
 static void zr_vt_model_apply_cursor_vis(zr_vt_model_t* m, uint8_t visible) {
@@ -428,12 +547,17 @@ zr_result_t zr_vt_model_reset(zr_vt_model_t* m, const zr_fb_t* screen, const zr_
   if (m->cols == 0u || m->rows == 0u || !m->screen.cells) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  zr_fb_links_reset(&m->screen);
   if (screen) {
     if (screen->cols != m->cols || screen->rows != m->rows || !screen->cells) {
       return ZR_ERR_INVALID_ARGUMENT;
     }
     const size_t n = (size_t)m->cols * (size_t)m->rows * sizeof(zr_cell_t);
     memcpy(m->screen.cells, screen->cells, n);
+    const zr_result_t clone_rc = zr_fb_links_clone_from(&m->screen, screen);
+    if (clone_rc != ZR_OK) {
+      return clone_rc;
+    }
   } else {
     (void)zr_fb_clear(&m->screen, &ts->style);
   }
@@ -465,8 +589,17 @@ zr_result_t zr_vt_model_apply(zr_vt_model_t* m, const uint8_t* bytes, size_t len
       continue;
     }
 
-    /* CSI only: ESC [ ... */
-    if (i + 1u >= len || bytes[i + 1u] != (uint8_t)'[') {
+    if (i + 1u >= len) {
+      return ZR_ERR_FORMAT;
+    }
+    if (bytes[i + 1u] == (uint8_t)']') {
+      const zr_result_t rc = zr_vt_model_apply_osc(m, bytes, len, &i);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      continue;
+    }
+    if (bytes[i + 1u] != (uint8_t)'[') {
       return ZR_ERR_FORMAT;
     }
     i += 2u;
@@ -478,19 +611,23 @@ zr_result_t zr_vt_model_apply(zr_vt_model_t* m, const uint8_t* bytes, size_t len
     }
 
     uint32_t params[32];
+    uint8_t param_is_colon[32];
     size_t param_count = 0u;
     bool in_params = true;
     bool last_was_sep = true;
+    uint8_t next_is_colon = 0u;
 
     while (i < len && in_params) {
       const uint8_t c = bytes[i];
-      if ((c >= (uint8_t)'0' && c <= (uint8_t)'9') || c == (uint8_t)';') {
-        if (c == (uint8_t)';') {
+      if ((c >= (uint8_t)'0' && c <= (uint8_t)'9') || c == (uint8_t)';' || c == (uint8_t)':') {
+        if (c == (uint8_t)';' || c == (uint8_t)':') {
           if (param_count < (sizeof(params) / sizeof(params[0]))) {
             if (last_was_sep) {
               params[param_count++] = 0u;
+              param_is_colon[param_count - 1u] = next_is_colon;
             }
           }
+          next_is_colon = (c == (uint8_t)':') ? 1u : 0u;
           last_was_sep = true;
           i++;
           continue;
@@ -501,7 +638,9 @@ zr_result_t zr_vt_model_apply(zr_vt_model_t* m, const uint8_t* bytes, size_t len
         if (any) {
           if (param_count < (sizeof(params) / sizeof(params[0]))) {
             params[param_count++] = v;
+            param_is_colon[param_count - 1u] = next_is_colon;
           }
+          next_is_colon = 0u;
           last_was_sep = false;
           continue;
         }
@@ -530,7 +669,7 @@ zr_result_t zr_vt_model_apply(zr_vt_model_t* m, const uint8_t* bytes, size_t len
     }
 
     if (!priv && intermediate == 0u && final == (uint8_t)'m') {
-      zr_vt_model_apply_sgr(m, params, param_count);
+      zr_vt_model_apply_sgr(m, params, param_is_colon, param_count);
       continue;
     }
 

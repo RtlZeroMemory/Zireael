@@ -23,6 +23,8 @@ static zr_style_t zr_style_default(void) {
   s.bg_rgb = 0u;
   s.attrs = 0u;
   s.reserved = 0u;
+  s.underline_rgb = 0u;
+  s.link_ref = 0u;
   return s;
 }
 
@@ -92,7 +94,8 @@ static bool zr_cell_eq(const zr_cell_t* a, const zr_cell_t* b) {
     return false;
   }
   if (a->style.fg_rgb != b->style.fg_rgb || a->style.bg_rgb != b->style.bg_rgb || a->style.attrs != b->style.attrs ||
-      a->style.reserved != b->style.reserved) {
+      a->style.reserved != b->style.reserved || a->style.underline_rgb != b->style.underline_rgb ||
+      a->style.link_ref != b->style.link_ref) {
     return false;
   }
   if (a->glyph_len != 0u && memcmp(a->glyph, b->glyph, (size_t)a->glyph_len) != 0) {
@@ -153,6 +156,8 @@ static void zr_assert_vt_model_applies_diff(zr_test_ctx_t* ctx, const zr_fb_t* p
   ZR_ASSERT_EQ_U32(model_ts->style.bg_rgb, final_ts->style.bg_rgb);
   ZR_ASSERT_EQ_U32(model_ts->style.attrs, final_ts->style.attrs);
   ZR_ASSERT_EQ_U32(model_ts->style.reserved, final_ts->style.reserved);
+  ZR_ASSERT_EQ_U32(model_ts->style.underline_rgb, final_ts->style.underline_rgb);
+  ZR_ASSERT_EQ_U32(model_ts->style.link_ref, final_ts->style.link_ref);
 
   zr_assert_fb_eq(ctx, zr_vt_model_screen(&m), next);
   zr_vt_model_release(&m);
@@ -663,6 +668,173 @@ ZR_TEST_GOLDEN(diff_011_attr_clear_forces_absolute_sgr) {
   ZR_ASSERT_TRUE(rc == ZR_OK);
 
   ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_011_attr_clear_forces_absolute_sgr", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_012_mixed_underline_styles
+ *
+ * Scenario: Three adjacent cells with underline style variants (straight,
+ *           curly, dotted) in one frame.
+ *
+ * Assert: Output emits deterministic 4:1 / 4:3 / 4:4 SGR forms.
+ */
+ZR_TEST_GOLDEN(diff_012_mixed_underline_styles) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 3u, 1u);
+  (void)zr_fb_init(&next, 3u, 1u);
+  const zr_style_t base = zr_style_default();
+  (void)zr_fb_clear(&prev, &base);
+  (void)zr_fb_clear(&next, &base);
+
+  zr_style_t s1 = base;
+  s1.attrs = (1u << 2u);
+  s1.reserved = 1u;
+  zr_fb_set_ascii(&next, 0u, 0u, (uint8_t)'A', s1);
+
+  zr_style_t s2 = s1;
+  s2.reserved = 3u;
+  zr_fb_set_ascii(&next, 1u, 0u, (uint8_t)'B', s2);
+
+  zr_style_t s3 = s1;
+  s3.reserved = 4u;
+  zr_fb_set_ascii(&next, 2u, 0u, (uint8_t)'C', s3);
+
+  plat_caps_t caps = zr_caps_rgb_all_attrs();
+  caps.supports_underline_styles = 1u;
+
+  const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[512];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out,
+                                        sizeof(out), &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_012_mixed_underline_styles", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_013_colored_underline_transitions
+ *
+ * Scenario: Underline color transitions on adjacent cells (set, reset via 59,
+ *           set again).
+ *
+ * Assert: Output is byte-stable and includes deterministic underline-color
+ * reset behavior.
+ */
+ZR_TEST_GOLDEN(diff_013_colored_underline_transitions) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 3u, 1u);
+  (void)zr_fb_init(&next, 3u, 1u);
+  const zr_style_t base = zr_style_default();
+  (void)zr_fb_clear(&prev, &base);
+  (void)zr_fb_clear(&next, &base);
+
+  zr_style_t s1 = base;
+  s1.attrs = (1u << 2u);
+  s1.reserved = 2u;
+  s1.underline_rgb = 0x00112233u;
+  zr_fb_set_ascii(&next, 0u, 0u, (uint8_t)'A', s1);
+
+  zr_style_t s2 = s1;
+  s2.underline_rgb = 0u;
+  zr_fb_set_ascii(&next, 1u, 0u, (uint8_t)'B', s2);
+
+  zr_style_t s3 = s1;
+  s3.underline_rgb = 0x00445566u;
+  zr_fb_set_ascii(&next, 2u, 0u, (uint8_t)'C', s3);
+
+  plat_caps_t caps = zr_caps_rgb_all_attrs();
+  caps.supports_underline_styles = 1u;
+  caps.supports_colored_underlines = 1u;
+
+  const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[512];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out,
+                                        sizeof(out), &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_013_colored_underline_transitions", out, out_len) == 0);
+  zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
+
+  zr_fb_release(&prev);
+  zr_fb_release(&next);
+}
+
+/*
+ * Test: diff_014_hyperlink_span_transitions
+ *
+ * Scenario: One hyperlink spans two cells, then transitions to another
+ * hyperlink (with id), then closes back to plain text.
+ *
+ * Assert: Output emits OSC 8 open/close transitions in deterministic order.
+ */
+ZR_TEST_GOLDEN(diff_014_hyperlink_span_transitions) {
+  zr_fb_t prev;
+  zr_fb_t next;
+  (void)zr_fb_init(&prev, 4u, 1u);
+  (void)zr_fb_init(&next, 4u, 1u);
+  const zr_style_t base = zr_style_default();
+  (void)zr_fb_clear(&prev, &base);
+  (void)zr_fb_clear(&next, &base);
+
+  uint32_t link1 = 0u;
+  uint32_t link2 = 0u;
+  ZR_ASSERT_TRUE(zr_fb_link_intern(&next, (const uint8_t*)"https://a.example", strlen("https://a.example"), NULL, 0u,
+                                   &link1) == ZR_OK);
+  ZR_ASSERT_TRUE(
+      zr_fb_link_intern(&next, (const uint8_t*)"https://b.example", strlen("https://b.example"), (const uint8_t*)"grp",
+                        strlen("grp"), &link2) == ZR_OK);
+
+  zr_style_t s_link1 = base;
+  s_link1.link_ref = link1;
+  zr_fb_set_ascii(&next, 0u, 0u, (uint8_t)'A', s_link1);
+  zr_fb_set_ascii(&next, 1u, 0u, (uint8_t)'B', s_link1);
+
+  zr_style_t s_link2 = base;
+  s_link2.link_ref = link2;
+  zr_fb_set_ascii(&next, 2u, 0u, (uint8_t)'C', s_link2);
+  zr_fb_set_ascii(&next, 3u, 0u, (uint8_t)'D', base);
+
+  plat_caps_t caps = zr_caps_rgb_all_attrs();
+  caps.supports_hyperlinks = 1u;
+
+  const zr_term_state_t initial = zr_term_default();
+  zr_limits_t lim = zr_limits_default();
+  lim.diff_max_damage_rects = 64u;
+  zr_damage_rect_t damage[64];
+
+  uint8_t out[512];
+  size_t out_len = 0u;
+  zr_term_state_t final_state;
+  zr_diff_stats_t stats;
+  const zr_result_t rc = zr_diff_render(&prev, &next, &caps, &initial, NULL, &lim, damage, 64u, 0u, out,
+                                        sizeof(out), &out_len, &final_state, &stats);
+  ZR_ASSERT_TRUE(rc == ZR_OK);
+
+  ZR_ASSERT_TRUE(zr_golden_compare_fixture("diff_014_hyperlink_span_transitions", out, out_len) == 0);
   zr_assert_vt_model_applies_diff(ctx, &prev, &next, &initial, out, out_len, &final_state);
 
   zr_fb_release(&prev);

@@ -586,7 +586,7 @@ ZR_TEST_UNIT(diff_damage_coalescing_keeps_unsorted_spans) {
   zr_fb_release(&next);
 }
 
-ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
+ZR_TEST_UNIT(diff_reserved_without_underline_is_ignored) {
   zr_fb_t prev = zr_make_fb_1row(1u);
   zr_fb_t next = zr_make_fb_1row(1u);
 
@@ -621,9 +621,9 @@ ZR_TEST_UNIT(diff_reserved_only_style_change_emits_complete_stream) {
                                         &out_len, &final_state, &stats);
   ZR_ASSERT_EQ_U32(rc, ZR_OK);
 
-  const uint8_t expected[] = "\x1b[0;38;2;17;34;51;48;2;0;0;0mX";
-  ZR_ASSERT_EQ_U32(out_len, (uint32_t)(sizeof(expected) - 1u));
-  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected) - 1u);
+  const uint8_t expected[] = {(uint8_t)'X'};
+  ZR_ASSERT_EQ_U32(out_len, (uint32_t)sizeof(expected));
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
 
   zr_fb_release(&prev);
   zr_fb_release(&next);

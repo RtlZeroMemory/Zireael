@@ -1,0 +1,11 @@
+# fixture_id: diff_012_mixed_underline_styles
+# purpose: mixed underline variants in one frame emit colon-subparameter SGR forms.
+#
+# pinned:
+#   - caps.color_mode = RGB
+#   - caps.sgr_attrs_supported = all
+#   - caps.supports_underline_styles = 1
+#   - initial_term_state.cursor = (0,0)
+#   - initial_term_state.style = default
+#
+# next row: A(4:1) B(4:3) C(4:4)

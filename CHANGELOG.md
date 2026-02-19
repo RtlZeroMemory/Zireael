@@ -5,6 +5,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.8-alpha.4 — 2026-02-19
+
+### Fixed
+
+- unicode/width: grapheme width policy is now presentation-aware; text-default pictographs remain text-width unless emoji presentation is explicit (e.g. VS16/ZWJ/keycap), preventing cross-terminal cell-width drift and rendering artifacts.
+
 ## 1.3.8-alpha.3 — 2026-02-19
 
 ### Fixed

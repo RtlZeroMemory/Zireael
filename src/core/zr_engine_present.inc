@@ -71,9 +71,65 @@ static zr_result_t zr_engine_present_pick_fb(zr_engine_t* e, const zr_fb_t** out
   return ZR_OK;
 }
 
+static zr_result_t zr_engine_present_append_images(zr_engine_t* e, size_t* inout_out_len,
+                                                   zr_image_state_t* inout_image_state_stage) {
+  zr_sb_t sb;
+  zr_image_emit_ctx_t image_ctx;
+  zr_result_t rc = ZR_OK;
+
+  if (!e || !inout_out_len || !inout_image_state_stage) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (*inout_out_len > e->out_cap) {
+    return ZR_ERR_LIMIT;
+  }
+
+  zr_sb_init(&sb, e->out_buf, e->out_cap);
+  sb.len = *inout_out_len;
+
+  memset(&image_ctx, 0, sizeof(image_ctx));
+  image_ctx.frame = &e->image_frame_next;
+  image_ctx.profile = &e->term_profile;
+  image_ctx.opts.cell_width_px = e->term_profile.cell_width_px;
+  image_ctx.opts.cell_height_px = e->term_profile.cell_height_px;
+  image_ctx.arena = &e->arena_frame;
+  image_ctx.state = inout_image_state_stage;
+  image_ctx.out = &sb;
+
+  rc = zr_image_emit_frame(&image_ctx);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (zr_sb_truncated(&sb)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  *inout_out_len = zr_sb_len(&sb);
+  return ZR_OK;
+}
+
+static void zr_engine_present_wrap_sync(zr_engine_t* e, size_t* inout_out_len, zr_diff_stats_t* stats) {
+  if (!e || !inout_out_len || !stats) {
+    return;
+  }
+  if (e->caps.supports_sync_update != 0u) {
+    const size_t prefix_len = sizeof(ZR_SYNC_BEGIN) - 1u;
+    const size_t suffix_len = sizeof(ZR_SYNC_END) - 1u;
+    const size_t overhead = prefix_len + suffix_len;
+    if ((*inout_out_len + overhead) <= e->out_cap) {
+      memmove(e->out_buf + prefix_len, e->out_buf, *inout_out_len);
+      memcpy(e->out_buf, ZR_SYNC_BEGIN, prefix_len);
+      memcpy(e->out_buf + prefix_len + *inout_out_len, ZR_SYNC_END, suffix_len);
+      *inout_out_len += overhead;
+    }
+  }
+  stats->bytes_emitted = *inout_out_len;
+}
+
 static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* present_fb, size_t* out_len,
-                                            zr_term_state_t* final_ts, zr_diff_stats_t* stats) {
-  if (!e || !present_fb || !out_len || !final_ts || !stats) {
+                                            zr_term_state_t* final_ts, zr_diff_stats_t* stats,
+                                            zr_image_state_t* out_image_state_stage) {
+  if (!e || !present_fb || !out_len || !final_ts || !stats || !out_image_state_stage) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
@@ -93,18 +149,12 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* prese
     return rc;
   }
 
-  if (e->caps.supports_sync_update != 0u) {
-    const size_t prefix_len = sizeof(ZR_SYNC_BEGIN) - 1u;
-    const size_t suffix_len = sizeof(ZR_SYNC_END) - 1u;
-    const size_t overhead = prefix_len + suffix_len;
-    if ((*out_len + overhead) <= e->out_cap) {
-      memmove(e->out_buf + prefix_len, e->out_buf, *out_len);
-      memcpy(e->out_buf, ZR_SYNC_BEGIN, prefix_len);
-      memcpy(e->out_buf + prefix_len + *out_len, ZR_SYNC_END, suffix_len);
-      *out_len += overhead;
-      stats->bytes_emitted = *out_len;
-    }
+  *out_image_state_stage = e->image_state;
+  rc = zr_engine_present_append_images(e, out_len, out_image_state_stage);
+  if (rc != ZR_OK) {
+    return rc;
   }
+  zr_engine_present_wrap_sync(e, out_len, stats);
 
   if (*out_len > (size_t)INT32_MAX) {
     *out_len = 0u;
@@ -188,9 +238,9 @@ static void zr_engine_trace_diff_telemetry(zr_engine_t* e, uint64_t frame_id, co
 }
 
 static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_t out_len,
-                                     const zr_term_state_t* final_ts, const zr_diff_stats_t* stats, uint32_t diff_us,
-                                     uint32_t write_us) {
-  if (!e || !final_ts || !stats) {
+                                     const zr_term_state_t* final_ts, const zr_diff_stats_t* stats,
+                                     const zr_image_state_t* image_state_stage, uint32_t diff_us, uint32_t write_us) {
+  if (!e || !final_ts || !stats || !image_state_stage) {
     return;
   }
 
@@ -204,6 +254,7 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
   }
   zr_engine_swap_diff_hashes_on_commit(e);
   e->term_state = *final_ts;
+  e->image_state = *image_state_stage;
 
   e->metrics.frame_index++;
   e->metrics.bytes_emitted_total += (uint64_t)out_len;
@@ -258,6 +309,7 @@ zr_result_t engine_present(zr_engine_t* e) {
   size_t out_len = 0u;
   zr_term_state_t final_ts;
   zr_diff_stats_t stats;
+  zr_image_state_t image_state_stage;
   const zr_fb_t* present_fb = NULL;
   bool presented_stage = false;
   uint32_t diff_us = 0u;
@@ -269,7 +321,7 @@ zr_result_t engine_present(zr_engine_t* e) {
   }
 
   const uint64_t diff_start_us = zr_engine_now_us();
-  rc = zr_engine_present_render(e, present_fb, &out_len, &final_ts, &stats);
+  rc = zr_engine_present_render(e, present_fb, &out_len, &final_ts, &stats, &image_state_stage);
   if (rc != ZR_OK) {
     /* Diff scratch may have been used as transient indexed-coalescing storage. */
     e->diff_prev_hashes_valid = 0u;
@@ -299,6 +351,6 @@ zr_result_t engine_present(zr_engine_t* e) {
     }
   }
 
-  zr_engine_present_commit(e, presented_stage, out_len, &final_ts, &stats, diff_us, write_us);
+  zr_engine_present_commit(e, presented_stage, out_len, &final_ts, &stats, &image_state_stage, diff_us, write_us);
   return ZR_OK;
 }

@@ -82,6 +82,11 @@ set(ZIREAEL_SOURCES
         src/core/zr_detect.c
         src/core/zr_drawlist.c
         src/core/zr_engine.c
+        src/core/zr_base64.c
+        src/core/zr_image.c
+        src/core/zr_image_kitty.c
+        src/core/zr_image_sixel.c
+        src/core/zr_image_iterm2.c
         src/core/zr_event_pack.c
         src/core/zr_event_queue.c
         src/core/zr_framebuffer.c

@@ -61,7 +61,8 @@ bool zr_sb_write_bytes(zr_sb_t* sb, const void* bytes, size_t len) {
     return false;
   }
   if (len != 0u) {
-    memcpy(sb->buf + sb->len, bytes, len);
+    /* Some emitters append from an earlier range of the same output buffer. */
+    memmove(sb->buf + sb->len, bytes, len);
   }
   sb->len += len;
   return true;

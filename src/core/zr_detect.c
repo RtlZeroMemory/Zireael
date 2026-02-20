@@ -560,8 +560,9 @@ static void zr_detect_apply_parsed(zr_terminal_profile_t* profile, const zr_dete
   profile->da1_responded = parsed->da1_responded;
   profile->da2_responded = parsed->da2_responded;
 
-  if (parsed->da1_responded != 0u && parsed->da1_has_sixel != 0u) {
-    profile->supports_sixel = 1u;
+  if (parsed->da1_responded != 0u) {
+    /* DA1 is authoritative when present: Ps=4 means sixel is available. */
+    profile->supports_sixel = parsed->da1_has_sixel != 0u ? 1u : 0u;
   }
 
   profile->supports_sync_update =

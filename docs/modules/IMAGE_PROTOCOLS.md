@@ -46,7 +46,7 @@ Validation rules:
 
 Execution rules:
 
-- protocol selected as above
+- protocol selected as above and frozen into staging (present emits the resolved protocol, not the raw request)
 - if protocol is none:
   - RGBA -> immediate fallback blit into framebuffer
   - PNG -> `ZR_ERR_UNSUPPORTED`

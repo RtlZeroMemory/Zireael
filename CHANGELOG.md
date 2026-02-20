@@ -5,6 +5,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.8-alpha.6 — 2026-02-20
+
+### Changed
+
+- detect: updated WezTerm known-cap defaults to advertise sixel support and made DA1 authoritative when present, so `supports_sixel` is explicitly cleared when DA1 responds without `Ps=4`.
+
+### Added
+
+- tests: added WezTerm profile regressions ensuring DA1 without `Ps=4` clears sixel support and DA1 with `Ps=4` preserves it.
+
 ## 1.3.8-alpha.5 — 2026-02-20
 
 ### Added

@@ -149,6 +149,22 @@ Cursor control is applied as part of output emission:
 - Framebuffer swap (`prev ← next`) occurs only on success.
 - When `caps.supports_sync_update == 1`, `engine_present()` may wrap the frame output in `ESC[?2026h` / `ESC[?2026l`.
 
+### Image sideband emission (v5 `DRAW_IMAGE`)
+
+When drawlist v5 image commands are present, `engine_present()` appends protocol bytes to the same output buffer after
+diff rendering:
+
+1. `zr_diff_render_ex(...)` emits framebuffer diff bytes.
+2. `zr_image_emit_frame(...)` appends image protocol sideband bytes (Kitty/Sixel/iTerm2), using staged image commands.
+3. Optional sync-wrap bytes are applied around the combined output.
+
+Invariants:
+
+- still exactly one platform write on success
+- any image-emission failure returns `ZR_ERR_*` and performs zero writes
+- image cache state is staged during render and committed only after successful write, preserving no-partial-effects
+- image emission uses deterministic profile/cell-metric inputs (`zr_terminal_profile_t`) and bounded builders/arena
+
 ### Optional backpressure (wait-for-output-drain)
 
 When enabled by config, `engine_present()` performs a bounded wait for output to become writable before emitting bytes:

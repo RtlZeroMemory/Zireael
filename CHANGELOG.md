@@ -9,9 +9,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - core/blit: sub-cell blitter infrastructure (`ASCII`, `HALFBLOCK`, `QUADRANT`, `SEXTANT`, `BRAILLE`) with deterministic nearest-neighbor scaling, integer color distance, BT.709 luma thresholding, and AUTO selector policy.
 - drawlist: added v4 opcode `ZR_DL_OP_DRAW_CANVAS` with validated RGBA blob slicing and clip-aware framebuffer execution through the blitter pipeline.
+- drawlist/core: added v5 opcode `ZR_DL_OP_DRAW_IMAGE` with protocol selection (`kitty`, `sixel`, `iterm2`), engine-owned image staging, and deterministic RGBA fallback when protocols are unavailable.
+- core/image: added deterministic protocol emitters (`zr_image_kitty_*`, `zr_image_sixel_emit_rgba`, `zr_image_iterm2_*`), fit-mode scaling helpers, and bounded kitty cache lifecycle management.
 - tests: added unit coverage for blitter selection, color/luma helpers, sampling math, per-blitter algorithms, and DRAW_CANVAS validation/execution paths.
+- tests: added deterministic unit coverage for base64, image selector, kitty/sixel/iTerm2 emitters, fit modes, cache/lifecycle, sixel quantization behavior, and drawlist v5 `DRAW_IMAGE`.
 - golden: added byte-exact sub-cell fixtures for halfblock/quadrant/sextant/braille and full DRAW_CANVAS execution.
+- golden: added protocol-byte fixtures under `tests/golden/fixtures/image_*` plus a dedicated golden runner for kitty/sixel/iTerm2 emission.
 - perf: added `zireael_perf_blit_bench` for 320x192 -> 160x48 braille-path sanity measurement.
+- perf: added `zireael_perf_image_encode_bench` for repeatable base64/kitty/sixel/iTerm2 encode timing.
 - core/diff + framebuffer: OSC 8 hyperlink support with framebuffer-owned link interning (`uri` + optional `id`) and deterministic open/close transitions during span rendering.
 - drawlist: added v3 style extension payload support (underline color + hyperlink URI/ID refs) while preserving v1/v2 framing/opcode compatibility.
 - tests: added unit coverage for underline variants, colored-underlines, hyperlink transitions/capability gating, and v3 drawlist validate/execute paths.
@@ -20,10 +25,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - abi: new terminal identity/profile surface (`zr_terminal_id_t`, `zr_terminal_profile_t`) and `engine_get_terminal_profile()` getter.
 - config: capability override masks (`cap_force_flags`, `cap_suppress_flags`) with deterministic precedence (`suppress` wins).
 - tests/docs: new parser/profile/override/timed-read unit coverage and detection golden fixtures (`detect_*`).
+- docs: added `docs/modules/IMAGE_PROTOCOLS.md` and updated drawlist/ABI/diff references for drawlist v5 image behavior.
 
 ### Changed
 
 - config/versioning: engine negotiation now accepts drawlist format `v4` in addition to existing versions.
+- config/versioning: engine negotiation now accepts drawlist format `v5` for protocol image commands.
 - docs: added module spec for sub-cell blitters and updated drawlist/ABI/versioning references for DRAW_CANVAS and v4 negotiation.
 - diff renderer: underline style variants now emit colon-subparameter SGR forms (`4:1..4:5`) with legacy `4` fallback for variant `0`.
 - diff renderer: colored underline emission now supports `58`/`59`, capability-gated and color-mode-aware (RGB/256 downgrade).

@@ -1,0 +1,6 @@
+id: image_kitty_place_2_3
+kind: image-protocol
+protocol: kitty
+operation: place
+input: kitty_id=7, dst_col=2, dst_row=3, dst=4x5, z=-1
+expected: CUP + kitty place APC sequence

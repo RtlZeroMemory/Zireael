@@ -1,0 +1,6 @@
+id: image_sixel_rgba_1x1_red
+kind: image-protocol
+protocol: sixel
+operation: emit_rgba
+input: rgba 1x1 (red opaque), dst=(0,0)
+expected: CUP + DCS sixel stream with one palette entry and one band

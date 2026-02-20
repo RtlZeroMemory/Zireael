@@ -45,6 +45,7 @@ Defined in `include/zr/zr_drawlist.h` (version pins are centralized in `include/
   - v3 (`ZR_DRAWLIST_VERSION_V3 = 3`) — extends style payloads (underline color + hyperlink URI/ID refs) while
     preserving v1/v2 framing and opcode rules.
   - v4 (`ZR_DRAWLIST_VERSION_V4 = 4`) — adds `DRAW_CANVAS` sub-cell RGBA blit opcode.
+  - v5 (`ZR_DRAWLIST_VERSION_V5 = 5`) — adds `DRAW_IMAGE` protocol image opcode with deterministic fallback behavior.
 
 Wrappers select the version via `zr_engine_config_t.requested_drawlist_version` at `engine_create()`.
 

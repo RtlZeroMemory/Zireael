@@ -18,6 +18,7 @@
 #include "core/zr_drawlist.h"
 #include "core/zr_event_pack.h"
 #include "core/zr_event_queue.h"
+#include "core/zr_image.h"
 #include "core/zr_input_parser.h"
 #include "core/zr_metrics_internal.h"
 
@@ -26,6 +27,7 @@
 #include "util/zr_arena.h"
 #include "util/zr_assert.h"
 #include "util/zr_checked.h"
+#include "util/zr_string_builder.h"
 #include "util/zr_thread_yield.h"
 
 #include <limits.h>
@@ -76,6 +78,11 @@ struct zr_engine_t {
 
   zr_term_state_t term_state;
   zr_cursor_state_t cursor_desired;
+
+  /* --- Image sideband state (DRAW_IMAGE staging + protocol cache) --- */
+  zr_image_frame_t image_frame_next;
+  zr_image_frame_t image_frame_stage;
+  zr_image_state_t image_state;
 
   /* --- Output buffer (single flush per present) --- */
   uint8_t* out_buf;
@@ -1223,6 +1230,9 @@ zr_result_t engine_create(zr_engine_t** out_engine, const zr_engine_config_t* cf
     return ZR_ERR_OOM;
   }
 
+  zr_image_frame_init(&e->image_frame_next);
+  zr_image_frame_init(&e->image_frame_stage);
+  zr_image_state_init(&e->image_state);
   e->cursor_desired = zr_engine_cursor_default();
   e->last_tick_ms = zr_engine_now_ms_u32();
 
@@ -1271,6 +1281,9 @@ static void zr_engine_release_heap_state(zr_engine_t* e) {
   zr_fb_release(&e->fb_prev);
   zr_fb_release(&e->fb_next);
   zr_fb_release(&e->fb_stage);
+  zr_image_frame_release(&e->image_frame_next);
+  zr_image_frame_release(&e->image_frame_stage);
+  zr_image_state_init(&e->image_state);
 
   zr_arena_release(&e->arena_frame);
   zr_arena_release(&e->arena_persistent);
@@ -1434,17 +1447,21 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   }
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
+  zr_image_frame_reset(&e->image_frame_stage);
   zr_blit_caps_t blit_caps;
   zr_engine_build_blit_caps(e, &blit_caps);
   rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
-                     &blit_caps, &cursor_stage);
+                     &blit_caps, &e->term_profile, &e->image_frame_stage, &cursor_stage);
   if (rc != ZR_OK) {
+    zr_image_frame_reset(&e->image_frame_stage);
     zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
                              v.hdr.version, ZR_OK, rc);
     return rc;
   }
 
   zr_engine_fb_swap(&e->fb_next, &e->fb_stage);
+  zr_image_frame_swap(&e->image_frame_next, &e->image_frame_stage);
+  zr_image_frame_reset(&e->image_frame_stage);
   e->cursor_desired = cursor_stage;
 
   zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,

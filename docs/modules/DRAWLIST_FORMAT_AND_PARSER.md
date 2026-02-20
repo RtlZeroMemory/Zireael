@@ -39,6 +39,8 @@ Supported drawlist versions are pinned in `include/zr/zr_version.h` and negotiat
 - **v3 (`ZR_DRAWLIST_VERSION_V3`)**: Preserves v1/v2 framing and opcode set. Extends style payloads with underline color
   and hyperlink string-table references.
 - **v4 (`ZR_DRAWLIST_VERSION_V4`)**: Preserves v1/v2/v3 framing rules. Adds `DRAW_CANVAS` for RGBA sub-cell blitting.
+- **v5 (`ZR_DRAWLIST_VERSION_V5`)**: Preserves v1-v4 framing rules. Adds `DRAW_IMAGE` for terminal image protocols with
+  deterministic fallback.
 
 Hyperlink architecture decision:
 
@@ -61,6 +63,7 @@ Unknown opcodes MUST be rejected with `ZR_ERR_UNSUPPORTED`.
 | `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1+ | 16B | Draw pre-measured text run (blob) |
 | `ZR_DL_OP_SET_CURSOR` | 7 | v2+ | 12B | Set cursor position/shape/visibility |
 | `ZR_DL_OP_DRAW_CANVAS` | 8 | v4+ | 24B | Blit RGBA canvas bytes into framebuffer cells |
+| `ZR_DL_OP_DRAW_IMAGE` | 9 | v5+ | 32B | Emit protocol image command or fallback sub-cell blit |
 
 Command sizes include the 8-byte header (`zr_dl_cmd_header_t`).
 
@@ -72,6 +75,7 @@ Version-specific command sizes:
 - `DRAW_TEXT_RUN`: 24B in all versions (segment payload inside blob changes in v3)
 - `SET_CURSOR`: 20B in v2/v3/v4
 - `DRAW_CANVAS`: 32B in v4
+- `DRAW_IMAGE`: 40B in v5
 
 ## Cursor control (v2)
 
@@ -121,6 +125,40 @@ Execution notes:
 - writes use framebuffer painter path, so clip stack behavior matches `FILL_RECT`/`DRAW_TEXT`
 - malformed command payloads fail validation with `ZR_ERR_FORMAT`; execute-time bounds failures fail with `ZR_ERR_INVALID_ARGUMENT`
 
+## Protocol image (v5)
+
+Drawlist v5 adds `ZR_DL_OP_DRAW_IMAGE` (`zr_dl_cmd_draw_image_t`) for protocol-backed image rendering.
+
+Payload fields:
+
+- `dst_col`, `dst_row`, `dst_cols`, `dst_rows` — destination rectangle in cells
+- `px_width`, `px_height` — source image dimensions in pixels
+- `blob_offset`, `blob_len` — payload byte range inside blob-bytes section
+- `image_id` — stable wrapper-provided image key for cache reuse
+- `format` — `RGBA` or `PNG`
+- `protocol` — `auto`, `kitty`, `sixel`, `iterm2`
+- `z_layer` — `-1`, `0`, `1`
+- `fit_mode` — `fill`, `contain`, `cover`
+- `flags`, `reserved0`, `reserved1` — must be zero
+
+Validation rules:
+
+- non-zero destination/source dimensions
+- valid enum ranges for protocol/format/fit mode
+- `z_layer` in `[-1, 1]`
+- `blob_offset + blob_len` in-bounds of `blobs_bytes`
+- for `RGBA`, `blob_len == px_width * px_height * 4`
+- for `PNG`, `blob_len > 0`
+
+Execution rules:
+
+- protocol selected from explicit request or terminal profile auto-detection
+- if protocol is unavailable:
+  - `RGBA` falls back to sub-cell `ZR_BLIT_AUTO`
+  - `PNG` returns `ZR_ERR_UNSUPPORTED`
+- when protocol is available, command/payload are copied into engine-owned image staging and emitted during present
+- kitty/sixel require `RGBA`; iTerm2 accepts `RGBA` and `PNG`
+
 ## Validation contract
 
 Validation happens before any command executes:
@@ -132,6 +170,7 @@ Validation happens before any command executes:
 - String/blob indices within bounds
 - `DRAW_TEXT_RUN` blobs are validated in deterministic phases:
   span resolution -> framing-size check -> per-segment string-slice bounds
+- `DRAW_IMAGE` checks protocol enums, payload sizing, and fallback constraints before execution
 - Reserved fields are zero
 
 On failure: `ZR_ERR_FORMAT` or `ZR_ERR_UNSUPPORTED`, no partial effects.

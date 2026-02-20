@@ -102,7 +102,7 @@ static zr_result_t zr_exec_canvas(const uint8_t* bytes, size_t len, zr_fb_t* fb)
   if (rc != ZR_OK) {
     return rc;
   }
-  return zr_dl_execute(&v, fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor);
+  return zr_dl_execute(&v, fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor);
 }
 
 ZR_TEST_UNIT(drawlist_canvas_valid_executes_and_writes_cell) {

@@ -1,10 +1,11 @@
 /*
-  include/zr/zr_drawlist.h — Drawlist ABI structs (v1 + v2 + v3 + v4).
+  include/zr/zr_drawlist.h — Drawlist ABI structs (v1 + v2 + v3 + v4 + v5).
 
   Why: Defines the versioned, little-endian drawlist command stream used by
   wrappers to drive rendering through engine_submit_drawlist(). v1/v2 layouts
   remain behavior-stable; v3 extends style payloads for underline color + links;
-  v4 adds DRAW_CANVAS for sub-cell RGBA blitting.
+  v4 adds DRAW_CANVAS for sub-cell RGBA blitting; v5 adds DRAW_IMAGE for
+  terminal image protocols with deterministic fallback.
 */
 
 #ifndef ZR_ZR_DRAWLIST_H_INCLUDED
@@ -60,7 +61,10 @@ typedef enum zr_dl_opcode_t {
   ZR_DL_OP_SET_CURSOR = 7,
 
   /* v4: RGBA canvas blit into framebuffer cells. */
-  ZR_DL_OP_DRAW_CANVAS = 8
+  ZR_DL_OP_DRAW_CANVAS = 8,
+
+  /* v5: protocol image command with optional sub-cell fallback. */
+  ZR_DL_OP_DRAW_IMAGE = 9
 } zr_dl_opcode_t;
 
 typedef enum zr_blitter_t {
@@ -176,5 +180,24 @@ typedef struct zr_dl_cmd_draw_canvas_t {
   uint8_t flags;        /* reserved; must be 0 */
   uint16_t reserved;    /* reserved; must be 0 */
 } zr_dl_cmd_draw_canvas_t;
+
+typedef struct zr_dl_cmd_draw_image_t {
+  uint16_t dst_col;     /* destination cell x */
+  uint16_t dst_row;     /* destination cell y */
+  uint16_t dst_cols;    /* destination width in cells */
+  uint16_t dst_rows;    /* destination height in cells */
+  uint16_t px_width;    /* source width in pixels */
+  uint16_t px_height;   /* source height in pixels */
+  uint32_t blob_offset; /* byte offset inside drawlist blob-bytes section */
+  uint32_t blob_len;    /* payload bytes */
+  uint32_t image_id;    /* stable image key for protocol cache reuse */
+  uint8_t format;       /* 0=RGBA, 1=PNG */
+  uint8_t protocol;     /* 0=auto, 1=kitty, 2=sixel, 3=iterm2 */
+  int8_t z_layer;       /* -1, 0, 1 */
+  uint8_t fit_mode;     /* 0=fill, 1=contain, 2=cover */
+  uint8_t flags;        /* reserved; must be 0 */
+  uint8_t reserved0;    /* reserved; must be 0 */
+  uint16_t reserved1;   /* reserved; must be 0 */
+} zr_dl_cmd_draw_image_t;
 
 #endif /* ZR_ZR_DRAWLIST_H_INCLUDED */

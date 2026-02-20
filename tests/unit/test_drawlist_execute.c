@@ -69,7 +69,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture1_text_written) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   /* --- Assert: Correct glyphs at expected positions --- */
   const zr_cell_t* c1 = zr_fb_cell_const(&fb, 1u, 0u);
@@ -115,7 +115,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture2_clip_applies) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   /* --- Assert: Cells inside clip region have filled style --- */
   const zr_cell_t* in0 = zr_fb_cell_const(&fb, 1u, 1u);
@@ -160,7 +160,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture3_text_run_segments) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   /* --- Assert: Correct glyphs with segment-specific styles --- */
   const zr_cell_t* a = zr_fb_cell_const(&fb, 0u, 0u);
@@ -203,7 +203,7 @@ ZR_TEST_UNIT(drawlist_execute_clip_does_not_change_wide_cursor_advance) {
   cursor.visible = 0u;
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   /*
    * The clip only includes x==1. The drawlist places a wide glyph starting at x==0
@@ -239,7 +239,7 @@ ZR_TEST_UNIT(drawlist_execute_v2_set_cursor_updates_cursor_state) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
   ZR_ASSERT_TRUE(cursor.x == 3);
   ZR_ASSERT_TRUE(cursor.y == 4);
   ZR_ASSERT_EQ_U32(cursor.shape, 2u);
@@ -268,7 +268,7 @@ ZR_TEST_UNIT(drawlist_execute_v1_draw_text_slices_share_string_bytes) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 0u, 0u), (uint8_t)'H');
   zr_assert_cell_glyph(ctx, zr_fb_cell_const(&fb, 1u, 0u), (uint8_t)'e');
@@ -297,7 +297,7 @@ ZR_TEST_UNIT(drawlist_execute_fixture7_v3_applies_extended_style_and_link) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
   zr_assert_cell_glyph(ctx, c, (uint8_t)'X');
@@ -336,9 +336,9 @@ ZR_TEST_UNIT(drawlist_execute_rejects_invalid_text_policy_arguments) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 0u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor),
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 0u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor),
                    ZR_ERR_INVALID_ARGUMENT);
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, 999u, NULL, &cursor), ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, 999u, NULL, NULL, NULL, &cursor), ZR_ERR_INVALID_ARGUMENT);
 
   zr_fb_release(&fb);
 }

@@ -16,10 +16,13 @@
 #include "util/zr_caps.h"
 #include "util/zr_result.h"
 
+#include "zr/zr_terminal_caps.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
 typedef struct zr_fb_t zr_fb_t;
+typedef struct zr_image_frame_t zr_image_frame_t;
 
 /*
   zr_dl_view_t (engine-internal validated view):
@@ -59,6 +62,7 @@ typedef struct zr_dl_view_t {
 zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limits_t* lim, zr_dl_view_t* out_view);
 zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim, uint32_t tab_width,
                           uint32_t width_policy, const zr_blit_caps_t* blit_caps,
+                          const zr_terminal_profile_t* term_profile, zr_image_frame_t* image_frame_stage,
                           zr_cursor_state_t* inout_cursor_state);
 
 #endif /* ZR_CORE_ZR_DRAWLIST_H_INCLUDED */

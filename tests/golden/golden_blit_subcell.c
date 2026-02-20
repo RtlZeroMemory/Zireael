@@ -206,7 +206,7 @@ ZR_TEST_GOLDEN(blit_drawlist_canvas_001_ascii) {
   (void)zr_fb_init(&fb, 1u, 1u);
   (void)zr_fb_clear(&fb, NULL);
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_OK);
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor), ZR_OK);
 
   const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
   const size_t n = zr_cell_serialize(c, out, sizeof(out));

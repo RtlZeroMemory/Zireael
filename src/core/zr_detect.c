@@ -55,7 +55,7 @@ typedef struct zr_term_known_caps_t {
 static const zr_term_known_caps_t ZR_DETECT_KNOWN_CAPS[] = {
     {ZR_TERM_KITTY, 0u, 1u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u},
     {ZR_TERM_GHOSTTY, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 0u},
-    {ZR_TERM_WEZTERM, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u},
+    {ZR_TERM_WEZTERM, 1u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u},
     {ZR_TERM_FOOT, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 0u, 0u},
     {ZR_TERM_ITERM2, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 0u, 0u, 0u},
     {ZR_TERM_VTE, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 0u, 0u, 0u},

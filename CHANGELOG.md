@@ -5,6 +5,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.8-alpha.5 — 2026-02-20
+
 ### Added
 
 - core/blit: sub-cell blitter infrastructure (`ASCII`, `HALFBLOCK`, `QUADRANT`, `SEXTANT`, `BRAILLE`) with deterministic nearest-neighbor scaling, integer color distance, BT.709 luma thresholding, and AUTO selector policy.

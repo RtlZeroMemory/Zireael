@@ -115,10 +115,10 @@ Core checks:
 - source geometry (`px_width`, `px_height`)
 - blob range (`blob_offset`, `blob_len`)
 - stable image key (`image_id`)
-- format (`ZR_IMAGE_FORMAT_RGBA`, `ZR_IMAGE_FORMAT_PNG`)
-- protocol request (`auto`, `kitty`, `sixel`, `iterm2`)
+- format (`0=RGBA`, `1=PNG`)
+- protocol request (`0=auto`, `1=kitty`, `2=sixel`, `3=iterm2`)
 - z-layer (`-1`, `0`, `1`)
-- fit mode (`fill`, `contain`, `cover`)
+- fit mode (`0=fill`, `1=contain`, `2=cover`)
 
 Core checks:
 

@@ -108,6 +108,83 @@ static zr_result_t zr_engine_present_append_images(zr_engine_t* e, size_t* inout
   return ZR_OK;
 }
 
+static size_t zr_engine_present_u32_dec_len(uint32_t v) {
+  size_t len = 1u;
+  while (v >= 10u) {
+    v /= 10u;
+    len++;
+  }
+  return len;
+}
+
+static void zr_engine_present_write_u32_dec(uint8_t* dst, size_t len, uint32_t v) {
+  if (!dst || len == 0u) {
+    return;
+  }
+  size_t i = len;
+  while (i != 0u) {
+    i--;
+    dst[i] = (uint8_t)((uint32_t)'0' + (v % 10u));
+    v /= 10u;
+  }
+}
+
+/*
+  Re-anchor cursor after image sideband emission.
+
+  Why: Image protocol bytes can move the terminal cursor. Re-emitting the
+  diff's final cursor position keeps present deterministic for the next frame.
+*/
+static zr_result_t zr_engine_present_append_cursor_restore(zr_engine_t* e, size_t* inout_out_len,
+                                                           const zr_term_state_t* final_ts) {
+  enum {
+    ZR_CUP_FIXED_BYTES = 4u, /* ESC '[' + ';' + 'H' */
+  };
+
+  uint32_t row_1based = 0u;
+  uint32_t col_1based = 0u;
+  size_t row_digits = 0u;
+  size_t col_digits = 0u;
+  size_t cup_len = 0u;
+  size_t next_len = 0u;
+  size_t at = 0u;
+
+  if (!e || !inout_out_len || !final_ts) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (*inout_out_len > e->out_cap) {
+    return ZR_ERR_LIMIT;
+  }
+  if ((final_ts->flags & ZR_TERM_STATE_CURSOR_POS_VALID) == 0u) {
+    return ZR_OK;
+  }
+  if (!zr_checked_add_u32(final_ts->cursor_y, 1u, &row_1based) ||
+      !zr_checked_add_u32(final_ts->cursor_x, 1u, &col_1based)) {
+    return ZR_ERR_LIMIT;
+  }
+
+  row_digits = zr_engine_present_u32_dec_len(row_1based);
+  col_digits = zr_engine_present_u32_dec_len(col_1based);
+  if (!zr_checked_add_size(row_digits, col_digits, &cup_len) ||
+      !zr_checked_add_size(cup_len, (size_t)ZR_CUP_FIXED_BYTES, &cup_len) ||
+      !zr_checked_add_size(*inout_out_len, cup_len, &next_len) || next_len > e->out_cap) {
+    return ZR_ERR_LIMIT;
+  }
+
+  at = *inout_out_len;
+  e->out_buf[at++] = (uint8_t)0x1Bu;
+  e->out_buf[at++] = (uint8_t)'[';
+  zr_engine_present_write_u32_dec(e->out_buf + at, row_digits, row_1based);
+  at += row_digits;
+  e->out_buf[at++] = (uint8_t)';';
+  zr_engine_present_write_u32_dec(e->out_buf + at, col_digits, col_1based);
+  at += col_digits;
+  e->out_buf[at++] = (uint8_t)'H';
+
+  *inout_out_len = at;
+  return ZR_OK;
+}
+
 static void zr_engine_present_wrap_sync(zr_engine_t* e, size_t* inout_out_len, zr_diff_stats_t* stats) {
   if (!e || !inout_out_len || !stats) {
     return;
@@ -150,9 +227,16 @@ static zr_result_t zr_engine_present_render(zr_engine_t* e, const zr_fb_t* prese
   }
 
   *out_image_state_stage = e->image_state;
+  const size_t out_len_before_images = *out_len;
   rc = zr_engine_present_append_images(e, out_len, out_image_state_stage);
   if (rc != ZR_OK) {
     return rc;
+  }
+  if (*out_len != out_len_before_images) {
+    rc = zr_engine_present_append_cursor_restore(e, out_len, final_ts);
+    if (rc != ZR_OK) {
+      return rc;
+    }
   }
   zr_engine_present_wrap_sync(e, out_len, stats);
 

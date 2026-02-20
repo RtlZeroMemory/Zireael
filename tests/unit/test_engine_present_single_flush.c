@@ -11,6 +11,9 @@
 #include "core/zr_config.h"
 #include "core/zr_engine.h"
 
+#include "zr/zr_drawlist.h"
+#include "zr/zr_version.h"
+
 #include "unit/mock_platform.h"
 
 #include <stdbool.h>
@@ -18,6 +21,18 @@
 
 extern const uint8_t zr_test_dl_fixture1[];
 extern const size_t zr_test_dl_fixture1_len;
+
+enum {
+  ZR_TEST_DL_HEADER_BYTES = 64u,
+  ZR_TEST_DL_CMD_CLEAR_BYTES = 8u,
+  ZR_TEST_DL_CMD_SET_CURSOR_BYTES = 20u,
+  ZR_TEST_DL_CMD_DRAW_IMAGE_BYTES = 40u,
+  ZR_TEST_DL_BLOB_SPAN_BYTES = 8u,
+  ZR_TEST_IMAGE_BLOB_BYTES = 4u,
+  ZR_TEST_IMAGE_PROTOCOL_KITTY = 1u,
+};
+
+static const uint8_t ZR_TEST_IMAGE_BLOB[ZR_TEST_IMAGE_BLOB_BYTES] = {0xFFu, 0x00u, 0x00u, 0xFFu};
 
 static bool zr_contains_bytes(const uint8_t* hay, size_t hay_len, const uint8_t* needle, size_t needle_len) {
   if (!hay || !needle || needle_len == 0u || needle_len > hay_len) {
@@ -29,6 +44,108 @@ static bool zr_contains_bytes(const uint8_t* hay, size_t hay_len, const uint8_t*
     }
   }
   return false;
+}
+
+static void zr_test_write_u16le(uint8_t* out, size_t* at, uint16_t v) {
+  out[(*at)++] = (uint8_t)(v & 0xFFu);
+  out[(*at)++] = (uint8_t)((v >> 8u) & 0xFFu);
+}
+
+static void zr_test_write_u32le(uint8_t* out, size_t* at, uint32_t v) {
+  out[(*at)++] = (uint8_t)(v & 0xFFu);
+  out[(*at)++] = (uint8_t)((v >> 8u) & 0xFFu);
+  out[(*at)++] = (uint8_t)((v >> 16u) & 0xFFu);
+  out[(*at)++] = (uint8_t)((v >> 24u) & 0xFFu);
+}
+
+static void zr_test_write_cmd_header(uint8_t* out, size_t* at, uint16_t opcode, uint32_t size) {
+  zr_test_write_u16le(out, at, opcode);
+  zr_test_write_u16le(out, at, 0u);
+  zr_test_write_u32le(out, at, size);
+}
+
+static void zr_test_write_cursor_image_header(uint8_t* out, size_t* at, uint32_t cmd_bytes, uint32_t total_size,
+                                              uint32_t blobs_span_offset, uint32_t blobs_bytes_offset) {
+  zr_test_write_u32le(out, at, 0x4C44525Au);
+  zr_test_write_u32le(out, at, ZR_DRAWLIST_VERSION_V5);
+  zr_test_write_u32le(out, at, ZR_TEST_DL_HEADER_BYTES);
+  zr_test_write_u32le(out, at, total_size);
+
+  zr_test_write_u32le(out, at, ZR_TEST_DL_HEADER_BYTES);
+  zr_test_write_u32le(out, at, cmd_bytes);
+  zr_test_write_u32le(out, at, 3u);
+
+  zr_test_write_u32le(out, at, 0u);
+  zr_test_write_u32le(out, at, 0u);
+  zr_test_write_u32le(out, at, 0u);
+  zr_test_write_u32le(out, at, 0u);
+
+  zr_test_write_u32le(out, at, blobs_span_offset);
+  zr_test_write_u32le(out, at, 1u);
+  zr_test_write_u32le(out, at, blobs_bytes_offset);
+  zr_test_write_u32le(out, at, ZR_TEST_IMAGE_BLOB_BYTES);
+  zr_test_write_u32le(out, at, 0u);
+}
+
+static void zr_test_write_cursor_image_commands(uint8_t* out, size_t* at) {
+  zr_test_write_cmd_header(out, at, ZR_DL_OP_CLEAR, ZR_TEST_DL_CMD_CLEAR_BYTES);
+
+  zr_test_write_cmd_header(out, at, ZR_DL_OP_SET_CURSOR, ZR_TEST_DL_CMD_SET_CURSOR_BYTES);
+  zr_test_write_u32le(out, at, 2u); /* x */
+  zr_test_write_u32le(out, at, 1u); /* y */
+  out[(*at)++] = 0u; /* shape=block */
+  out[(*at)++] = 1u; /* visible */
+  out[(*at)++] = 0u; /* blink */
+  out[(*at)++] = 0u; /* reserved */
+
+  zr_test_write_cmd_header(out, at, ZR_DL_OP_DRAW_IMAGE, ZR_TEST_DL_CMD_DRAW_IMAGE_BYTES);
+  zr_test_write_u16le(out, at, 0u);                       /* dst_col */
+  zr_test_write_u16le(out, at, 0u);                       /* dst_row */
+  zr_test_write_u16le(out, at, 1u);                       /* dst_cols */
+  zr_test_write_u16le(out, at, 1u);                       /* dst_rows */
+  zr_test_write_u16le(out, at, 1u);                       /* px_width */
+  zr_test_write_u16le(out, at, 1u);                       /* px_height */
+  zr_test_write_u32le(out, at, 0u);                       /* blob_offset */
+  zr_test_write_u32le(out, at, ZR_TEST_IMAGE_BLOB_BYTES); /* blob_len */
+  zr_test_write_u32le(out, at, 7u);                       /* image_id */
+  out[(*at)++] = 0u;                                      /* format=RGBA */
+  out[(*at)++] = ZR_TEST_IMAGE_PROTOCOL_KITTY;            /* protocol=kitty */
+  out[(*at)++] = 0u;                                      /* z_layer=0 */
+  out[(*at)++] = 0u;                                      /* fit=fill */
+  out[(*at)++] = 0u;                                      /* flags */
+  out[(*at)++] = 0u;                                      /* reserved0 */
+  zr_test_write_u16le(out, at, 0u);                       /* reserved1 */
+}
+
+/*
+  Build a minimal v5 drawlist with CLEAR + SET_CURSOR + DRAW_IMAGE.
+
+  Why: The regression exercises present-path cursor restoration after image
+  sideband emission without relying on external fixture generation.
+*/
+static size_t zr_test_make_cursor_image_drawlist(uint8_t* out, size_t out_cap) {
+  const uint32_t cmd_bytes =
+      ZR_TEST_DL_CMD_CLEAR_BYTES + ZR_TEST_DL_CMD_SET_CURSOR_BYTES + ZR_TEST_DL_CMD_DRAW_IMAGE_BYTES;
+  const uint32_t blobs_span_offset = ZR_TEST_DL_HEADER_BYTES + cmd_bytes;
+  const uint32_t blobs_bytes_offset = blobs_span_offset + ZR_TEST_DL_BLOB_SPAN_BYTES;
+  const uint32_t total_size = blobs_bytes_offset + ZR_TEST_IMAGE_BLOB_BYTES;
+  size_t at = 0u;
+
+  if (!out || out_cap < (size_t)total_size) {
+    return 0u;
+  }
+  memset(out, 0, (size_t)total_size);
+
+  zr_test_write_cursor_image_header(out, &at, cmd_bytes, total_size, blobs_span_offset, blobs_bytes_offset);
+  zr_test_write_cursor_image_commands(out, &at);
+
+  zr_test_write_u32le(out, &at, 0u);
+  zr_test_write_u32le(out, &at, ZR_TEST_IMAGE_BLOB_BYTES);
+
+  memcpy(out + at, ZR_TEST_IMAGE_BLOB, sizeof(ZR_TEST_IMAGE_BLOB));
+  at += sizeof(ZR_TEST_IMAGE_BLOB);
+
+  return at;
 }
 
 ZR_TEST_UNIT(engine_present_single_flush_on_success) {
@@ -49,6 +166,39 @@ ZR_TEST_UNIT(engine_present_single_flush_on_success) {
 
   ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
   ZR_ASSERT_TRUE(mock_plat_bytes_written_total() != 0u);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_present_restores_cursor_after_image_sideband) {
+  uint8_t drawlist_bytes[192];
+  uint8_t out[8192];
+  static const uint8_t expected_suffix[] = "\x1b[2;3H";
+  const size_t dl_len = zr_test_make_cursor_image_drawlist(drawlist_bytes, sizeof(drawlist_bytes));
+
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V5;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  ZR_ASSERT_TRUE(dl_len != 0u);
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_TRUE(engine_create(&e, &cfg) == ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  ZR_ASSERT_TRUE(engine_submit_drawlist(e, drawlist_bytes, (int)dl_len) == ZR_OK);
+
+  mock_plat_clear_writes();
+  ZR_ASSERT_TRUE(engine_present(e) == ZR_OK);
+  ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
+
+  const size_t out_len = mock_plat_last_write_copy(out, sizeof(out));
+  ZR_ASSERT_TRUE(out_len >= (sizeof(expected_suffix) - 1u));
+  ZR_ASSERT_TRUE(memcmp(out + out_len - (sizeof(expected_suffix) - 1u), expected_suffix, sizeof(expected_suffix) - 1u) ==
+                 0);
 
   engine_destroy(e);
 }

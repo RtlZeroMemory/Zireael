@@ -1696,7 +1696,13 @@ static zr_result_t zr_dl_exec_draw_image(zr_byte_reader_t* r, const zr_dl_view_t
   staged.blob_len = cmd.blob_len;
   staged.image_id = cmd.image_id;
   staged.format = cmd.format;
-  staged.protocol = cmd.protocol;
+  /*
+    Freeze protocol choice at submit time.
+
+    Why: Present should emit the protocol resolved during drawlist execution,
+    not re-negotiate from AUTO requests.
+  */
+  staged.protocol = (uint8_t)proto;
   staged.z_layer = cmd.z_layer;
   staged.fit_mode = cmd.fit_mode;
 

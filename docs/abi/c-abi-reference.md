@@ -23,7 +23,10 @@ Drawlist v4/v5 add:
 - `ZR_DL_OP_DRAW_CANVAS` command payload (`zr_dl_cmd_draw_canvas_t`)
 - sub-cell selector enum (`zr_blitter_t`)
 - `ZR_DL_OP_DRAW_IMAGE` command payload (`zr_dl_cmd_draw_image_t`)
-- image protocol enums used by drawlist (`zr_image_format_t` / protocol/fit fields in payload)
+- drawlist v5 image numeric fields in payload:
+  - `format`: `0=RGBA`, `1=PNG`
+  - `protocol`: `0=auto`, `1=kitty`, `2=sixel`, `3=iterm2`
+  - `fit_mode`: `0=fill`, `1=contain`, `2=cover`
 
 Current drawlist versions: `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, `ZR_DRAWLIST_VERSION_V3`,
 `ZR_DRAWLIST_VERSION_V4`, `ZR_DRAWLIST_VERSION_V5`.

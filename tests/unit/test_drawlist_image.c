@@ -298,7 +298,7 @@ ZR_TEST_UNIT(drawlist_image_execute_with_kitty_profile_stages_frame) {
   ZR_ASSERT_EQ_U32(stage.blob_len, 4u);
   ZR_ASSERT_EQ_U32(stage.cmds[0].image_id, 5u);
   ZR_ASSERT_EQ_U32(stage.cmds[0].format, (uint8_t)ZR_IMAGE_FORMAT_RGBA);
-  ZR_ASSERT_EQ_U32(stage.cmds[0].protocol, 0u);
+  ZR_ASSERT_EQ_U32(stage.cmds[0].protocol, (uint8_t)ZR_IMG_PROTO_KITTY);
   ZR_ASSERT_MEMEQ(stage.blob_bytes, blob, 4u);
 
   {

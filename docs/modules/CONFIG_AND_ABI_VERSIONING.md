@@ -22,14 +22,14 @@ See also:
 
 - engine ABI (`ZR_ENGINE_ABI_*`)
 - drawlist format (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, `ZR_DRAWLIST_VERSION_V3`, or
-  `ZR_DRAWLIST_VERSION_V4`)
+  `ZR_DRAWLIST_VERSION_V4`, `ZR_DRAWLIST_VERSION_V5`)
 - packed event batch format (`ZR_EVENT_BATCH_VERSION_V1`)
 
 Negotiation rules:
 
 - Requested engine ABI and event batch versions MUST match pinned versions exactly.
 - Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`,
-  `ZR_DRAWLIST_VERSION_V3`, or `ZR_DRAWLIST_VERSION_V4`).
+  `ZR_DRAWLIST_VERSION_V3`, `ZR_DRAWLIST_VERSION_V4`, or `ZR_DRAWLIST_VERSION_V5`).
 - If any requested version is not supported, `engine_create()` fails with `ZR_ERR_UNSUPPORTED` and performs no partial effects.
 
 Pinned versions are defined in `include/zr/zr_version.h`.

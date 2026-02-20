@@ -42,6 +42,7 @@ typedef struct plat_t {
   uint32_t wait_output_calls;
 
   bool terminal_query_support;
+  bool dumb_terminal;
   zr_terminal_id_t terminal_id_hint;
 
   uint64_t now_ms;
@@ -79,6 +80,7 @@ void mock_plat_reset(void) {
   g_plat.output_writable = true;
   g_plat.wait_output_calls = 0u;
   g_plat.terminal_query_support = true;
+  g_plat.dumb_terminal = false;
   g_plat.terminal_id_hint = ZR_TERM_UNKNOWN;
   zr_mock_plat_default_caps(&g_plat.caps);
 }
@@ -106,6 +108,10 @@ void mock_plat_set_read_max(uint32_t max_bytes) {
 
 void mock_plat_set_terminal_query_support(uint8_t enabled) {
   g_plat.terminal_query_support = (enabled != 0u);
+}
+
+void mock_plat_set_dumb_terminal(uint8_t enabled) {
+  g_plat.dumb_terminal = (enabled != 0u);
 }
 
 void mock_plat_set_terminal_id_hint(zr_terminal_id_t id) {
@@ -347,6 +353,13 @@ uint8_t plat_supports_terminal_queries(plat_t* plat) {
     return 0u;
   }
   return plat->terminal_query_support ? 1u : 0u;
+}
+
+uint8_t plat_is_dumb_terminal(plat_t* plat) {
+  if (!plat) {
+    return 0u;
+  }
+  return plat->dumb_terminal ? 1u : 0u;
 }
 
 zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id) {

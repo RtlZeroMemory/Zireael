@@ -23,6 +23,7 @@ void mock_plat_set_now_ms(uint64_t now_ms);
 void mock_plat_set_output_writable(uint8_t writable);
 void mock_plat_set_read_max(uint32_t max_bytes);
 void mock_plat_set_terminal_query_support(uint8_t enabled);
+void mock_plat_set_dumb_terminal(uint8_t enabled);
 void mock_plat_set_terminal_id_hint(zr_terminal_id_t id);
 
 zr_result_t mock_plat_push_input(const uint8_t* bytes, size_t len);

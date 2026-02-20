@@ -199,6 +199,14 @@ static bool zr_win32_str_has_any_ci(const char* s, const char* const* needles, s
   return false;
 }
 
+static uint8_t zr_win32_term_is_dumb(void) {
+  const char* term = zr_win32_getenv_nonempty("TERM");
+  if (!term) {
+    return 0u;
+  }
+  return (strcmp(term, "dumb") == 0) ? 1u : 0u;
+}
+
 static zr_terminal_id_t zr_win32_terminal_id_from_term_program(const char* term_program) {
   if (!term_program) {
     return ZR_TERM_UNKNOWN;
@@ -1488,6 +1496,13 @@ uint8_t plat_supports_terminal_queries(plat_t* plat) {
     return 0u;
   }
   return 1u;
+}
+
+uint8_t plat_is_dumb_terminal(plat_t* plat) {
+  if (!plat) {
+    return 0u;
+  }
+  return zr_win32_term_is_dumb();
 }
 
 zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id) {

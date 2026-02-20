@@ -70,6 +70,7 @@ add_executable(zireael_unit_tests
         unit/test_engine_restore_hooks.c
         unit/test_engine_present_single_flush.c
         unit/test_engine_submit_drawlist_no_partial_effects.c
+        unit/test_engine_canvas_auto_selection.c
         unit/test_engine_version_negotiation.c
         unit/test_framebuffer_init_resize.c
         unit/test_cell_invariants.c

@@ -21,7 +21,6 @@ See also:
 `engine_create()` takes `zr_engine_config_t`, which includes requested versions for:
 
 - engine ABI (`ZR_ENGINE_ABI_*`)
-- drawlist format (`ZR_DRAWLIST_VERSION_V1`)
 - drawlist format (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, `ZR_DRAWLIST_VERSION_V3`, or
   `ZR_DRAWLIST_VERSION_V4`)
 - packed event batch format (`ZR_EVENT_BATCH_VERSION_V1`)

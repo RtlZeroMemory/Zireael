@@ -119,6 +119,7 @@ Execution notes:
 - nearest-neighbor integer sampling maps source pixels to destination sub-cells
 - transparent-only cells are skipped (existing framebuffer content preserved)
 - writes use framebuffer painter path, so clip stack behavior matches `FILL_RECT`/`DRAW_TEXT`
+- malformed command payloads fail validation with `ZR_ERR_FORMAT`; execute-time bounds failures fail with `ZR_ERR_INVALID_ARGUMENT`
 
 ## Validation contract
 

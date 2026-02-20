@@ -63,8 +63,7 @@ static int zr_base64_has_valid_framing(const uint8_t* b64, size_t b64_len) {
   if (pad_count == 1u && b64[b64_len - 1u] != (uint8_t)'=') {
     return 0;
   }
-  if (pad_count == 2u &&
-      (b64[b64_len - 2u] != (uint8_t)'=' || b64[b64_len - 1u] != (uint8_t)'=')) {
+  if (pad_count == 2u && (b64[b64_len - 2u] != (uint8_t)'=' || b64[b64_len - 1u] != (uint8_t)'=')) {
     return 0;
   }
   return 1;
@@ -114,8 +113,7 @@ ZR_TEST_UNIT(image_iterm2_emit_rgba_is_deterministic) {
   zr_sb_t sb_b;
   zr_arena_t arena;
   const uint8_t rgba[4] = {1u, 2u, 3u, 255u};
-  static const uint8_t prefix[] =
-      "\x1b[1;1H\x1b]1337;File=inline=1;width=1;height=1;preserveAspectRatio=1;size=73:";
+  static const uint8_t prefix[] = "\x1b[1;1H\x1b]1337;File=inline=1;width=1;height=1;preserveAspectRatio=1;size=73:";
   static const uint8_t marker[] = "\x1b]1337;File=inline=1;";
   const uint8_t* payload = NULL;
   size_t payload_len = 0u;
@@ -153,10 +151,12 @@ ZR_TEST_UNIT(image_iterm2_emitters_reject_invalid_arguments) {
   zr_sb_init(&small_sb, small_out, sizeof(small_out));
   ZR_ASSERT_EQ_U32(zr_arena_init(&arena, 4096u, 65536u), ZR_OK);
 
-  ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(NULL, png_bytes, sizeof(png_bytes), 0u, 0u, 1u, 1u), ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(NULL, png_bytes, sizeof(png_bytes), 0u, 0u, 1u, 1u),
+                   ZR_ERR_INVALID_ARGUMENT);
   ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(&sb, NULL, sizeof(png_bytes), 0u, 0u, 1u, 1u), ZR_ERR_INVALID_ARGUMENT);
   ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(&sb, png_bytes, 0u, 0u, 0u, 1u, 1u), ZR_ERR_INVALID_ARGUMENT);
-  ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(&sb, png_bytes, sizeof(png_bytes), 0u, 0u, 0u, 1u), ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(&sb, png_bytes, sizeof(png_bytes), 0u, 0u, 0u, 1u),
+                   ZR_ERR_INVALID_ARGUMENT);
   ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_png(&small_sb, png_bytes, sizeof(png_bytes), 0u, 0u, 1u, 1u), ZR_ERR_LIMIT);
 
   ZR_ASSERT_EQ_U32(zr_image_iterm2_emit_rgba(NULL, &arena, rgba, 1u, 1u, 0u, 0u, 1u, 1u), ZR_ERR_INVALID_ARGUMENT);

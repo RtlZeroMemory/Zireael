@@ -154,7 +154,8 @@ ZR_TEST_UNIT(limits_execute_clip_depth_over_64_fails_without_partial_effects) {
   zr_limits_t execute_lim = zr_limits_default();
   execute_lim.dl_max_clip_depth = 65u;
 
-  const zr_result_t rc = zr_dl_execute(&v, &fb, &execute_lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor);
+  const zr_result_t rc =
+      zr_dl_execute(&v, &fb, &execute_lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor);
   ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
   ZR_ASSERT_TRUE(memcmp(before_cells, fb.cells, sizeof(before_cells)) == 0);
   ZR_ASSERT_TRUE(memcmp(&before_cursor, &cursor, sizeof(before_cursor)) == 0);

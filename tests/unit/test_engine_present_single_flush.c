@@ -93,10 +93,10 @@ static void zr_test_write_cursor_image_commands(uint8_t* out, size_t* at) {
   zr_test_write_cmd_header(out, at, ZR_DL_OP_SET_CURSOR, ZR_TEST_DL_CMD_SET_CURSOR_BYTES);
   zr_test_write_u32le(out, at, 2u); /* x */
   zr_test_write_u32le(out, at, 1u); /* y */
-  out[(*at)++] = 0u; /* shape=block */
-  out[(*at)++] = 1u; /* visible */
-  out[(*at)++] = 0u; /* blink */
-  out[(*at)++] = 0u; /* reserved */
+  out[(*at)++] = 0u;                /* shape=block */
+  out[(*at)++] = 1u;                /* visible */
+  out[(*at)++] = 0u;                /* blink */
+  out[(*at)++] = 0u;                /* reserved */
 
   zr_test_write_cmd_header(out, at, ZR_DL_OP_DRAW_IMAGE, ZR_TEST_DL_CMD_DRAW_IMAGE_BYTES);
   zr_test_write_u16le(out, at, 0u);                       /* dst_col */
@@ -197,8 +197,8 @@ ZR_TEST_UNIT(engine_present_restores_cursor_after_image_sideband) {
 
   const size_t out_len = mock_plat_last_write_copy(out, sizeof(out));
   ZR_ASSERT_TRUE(out_len >= (sizeof(expected_suffix) - 1u));
-  ZR_ASSERT_TRUE(memcmp(out + out_len - (sizeof(expected_suffix) - 1u), expected_suffix, sizeof(expected_suffix) - 1u) ==
-                 0);
+  ZR_ASSERT_TRUE(
+      memcmp(out + out_len - (sizeof(expected_suffix) - 1u), expected_suffix, sizeof(expected_suffix) - 1u) == 0);
 
   engine_destroy(e);
 }

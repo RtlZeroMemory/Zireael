@@ -116,6 +116,7 @@ void zr_image_frame_swap(zr_image_frame_t* a, zr_image_frame_t* b) {
 
 /* Copy one DRAW_IMAGE payload into engine-owned staging storage. */
 zr_result_t zr_image_frame_push_copy(zr_image_frame_t* frame, const zr_image_cmd_t* cmd, const uint8_t* blob_bytes) {
+  uint32_t cmd_blob_len = 0u;
   uint32_t next_blob_len = 0u;
   zr_image_cmd_t copy;
   zr_result_t rc = ZR_OK;
@@ -123,10 +124,11 @@ zr_result_t zr_image_frame_push_copy(zr_image_frame_t* frame, const zr_image_cmd
   if (!frame || !cmd) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (!blob_bytes && cmd->blob_len != 0u) {
+  cmd_blob_len = cmd->blob_len;
+  if (!blob_bytes && cmd_blob_len != 0u) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (!zr_checked_add_u32(frame->blob_len, cmd->blob_len, &next_blob_len)) {
+  if (!zr_checked_add_u32(frame->blob_len, cmd_blob_len, &next_blob_len)) {
     return ZR_ERR_LIMIT;
   }
 
@@ -141,8 +143,8 @@ zr_result_t zr_image_frame_push_copy(zr_image_frame_t* frame, const zr_image_cmd
 
   copy = *cmd;
   copy.blob_off = frame->blob_len;
-  if (copy.blob_len != 0u) {
-    memcpy(frame->blob_bytes + frame->blob_len, blob_bytes, (size_t)copy.blob_len);
+  if (cmd_blob_len != 0u) {
+    memcpy(frame->blob_bytes + frame->blob_len, blob_bytes, (size_t)cmd_blob_len);
   }
 
   frame->blob_len = next_blob_len;
@@ -224,9 +226,9 @@ static zr_result_t zr_image_rgba_out_size(uint16_t w, uint16_t h, size_t* out) {
   return ZR_OK;
 }
 
-static void zr_image_copy_mapped_pixel(const uint8_t* src, uint32_t src_w, uint32_t src_h, uint8_t* dst,
-                                       uint32_t dst_x, uint32_t dst_y, uint32_t dst_w, uint32_t sx_scaled,
-                                       uint32_t sy_scaled, uint32_t scaled_w, uint32_t scaled_h) {
+static void zr_image_copy_mapped_pixel(const uint8_t* src, uint32_t src_w, uint32_t src_h, uint8_t* dst, uint32_t dst_x,
+                                       uint32_t dst_y, uint32_t dst_w, uint32_t sx_scaled, uint32_t sy_scaled,
+                                       uint32_t scaled_w, uint32_t scaled_h) {
   size_t dst_off = 0u;
   size_t src_off = 0u;
   uint32_t src_x = 0u;
@@ -574,7 +576,8 @@ static zr_result_t zr_image_emit_scaled_rgba(zr_image_emit_ctx_t* ctx, const zr_
     return ZR_ERR_OOM;
   }
 
-  rc = zr_image_scale_rgba(blob, cmd->px_width, cmd->px_height, cmd->fit_mode, target_w, target_h, scaled, target_bytes);
+  rc =
+      zr_image_scale_rgba(blob, cmd->px_width, cmd->px_height, cmd->fit_mode, target_w, target_h, scaled, target_bytes);
   if (rc != ZR_OK) {
     return rc;
   }

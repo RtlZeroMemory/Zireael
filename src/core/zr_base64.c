@@ -16,8 +16,7 @@ enum {
   ZR_BASE64_OUTPUT_GROUP = 4u,
 };
 
-static const uint8_t ZR_BASE64_ALPHABET[64] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static const uint8_t ZR_BASE64_ALPHABET[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 size_t zr_base64_encoded_size(size_t in_len, uint8_t* out_overflow) {
   size_t groups = 0u;
@@ -79,8 +78,11 @@ zr_result_t zr_base64_encode(const uint8_t* in, size_t in_len, uint8_t* out, siz
   if (need > out_cap) {
     return ZR_ERR_LIMIT;
   }
-  if (in_len == 0u) {
+  if (need == 0u) {
     return ZR_OK;
+  }
+  if (!out) {
+    return ZR_ERR_INVALID_ARGUMENT;
   }
 
   while ((i + 3u) <= in_len) {

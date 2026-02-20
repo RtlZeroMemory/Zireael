@@ -35,11 +35,8 @@ static void zr_cmd_header(uint8_t* p, size_t* at, uint16_t opcode, uint32_t size
   zr_w32(p, at, size);
 }
 
-static size_t zr_make_draw_image_drawlist(uint8_t* out,
-                                          uint32_t version,
-                                          const zr_dl_cmd_draw_image_t* cmd,
-                                          const uint8_t* blob,
-                                          uint32_t blob_len) {
+static size_t zr_make_draw_image_drawlist(uint8_t* out, uint32_t version, const zr_dl_cmd_draw_image_t* cmd,
+                                          const uint8_t* blob, uint32_t blob_len) {
   const uint32_t cmd_bytes = 48u;
   const uint32_t total = 64u + cmd_bytes + 8u + blob_len;
   size_t at = 0u;
@@ -197,9 +194,8 @@ ZR_TEST_UNIT(drawlist_image_execute_fallback_rgba_when_no_protocol) {
   cursor.y = -1;
   cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
 
-  ZR_ASSERT_EQ_U32(
-      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor),
-      ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor),
+                   ZR_OK);
 
   {
     const zr_cell_t* c = zr_fb_cell_const(&fb, 0u, 0u);
@@ -243,9 +239,8 @@ ZR_TEST_UNIT(drawlist_image_execute_png_without_protocol_is_unsupported) {
   cursor.y = -1;
   cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
 
-  ZR_ASSERT_EQ_U32(
-      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor),
-      ZR_ERR_UNSUPPORTED);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &cursor),
+                   ZR_ERR_UNSUPPORTED);
 
   zr_fb_release(&fb);
 }
@@ -290,9 +285,8 @@ ZR_TEST_UNIT(drawlist_image_execute_with_kitty_profile_stages_frame) {
 
   zr_image_frame_init(&stage);
 
-  ZR_ASSERT_EQ_U32(
-      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, &stage, &cursor),
-      ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, &stage, &cursor),
+                   ZR_OK);
 
   ZR_ASSERT_EQ_U32(stage.cmds_len, 1u);
   ZR_ASSERT_EQ_U32(stage.blob_len, 4u);
@@ -349,9 +343,8 @@ ZR_TEST_UNIT(drawlist_image_execute_with_protocol_requires_stage_buffer) {
   cursor.y = -1;
   cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
 
-  ZR_ASSERT_EQ_U32(
-      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, NULL, &cursor),
-      ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, NULL, &cursor),
+                   ZR_ERR_INVALID_ARGUMENT);
 
   zr_fb_release(&fb);
 }

@@ -55,7 +55,7 @@ typedef struct zr_image_cmd_t {
   uint32_t blob_len;
   uint32_t image_id;
   uint8_t format;   /* zr_image_format_t */
-  uint8_t protocol; /* request: 0=auto, 1=kitty, 2=sixel, 3=iterm2 */
+  uint8_t protocol; /* resolved: (uint8_t)zr_image_protocol_t; staged frames use 1..3 */
   int8_t z_layer;   /* -1, 0, 1 */
   uint8_t fit_mode; /* zr_image_fit_mode_t */
 } zr_image_cmd_t;
@@ -108,30 +108,30 @@ typedef struct zr_image_emit_ctx_t {
 } zr_image_emit_ctx_t;
 
 /* --- Shared frame storage helpers --- */
-void        zr_image_frame_init(zr_image_frame_t* frame);
-void        zr_image_frame_reset(zr_image_frame_t* frame);
-void        zr_image_frame_release(zr_image_frame_t* frame);
+void zr_image_frame_init(zr_image_frame_t* frame);
+void zr_image_frame_reset(zr_image_frame_t* frame);
+void zr_image_frame_release(zr_image_frame_t* frame);
 zr_result_t zr_image_frame_push_copy(zr_image_frame_t* frame, const zr_image_cmd_t* cmd, const uint8_t* blob_bytes);
-void        zr_image_frame_swap(zr_image_frame_t* a, zr_image_frame_t* b);
+void zr_image_frame_swap(zr_image_frame_t* a, zr_image_frame_t* b);
 
 /* --- Selection + hashes --- */
 zr_image_protocol_t zr_image_select_protocol(uint8_t requested_protocol, const zr_terminal_profile_t* profile);
-uint64_t            zr_image_hash_fnv1a64(const uint8_t* bytes, size_t len);
+uint64_t zr_image_hash_fnv1a64(const uint8_t* bytes, size_t len);
 
 /* --- RGBA fit/scaling --- */
 zr_result_t zr_image_scale_rgba(const uint8_t* src_rgba, uint16_t src_w, uint16_t src_h, uint8_t fit_mode,
                                 uint16_t dst_w, uint16_t dst_h, uint8_t* out_rgba, size_t out_len);
 
 /* --- Kitty cache state helpers --- */
-void     zr_image_state_init(zr_image_state_t* state);
-void     zr_image_state_begin_frame(zr_image_state_t* state);
-int32_t  zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t image_id, uint64_t hash, uint16_t px_w,
-                                        uint16_t px_h);
-int32_t  zr_image_cache_find_by_hash_dims(const zr_image_state_t* state, uint64_t hash, uint16_t px_w, uint16_t px_h);
+void zr_image_state_init(zr_image_state_t* state);
+void zr_image_state_begin_frame(zr_image_state_t* state);
+int32_t zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t image_id, uint64_t hash, uint16_t px_w,
+                                       uint16_t px_h);
+int32_t zr_image_cache_find_by_hash_dims(const zr_image_state_t* state, uint64_t hash, uint16_t px_w, uint16_t px_h);
 uint32_t zr_image_cache_choose_slot(const zr_image_state_t* state);
-void     zr_image_cache_touch(zr_image_state_t* state, uint32_t slot_index);
-void     zr_image_cache_set_placed(zr_image_state_t* state, uint32_t slot_index, uint16_t dst_col, uint16_t dst_row,
-                                   uint16_t dst_cols, uint16_t dst_rows, int8_t z_layer);
+void zr_image_cache_touch(zr_image_state_t* state, uint32_t slot_index);
+void zr_image_cache_set_placed(zr_image_state_t* state, uint32_t slot_index, uint16_t dst_col, uint16_t dst_row,
+                               uint16_t dst_cols, uint16_t dst_rows, int8_t z_layer);
 
 /* --- Protocol emitters --- */
 zr_result_t zr_image_kitty_emit_transmit_rgba(zr_sb_t* sb, uint32_t kitty_id, const uint8_t* rgba, uint16_t px_w,

@@ -241,8 +241,8 @@ static void zr_sixel_mark_band_colors(const uint8_t* indexed, uint16_t px_w, uin
   }
 }
 
-static zr_result_t zr_sixel_emit_band(zr_sb_t* sb, const uint8_t* indexed, uint16_t px_w, uint16_t px_h, uint16_t band_y,
-                                      uint16_t palette_len) {
+static zr_result_t zr_sixel_emit_band(zr_sb_t* sb, const uint8_t* indexed, uint16_t px_w, uint16_t px_h,
+                                      uint16_t band_y, uint16_t palette_len) {
   uint8_t present[256];
   uint16_t color = 0u;
   zr_sixel_mark_band_colors(indexed, px_w, px_h, band_y, present);

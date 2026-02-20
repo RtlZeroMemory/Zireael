@@ -75,8 +75,7 @@ ZR_TEST_UNIT(image_fit_cover_rounds_up_scaled_side_for_fractional_ratio) {
   uint8_t out[3u * 2u * 4u];
   uint8_t expected[3u * 2u * 4u];
   static const uint8_t kColumns[5u][4u] = {
-      {255u, 0u, 0u, 255u},   {0u, 255u, 0u, 255u}, {0u, 0u, 255u, 255u},
-      {255u, 255u, 0u, 255u}, {255u, 0u, 255u, 255u},
+      {255u, 0u, 0u, 255u}, {0u, 255u, 0u, 255u}, {0u, 0u, 255u, 255u}, {255u, 255u, 0u, 255u}, {255u, 0u, 255u, 255u},
   };
   uint32_t y = 0u;
   uint32_t x = 0u;

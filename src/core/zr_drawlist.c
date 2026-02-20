@@ -1596,7 +1596,7 @@ static zr_result_t zr_dl_exec_image_bounds(const zr_fb_t* fb, const zr_dl_cmd_dr
 }
 
 static zr_result_t zr_dl_exec_draw_image_fallback_rgba(const zr_dl_cmd_draw_image_t* cmd, const uint8_t* blob,
-                                                        zr_fb_painter_t* p, const zr_blit_caps_t* blit_caps) {
+                                                       zr_fb_painter_t* p, const zr_blit_caps_t* blit_caps) {
   zr_blit_caps_t default_caps;
   zr_blitter_t effective = ZR_BLIT_ASCII;
   zr_blit_input_t input;

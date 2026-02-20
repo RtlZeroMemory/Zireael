@@ -124,9 +124,8 @@ ZR_TEST_UNIT(image_lifecycle_emit_frame_kitty_transmit_then_cleanup_delete) {
   ZR_ASSERT_EQ_U32(zr_image_emit_frame(&ctx_emit), ZR_OK);
 
   {
-    static const uint8_t expected_first[] =
-        "\x1b_Ga=t,f=32,s=1,v=1,i=1,m=0;AQID/w==\x1b\\"
-        "\x1b[1;1H\x1b_Ga=p,i=1,c=1,r=1,z=0\x1b\\";
+    static const uint8_t expected_first[] = "\x1b_Ga=t,f=32,s=1,v=1,i=1,m=0;AQID/w==\x1b\\"
+                                            "\x1b[1;1H\x1b_Ga=p,i=1,c=1,r=1,z=0\x1b\\";
     ZR_ASSERT_TRUE(sb.len == (sizeof(expected_first) - 1u));
     ZR_ASSERT_MEMEQ(out, expected_first, sizeof(expected_first) - 1u);
   }
@@ -162,8 +161,7 @@ ZR_TEST_UNIT(image_lifecycle_emit_frame_kitty_retransmits_when_dims_change_for_s
   zr_image_emit_ctx_t ctx_emit;
   zr_sb_t sb;
   uint8_t out[4096];
-  static const uint8_t rgba[16] = {1u,  2u,  3u,  4u,  5u,  6u,  7u,  8u,
-                                    9u,  10u, 11u, 12u, 13u, 14u, 15u, 16u};
+  static const uint8_t rgba[16] = {1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u, 16u};
   zr_image_cmd_t cmd_a;
   zr_image_cmd_t cmd_b;
 
@@ -200,9 +198,8 @@ ZR_TEST_UNIT(image_lifecycle_emit_frame_kitty_retransmits_when_dims_change_for_s
   ctx_emit.frame = &frame_a;
   ZR_ASSERT_EQ_U32(zr_image_emit_frame(&ctx_emit), ZR_OK);
   {
-    static const uint8_t expected_first[] =
-        "\x1b_Ga=t,f=32,s=2,v=2,i=1,m=0;AQIDBAUGBwgJCgsMDQ4PEA==\x1b\\"
-        "\x1b[1;1H\x1b_Ga=p,i=1,c=1,r=1,z=0\x1b\\";
+    static const uint8_t expected_first[] = "\x1b_Ga=t,f=32,s=2,v=2,i=1,m=0;AQIDBAUGBwgJCgsMDQ4PEA==\x1b\\"
+                                            "\x1b[1;1H\x1b_Ga=p,i=1,c=1,r=1,z=0\x1b\\";
     ZR_ASSERT_TRUE(sb.len == (sizeof(expected_first) - 1u));
     ZR_ASSERT_MEMEQ(out, expected_first, sizeof(expected_first) - 1u);
   }
@@ -212,10 +209,9 @@ ZR_TEST_UNIT(image_lifecycle_emit_frame_kitty_retransmits_when_dims_change_for_s
   ctx_emit.frame = &frame_b;
   ZR_ASSERT_EQ_U32(zr_image_emit_frame(&ctx_emit), ZR_OK);
   {
-    static const uint8_t expected_second[] =
-        "\x1b_Ga=t,f=32,s=1,v=4,i=2,m=0;AQIDBAUGBwgJCgsMDQ4PEA==\x1b\\"
-        "\x1b[1;1H\x1b_Ga=p,i=2,c=1,r=1,z=0\x1b\\"
-        "\x1b_Ga=d,d=i,i=1\x1b\\";
+    static const uint8_t expected_second[] = "\x1b_Ga=t,f=32,s=1,v=4,i=2,m=0;AQIDBAUGBwgJCgsMDQ4PEA==\x1b\\"
+                                             "\x1b[1;1H\x1b_Ga=p,i=2,c=1,r=1,z=0\x1b\\"
+                                             "\x1b_Ga=d,d=i,i=1\x1b\\";
     ZR_ASSERT_TRUE(sb.len == (sizeof(expected_second) - 1u));
     ZR_ASSERT_MEMEQ(out, expected_second, sizeof(expected_second) - 1u);
   }

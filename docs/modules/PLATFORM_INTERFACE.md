@@ -57,6 +57,7 @@ Raw mode enables unbuffered input and disables terminal echo/line editing.
 | Function | Description |
 |----------|-------------|
 | `plat_supports_terminal_queries(plat)` | Returns 1 when probe queries are valid for this backend mode |
+| `plat_is_dumb_terminal(plat)` | Returns 1 when backend/session is a non-interactive dumb terminal mode |
 | `plat_guess_terminal_id(plat, out_id)` | Environment-based fallback identity hint when XTVERSION is unavailable |
 
 ### Time

@@ -50,8 +50,9 @@ ZR_TEST_UNIT(image_cache_lookup_by_id_hash_and_hash_dims) {
   zr_slot_seed(&state.slots[1], 11u, 222u, 0xBBB2u, 8u, 8u, 2u, 1u);
   zr_slot_seed(&state.slots[2], 12u, 333u, 0xCCC3u, 8u, 8u, 3u, 0u);
 
-  ZR_ASSERT_TRUE(zr_image_cache_find_by_id_hash(&state, 111u, 0xAAA1u) == 0);
-  ZR_ASSERT_TRUE(zr_image_cache_find_by_id_hash(&state, 333u, 0xCCC3u) == -1);
+  ZR_ASSERT_TRUE(zr_image_cache_find_by_id_hash(&state, 111u, 0xAAA1u, 4u, 4u) == 0);
+  ZR_ASSERT_TRUE(zr_image_cache_find_by_id_hash(&state, 111u, 0xAAA1u, 8u, 2u) == -1);
+  ZR_ASSERT_TRUE(zr_image_cache_find_by_id_hash(&state, 333u, 0xCCC3u, 8u, 8u) == -1);
   ZR_ASSERT_TRUE(zr_image_cache_find_by_hash_dims(&state, 0xBBB2u, 8u, 8u) == 1);
   ZR_ASSERT_TRUE(zr_image_cache_find_by_hash_dims(&state, 0xCCC3u, 8u, 8u) == -1);
 }

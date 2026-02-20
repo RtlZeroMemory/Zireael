@@ -74,7 +74,7 @@ Encoding details:
 
 `zr_image_state_t` keeps a bounded LRU cache (`ZR_IMAGE_CACHE_SIZE = 64`):
 
-- cache hit by `(image_id, hash)` or `(hash, dimensions)` reuses transmitted kitty image id
+- cache hit by `(image_id, hash, dimensions)` or `(hash, dimensions)` reuses transmitted kitty image id
 - cache miss transmits a new kitty image id
 - full cache evicts least-recently-used transmitted slot (delete before reuse)
 - frame begin clears `placed_this_frame`

@@ -125,7 +125,8 @@ zr_result_t zr_image_scale_rgba(const uint8_t* src_rgba, uint16_t src_w, uint16_
 /* --- Kitty cache state helpers --- */
 void     zr_image_state_init(zr_image_state_t* state);
 void     zr_image_state_begin_frame(zr_image_state_t* state);
-int32_t  zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t image_id, uint64_t hash);
+int32_t  zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t image_id, uint64_t hash, uint16_t px_w,
+                                        uint16_t px_h);
 int32_t  zr_image_cache_find_by_hash_dims(const zr_image_state_t* state, uint64_t hash, uint16_t px_w, uint16_t px_h);
 uint32_t zr_image_cache_choose_slot(const zr_image_state_t* state);
 void     zr_image_cache_touch(zr_image_state_t* state, uint32_t slot_index);

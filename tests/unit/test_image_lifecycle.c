@@ -154,6 +154,84 @@ ZR_TEST_UNIT(image_lifecycle_emit_frame_kitty_transmit_then_cleanup_delete) {
   zr_image_frame_release(&frame_b);
 }
 
+ZR_TEST_UNIT(image_lifecycle_emit_frame_kitty_retransmits_when_dims_change_for_same_id_hash) {
+  zr_image_frame_t frame_a;
+  zr_image_frame_t frame_b;
+  zr_image_state_t state;
+  zr_arena_t arena;
+  zr_image_emit_ctx_t ctx_emit;
+  zr_sb_t sb;
+  uint8_t out[4096];
+  static const uint8_t rgba[16] = {1u,  2u,  3u,  4u,  5u,  6u,  7u,  8u,
+                                    9u,  10u, 11u, 12u, 13u, 14u, 15u, 16u};
+  zr_image_cmd_t cmd_a;
+  zr_image_cmd_t cmd_b;
+
+  memset(&cmd_a, 0, sizeof(cmd_a));
+  cmd_a.dst_col = 0u;
+  cmd_a.dst_row = 0u;
+  cmd_a.dst_cols = 1u;
+  cmd_a.dst_rows = 1u;
+  cmd_a.px_width = 2u;
+  cmd_a.px_height = 2u;
+  cmd_a.blob_len = 16u;
+  cmd_a.image_id = 42u;
+  cmd_a.format = (uint8_t)ZR_IMAGE_FORMAT_RGBA;
+  cmd_a.protocol = (uint8_t)ZR_IMG_PROTO_KITTY;
+  cmd_a.fit_mode = (uint8_t)ZR_IMAGE_FIT_FILL;
+  cmd_b = cmd_a;
+  cmd_b.px_width = 1u;
+  cmd_b.px_height = 4u;
+
+  zr_image_frame_init(&frame_a);
+  zr_image_frame_init(&frame_b);
+  zr_image_state_init(&state);
+  ZR_ASSERT_EQ_U32(zr_arena_init(&arena, 4096u, 65536u), ZR_OK);
+  zr_sb_init(&sb, out, sizeof(out));
+
+  ZR_ASSERT_EQ_U32(zr_image_frame_push_copy(&frame_a, &cmd_a, rgba), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_image_frame_push_copy(&frame_b, &cmd_b, rgba), ZR_OK);
+
+  memset(&ctx_emit, 0, sizeof(ctx_emit));
+  ctx_emit.arena = &arena;
+  ctx_emit.state = &state;
+  ctx_emit.out = &sb;
+
+  ctx_emit.frame = &frame_a;
+  ZR_ASSERT_EQ_U32(zr_image_emit_frame(&ctx_emit), ZR_OK);
+  {
+    static const uint8_t expected_first[] =
+        "\x1b_Ga=t,f=32,s=2,v=2,i=1,m=0;AQIDBAUGBwgJCgsMDQ4PEA==\x1b\\"
+        "\x1b[1;1H\x1b_Ga=p,i=1,c=1,r=1,z=0\x1b\\";
+    ZR_ASSERT_TRUE(sb.len == (sizeof(expected_first) - 1u));
+    ZR_ASSERT_MEMEQ(out, expected_first, sizeof(expected_first) - 1u);
+  }
+
+  zr_sb_reset(&sb);
+  zr_arena_reset(&arena);
+  ctx_emit.frame = &frame_b;
+  ZR_ASSERT_EQ_U32(zr_image_emit_frame(&ctx_emit), ZR_OK);
+  {
+    static const uint8_t expected_second[] =
+        "\x1b_Ga=t,f=32,s=1,v=4,i=2,m=0;AQIDBAUGBwgJCgsMDQ4PEA==\x1b\\"
+        "\x1b[1;1H\x1b_Ga=p,i=2,c=1,r=1,z=0\x1b\\"
+        "\x1b_Ga=d,d=i,i=1\x1b\\";
+    ZR_ASSERT_TRUE(sb.len == (sizeof(expected_second) - 1u));
+    ZR_ASSERT_MEMEQ(out, expected_second, sizeof(expected_second) - 1u);
+  }
+
+  ZR_ASSERT_EQ_U32(state.slot_count, 2u);
+  ZR_ASSERT_EQ_U32(state.slots[0].transmitted, 0u);
+  ZR_ASSERT_EQ_U32(state.slots[1].transmitted, 1u);
+  ZR_ASSERT_EQ_U32(state.slots[1].image_id, 42u);
+  ZR_ASSERT_EQ_U32(state.slots[1].px_width, 1u);
+  ZR_ASSERT_EQ_U32(state.slots[1].px_height, 4u);
+
+  zr_arena_release(&arena);
+  zr_image_frame_release(&frame_a);
+  zr_image_frame_release(&frame_b);
+}
+
 ZR_TEST_UNIT(image_lifecycle_emit_frame_rejects_out_of_bounds_blob_slice) {
   zr_image_frame_t frame;
   zr_image_state_t state;

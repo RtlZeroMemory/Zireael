@@ -200,6 +200,18 @@ static uint32_t zr_image_scale_axis(uint32_t pos, uint32_t src_len, uint32_t dst
   return (uint32_t)(num / (uint64_t)dst_len);
 }
 
+static uint32_t zr_image_div_ceil_u64(uint64_t num, uint32_t den) {
+  uint64_t q = 0u;
+  if (den == 0u) {
+    return 0u;
+  }
+  q = num / (uint64_t)den;
+  if ((num % (uint64_t)den) != 0u && q < UINT32_MAX) {
+    q++;
+  }
+  return (uint32_t)q;
+}
+
 static zr_result_t zr_image_rgba_out_size(uint16_t w, uint16_t h, size_t* out) {
   size_t px = 0u;
   if (!out) {
@@ -265,10 +277,10 @@ static void zr_image_choose_cover_dims(uint32_t src_w, uint32_t src_h, uint32_t 
 
   if (lhs >= rhs) {
     *out_h = dst_h;
-    *out_w = (src_h == 0u) ? 0u : (uint32_t)(((uint64_t)src_w * (uint64_t)dst_h) / (uint64_t)src_h);
+    *out_w = (src_h == 0u) ? 0u : zr_image_div_ceil_u64((uint64_t)src_w * (uint64_t)dst_h, src_h);
   } else {
     *out_w = dst_w;
-    *out_h = (src_w == 0u) ? 0u : (uint32_t)(((uint64_t)src_h * (uint64_t)dst_w) / (uint64_t)src_w);
+    *out_h = (src_w == 0u) ? 0u : zr_image_div_ceil_u64((uint64_t)src_h * (uint64_t)dst_w, src_w);
   }
   if (*out_w == 0u) {
     *out_w = 1u;
@@ -357,7 +369,8 @@ void zr_image_state_begin_frame(zr_image_state_t* state) {
   }
 }
 
-int32_t zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t image_id, uint64_t hash) {
+int32_t zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t image_id, uint64_t hash, uint16_t px_w,
+                                       uint16_t px_h) {
   uint32_t i = 0u;
   if (!state || image_id == 0u) {
     return -1;
@@ -367,7 +380,7 @@ int32_t zr_image_cache_find_by_id_hash(const zr_image_state_t* state, uint32_t i
     if (slot->transmitted == 0u) {
       continue;
     }
-    if (slot->image_id == image_id && slot->content_hash == hash) {
+    if (slot->image_id == image_id && slot->content_hash == hash && slot->px_width == px_w && slot->px_height == px_h) {
       return (int32_t)i;
     }
   }
@@ -484,7 +497,7 @@ static zr_result_t zr_image_emit_kitty_cmd(zr_image_emit_ctx_t* ctx, const zr_im
   }
 
   hash = zr_image_hash_fnv1a64(blob, (size_t)cmd->blob_len);
-  hit = zr_image_cache_find_by_id_hash(ctx->state, cmd->image_id, hash);
+  hit = zr_image_cache_find_by_id_hash(ctx->state, cmd->image_id, hash, cmd->px_width, cmd->px_height);
   if (hit < 0) {
     hit = zr_image_cache_find_by_hash_dims(ctx->state, hash, cmd->px_width, cmd->px_height);
   }

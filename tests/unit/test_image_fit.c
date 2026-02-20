@@ -70,6 +70,35 @@ ZR_TEST_UNIT(image_fit_cover_crops_center_region) {
   ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
 }
 
+ZR_TEST_UNIT(image_fit_cover_rounds_up_scaled_side_for_fractional_ratio) {
+  uint8_t src[5u * 3u * 4u];
+  uint8_t out[3u * 2u * 4u];
+  uint8_t expected[3u * 2u * 4u];
+  static const uint8_t kColumns[5u][4u] = {
+      {255u, 0u, 0u, 255u},   {0u, 255u, 0u, 255u}, {0u, 0u, 255u, 255u},
+      {255u, 255u, 0u, 255u}, {255u, 0u, 255u, 255u},
+  };
+  uint32_t y = 0u;
+  uint32_t x = 0u;
+
+  for (y = 0u; y < 3u; y++) {
+    for (x = 0u; x < 5u; x++) {
+      size_t off = ((size_t)y * 5u + (size_t)x) * 4u;
+      zr_px(src + off, kColumns[x][0], kColumns[x][1], kColumns[x][2], kColumns[x][3]);
+    }
+  }
+
+  /* COVER with ceil scaling must sample columns 0,1,2 here; floor would pick 0,1,3. */
+  for (y = 0u; y < 2u; y++) {
+    zr_px(expected + (((size_t)y * 3u + 0u) * 4u), 255u, 0u, 0u, 255u);
+    zr_px(expected + (((size_t)y * 3u + 1u) * 4u), 0u, 255u, 0u, 255u);
+    zr_px(expected + (((size_t)y * 3u + 2u) * 4u), 0u, 0u, 255u, 255u);
+  }
+
+  ZR_ASSERT_EQ_U32(zr_image_scale_rgba(src, 5u, 3u, (uint8_t)ZR_IMAGE_FIT_COVER, 3u, 2u, out, sizeof(out)), ZR_OK);
+  ZR_ASSERT_MEMEQ(out, expected, sizeof(expected));
+}
+
 ZR_TEST_UNIT(image_fit_rejects_invalid_arguments) {
   uint8_t src[4] = {0u, 0u, 0u, 255u};
   uint8_t out[4] = {0u, 0u, 0u, 0u};

@@ -1658,6 +1658,16 @@ uint8_t plat_supports_terminal_queries(plat_t* plat) {
   return plat->explicit_pipe_mode ? 0u : 1u;
 }
 
+uint8_t plat_is_dumb_terminal(plat_t* plat) {
+  if (!plat) {
+    return 0u;
+  }
+  if (plat->explicit_pipe_mode) {
+    return 1u;
+  }
+  return zr_posix_term_is_dumb() ? 1u : 0u;
+}
+
 zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id) {
   if (!plat || !out_terminal_id) {
     return ZR_ERR_INVALID_ARGUMENT;

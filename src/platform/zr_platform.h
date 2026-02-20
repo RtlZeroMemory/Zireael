@@ -60,6 +60,7 @@ zr_result_t plat_wake(plat_t* plat);
 
 /* startup detection helpers */
 uint8_t plat_supports_terminal_queries(plat_t* plat);
+uint8_t plat_is_dumb_terminal(plat_t* plat);
 zr_result_t plat_guess_terminal_id(plat_t* plat, zr_terminal_id_t* out_terminal_id);
 
 /* time */

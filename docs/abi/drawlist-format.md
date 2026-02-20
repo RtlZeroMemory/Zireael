@@ -58,6 +58,7 @@ Malformed size/layout is rejected with `ZR_ERR_FORMAT` or `ZR_ERR_LIMIT`.
 | `ZR_DL_OP_POP_CLIP` | 5 | v1+ | 8 | pop clip rectangle |
 | `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1+ | 24 | draw segmented text run from blob |
 | `ZR_DL_OP_SET_CURSOR` | 7 | v2+ | 20 | set desired cursor state |
+| `ZR_DL_OP_DRAW_CANVAS` | 8 | v4+ | 32 | draw RGBA canvas through sub-cell blitter |
 
 ## Style Encoding (`zr_dl_style_t`)
 
@@ -88,6 +89,22 @@ Validation rules:
 - URI ref must be in range when non-zero, and URI length must be `1..2083`.
 - ID ref must be in range when non-zero, and ID length must be `0..2083`.
 - Invalid refs/lengths are rejected with `ZR_ERR_FORMAT` before execution.
+
+## Drawlist v4 Canvas Command
+
+`ZR_DL_OP_DRAW_CANVAS` payload (`zr_dl_cmd_draw_canvas_t`):
+
+- destination rect in cells (`dst_col`, `dst_row`, `dst_cols`, `dst_rows`)
+- source RGBA geometry (`px_width`, `px_height`)
+- blob range (`blob_offset`, `blob_len`) into drawlist blob-bytes section
+- blitter selector (`zr_blitter_t`)
+
+Core checks:
+
+- all size/offset math is checked
+- `blob_len == px_width * px_height * 4`
+- destination bounds checked against framebuffer during execution
+- command unsupported on versions `< v4`
 
 ## String and Blob Tables
 

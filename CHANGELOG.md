@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- core/blit: sub-cell blitter infrastructure (`ASCII`, `HALFBLOCK`, `QUADRANT`, `SEXTANT`, `BRAILLE`) with deterministic nearest-neighbor scaling, integer color distance, BT.709 luma thresholding, and AUTO selector policy.
+- drawlist: added v4 opcode `ZR_DL_OP_DRAW_CANVAS` with validated RGBA blob slicing and clip-aware framebuffer execution through the blitter pipeline.
+- tests: added unit coverage for blitter selection, color/luma helpers, sampling math, per-blitter algorithms, and DRAW_CANVAS validation/execution paths.
+- golden: added byte-exact sub-cell fixtures for halfblock/quadrant/sextant/braille and full DRAW_CANVAS execution.
+- perf: added `zireael_perf_blit_bench` for 320x192 -> 160x48 braille-path sanity measurement.
 - core/diff + framebuffer: OSC 8 hyperlink support with framebuffer-owned link interning (`uri` + optional `id`) and deterministic open/close transitions during span rendering.
 - drawlist: added v3 style extension payload support (underline color + hyperlink URI/ID refs) while preserving v1/v2 framing/opcode compatibility.
 - tests: added unit coverage for underline variants, colored-underlines, hyperlink transitions/capability gating, and v3 drawlist validate/execute paths.
@@ -18,6 +23,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- config/versioning: engine negotiation now accepts drawlist format `v4` in addition to existing versions.
+- docs: added module spec for sub-cell blitters and updated drawlist/ABI/versioning references for DRAW_CANVAS and v4 negotiation.
 - diff renderer: underline style variants now emit colon-subparameter SGR forms (`4:1..4:5`) with legacy `4` fallback for variant `0`.
 - diff renderer: colored underline emission now supports `58`/`59`, capability-gated and color-mode-aware (RGB/256 downgrade).
 - platform caps: POSIX/Win32 capability snapshots now expose `supports_underline_styles`, `supports_colored_underlines`, and `supports_hyperlinks`, including environment override knobs.

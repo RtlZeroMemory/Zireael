@@ -1,0 +1,6 @@
+id: blit_drawlist_canvas_001_ascii
+kind: drawlist-opcode
+opcode: DRAW_CANVAS(v4)
+blitter: ascii
+input: 1x1 RGBA pixel (12,34,56,255)
+expected: space glyph with fg/bg=0x000C2238

@@ -18,7 +18,13 @@ Binary format headers:
 - `zr_drawlist.h` - drawlist structs/opcodes
 - `zr_event.h` - packed event batch structs/types
 
-Current drawlist versions: `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, `ZR_DRAWLIST_VERSION_V3`.
+Drawlist v4 adds:
+
+- `ZR_DL_OP_DRAW_CANVAS` command payload (`zr_dl_cmd_draw_canvas_t`)
+- sub-cell selector enum (`zr_blitter_t`)
+
+Current drawlist versions: `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, `ZR_DRAWLIST_VERSION_V3`,
+`ZR_DRAWLIST_VERSION_V4`.
 
 ## Result Model
 
@@ -174,7 +180,7 @@ Notes:
 From `zr_engine_config_t` at create time:
 
 - `requested_engine_abi_*` must match pinned ABI macros.
-- `requested_drawlist_version` must be supported (`v1`, `v2`, or `v3`).
+- `requested_drawlist_version` must be supported (`v1`, `v2`, `v3`, or `v4`).
 - `requested_event_batch_version` must match pinned event version.
 - `cap_force_flags` / `cap_suppress_flags` apply deterministic capability
   overrides (`suppress` wins over `force`).
@@ -188,7 +194,7 @@ zr_engine_config_t cfg = zr_engine_config_default();
 cfg.requested_engine_abi_major = ZR_ENGINE_ABI_MAJOR;
 cfg.requested_engine_abi_minor = ZR_ENGINE_ABI_MINOR;
 cfg.requested_engine_abi_patch = ZR_ENGINE_ABI_PATCH;
-cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V3;
+cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V4;
 cfg.requested_event_batch_version = ZR_EVENT_BATCH_VERSION_V1;
 
 zr_engine_t* e = NULL;

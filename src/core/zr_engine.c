@@ -14,6 +14,7 @@
 #include "core/zr_debug_trace.h"
 #include "core/zr_detect.h"
 #include "core/zr_diff.h"
+#include "core/zr_blit.h"
 #include "core/zr_drawlist.h"
 #include "core/zr_event_pack.h"
 #include "core/zr_event_queue.h"
@@ -1384,6 +1385,16 @@ static void zr_engine_trace_drawlist(zr_engine_t* e, uint32_t code, const uint8_
   (void)zr_debug_trace_drawlist(e->debug_trace, code, zr_engine_now_us(), &rec);
 }
 
+/* Build blitter AUTO-selection caps from engine profile plus runtime platform mode. */
+static void zr_engine_build_blit_caps(const zr_engine_t* e, zr_blit_caps_t* out_caps) {
+  if (!e || !out_caps) {
+    return;
+  }
+  zr_blit_caps_from_profile(&e->term_profile, out_caps);
+  out_caps->is_pipe_mode = (plat_supports_terminal_queries(e->plat) == 0u) ? 1u : 0u;
+  out_caps->is_dumb_terminal = plat_is_dumb_terminal(e->plat);
+}
+
 /*
   Validate and execute a drawlist against the staging framebuffer.
 
@@ -1423,8 +1434,10 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
   }
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
+  zr_blit_caps_t blit_caps;
+  zr_engine_build_blit_caps(e, &blit_caps);
   rc = zr_dl_execute(&v, &e->fb_stage, &e->cfg_runtime.limits, e->cfg_runtime.tab_width, e->cfg_runtime.width_policy,
-                     &cursor_stage);
+                     &blit_caps, &cursor_stage);
   if (rc != ZR_OK) {
     zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,
                              v.hdr.version, ZR_OK, rc);

@@ -1,0 +1,5 @@
+id: blit_sextant_001_left_column
+kind: subcell-blitter
+blitter: sextant
+input: 2x3 (left white, right black)
+expected: fallback left-half glyph mapping for mask 0x15

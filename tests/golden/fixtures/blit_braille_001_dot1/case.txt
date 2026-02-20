@@ -1,0 +1,5 @@
+id: blit_braille_001_dot1
+kind: subcell-blitter
+blitter: braille
+input: 2x4 with one white top-left pixel
+expected: U+2801 with fg=white bg=black

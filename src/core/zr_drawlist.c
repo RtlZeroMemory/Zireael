@@ -1,5 +1,5 @@
 /*
-  src/core/zr_drawlist.c — Drawlist validator + executor (v1 + v2 + v3).
+  src/core/zr_drawlist.c — Drawlist validator + executor (v1 + v2 + v3 + v4).
 
   Why: Validates wrapper-provided drawlist bytes (bounds/caps/version) and
   executes deterministic drawing into the framebuffer without UB.
@@ -10,6 +10,7 @@
 
 #include "core/zr_drawlist.h"
 
+#include "core/zr_blit.h"
 #include "core/zr_framebuffer.h"
 #include "core/zr_version.h"
 
@@ -307,6 +308,21 @@ static zr_result_t zr_dl_read_cmd_set_cursor(zr_byte_reader_t* r, zr_dl_cmd_set_
   return ZR_OK;
 }
 
+static zr_result_t zr_dl_read_cmd_draw_canvas(zr_byte_reader_t* r, zr_dl_cmd_draw_canvas_t* out) {
+  if (!r || !out) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!zr_byte_reader_read_u16le(r, &out->dst_col) || !zr_byte_reader_read_u16le(r, &out->dst_row) ||
+      !zr_byte_reader_read_u16le(r, &out->dst_cols) || !zr_byte_reader_read_u16le(r, &out->dst_rows) ||
+      !zr_byte_reader_read_u16le(r, &out->px_width) || !zr_byte_reader_read_u16le(r, &out->px_height) ||
+      !zr_byte_reader_read_u32le(r, &out->blob_offset) || !zr_byte_reader_read_u32le(r, &out->blob_len) ||
+      !zr_byte_reader_read_u8(r, &out->blitter) || !zr_byte_reader_read_u8(r, &out->flags) ||
+      !zr_byte_reader_read_u16le(r, &out->reserved)) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
 static zr_result_t zr_dl_read_header(const uint8_t* bytes, size_t bytes_len, zr_dl_header_t* out) {
   if (!out) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -412,7 +428,7 @@ static zr_result_t zr_dl_validate_header(const zr_dl_header_t* hdr, size_t bytes
     return ZR_ERR_FORMAT;
   }
   if (hdr->version != ZR_DRAWLIST_VERSION_V1 && hdr->version != ZR_DRAWLIST_VERSION_V2 &&
-      hdr->version != ZR_DRAWLIST_VERSION_V3) {
+      hdr->version != ZR_DRAWLIST_VERSION_V3 && hdr->version != ZR_DRAWLIST_VERSION_V4) {
     return ZR_ERR_UNSUPPORTED;
   }
   if (hdr->header_size != (uint32_t)sizeof(zr_dl_header_t)) {
@@ -740,8 +756,58 @@ static zr_result_t zr_dl_validate_cmd_set_cursor(const zr_dl_cmd_header_t* ch, z
   return ZR_OK;
 }
 
+static uint8_t zr_dl_canvas_blitter_valid(uint8_t blitter) {
+  return (blitter <= (uint8_t)ZR_BLIT_ASCII) ? 1u : 0u;
+}
+
+static zr_result_t zr_dl_validate_cmd_draw_canvas(const zr_dl_view_t* view, const zr_dl_cmd_header_t* ch,
+                                                  zr_byte_reader_t* r) {
+  zr_dl_cmd_draw_canvas_t cmd;
+  uint32_t px_count = 0u;
+  uint32_t expected_len = 0u;
+  uint32_t row_bytes = 0u;
+  size_t blob_end = 0u;
+
+  if (!view || !ch || !r) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (ch->size != (uint32_t)(sizeof(zr_dl_cmd_header_t) + sizeof(zr_dl_cmd_draw_canvas_t))) {
+    return ZR_ERR_FORMAT;
+  }
+
+  zr_result_t rc = zr_dl_read_cmd_draw_canvas(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  if (cmd.flags != 0u || cmd.reserved != 0u || cmd.dst_cols == 0u || cmd.dst_rows == 0u || cmd.px_width == 0u ||
+      cmd.px_height == 0u || zr_dl_canvas_blitter_valid(cmd.blitter) == 0u) {
+    return ZR_ERR_FORMAT;
+  }
+
+  if (!zr_checked_mul_u32((uint32_t)cmd.px_width, (uint32_t)cmd.px_height, &px_count) ||
+      !zr_checked_mul_u32(px_count, ZR_BLIT_RGBA_BYTES_PER_PIXEL, &expected_len) ||
+      !zr_checked_mul_u32((uint32_t)cmd.px_width, ZR_BLIT_RGBA_BYTES_PER_PIXEL, &row_bytes)) {
+    return ZR_ERR_FORMAT;
+  }
+  if (row_bytes > UINT16_MAX) {
+    return ZR_ERR_FORMAT;
+  }
+  if (expected_len != cmd.blob_len) {
+    return ZR_ERR_FORMAT;
+  }
+  if (!zr_checked_add_u32_to_size(cmd.blob_offset, cmd.blob_len, &blob_end)) {
+    return ZR_ERR_FORMAT;
+  }
+  if (blob_end > view->blobs_bytes_len) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
 static zr_result_t zr_dl_validate_cmd_payload(const zr_dl_view_t* view, const zr_limits_t* lim, zr_byte_reader_t* r,
-                                              const zr_dl_cmd_header_t* ch, uint32_t* clip_depth, bool allow_cursor) {
+                                              const zr_dl_cmd_header_t* ch, uint32_t* clip_depth, bool allow_cursor,
+                                              bool allow_canvas) {
   if (!view || !lim || !r || !ch || !clip_depth) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -761,13 +827,15 @@ static zr_result_t zr_dl_validate_cmd_payload(const zr_dl_view_t* view, const zr
     return zr_dl_validate_cmd_draw_text_run(view, ch, r, lim);
   case ZR_DL_OP_SET_CURSOR:
     return allow_cursor ? zr_dl_validate_cmd_set_cursor(ch, r) : ZR_ERR_UNSUPPORTED;
+  case ZR_DL_OP_DRAW_CANVAS:
+    return allow_canvas ? zr_dl_validate_cmd_draw_canvas(view, ch, r) : ZR_ERR_UNSUPPORTED;
   default:
     return ZR_ERR_UNSUPPORTED;
   }
 }
 
-static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim,
-                                                    bool allow_cursor) {
+static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim, bool allow_cursor,
+                                                    bool allow_canvas) {
   if (!view || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -790,7 +858,7 @@ static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, co
       return ZR_ERR_FORMAT;
     }
 
-    rc = zr_dl_validate_cmd_payload(view, lim, &r, &ch, &clip_depth, allow_cursor);
+    rc = zr_dl_validate_cmd_payload(view, lim, &r, &ch, &clip_depth, allow_cursor, allow_canvas);
     if (rc != ZR_OK) {
       return rc;
     }
@@ -804,17 +872,22 @@ static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, co
 
 /* Walk and validate every command in the command stream (framing, opcodes, indices). */
 static zr_result_t zr_dl_validate_cmd_stream_v1(const zr_dl_view_t* view, const zr_limits_t* lim) {
-  return zr_dl_validate_cmd_stream_common(view, lim, false);
+  return zr_dl_validate_cmd_stream_common(view, lim, false, false);
 }
 
 /* Walk and validate every command in the command stream (v2: includes cursor op). */
 static zr_result_t zr_dl_validate_cmd_stream_v2(const zr_dl_view_t* view, const zr_limits_t* lim) {
-  return zr_dl_validate_cmd_stream_common(view, lim, true);
+  return zr_dl_validate_cmd_stream_common(view, lim, true, false);
 }
 
 /* Walk and validate every command in the command stream (v3: v2 opcodes + style extension). */
 static zr_result_t zr_dl_validate_cmd_stream_v3(const zr_dl_view_t* view, const zr_limits_t* lim) {
-  return zr_dl_validate_cmd_stream_common(view, lim, true);
+  return zr_dl_validate_cmd_stream_common(view, lim, true, false);
+}
+
+/* Walk and validate every command in the command stream (v4: adds DRAW_CANVAS). */
+static zr_result_t zr_dl_validate_cmd_stream_v4(const zr_dl_view_t* view, const zr_limits_t* lim) {
+  return zr_dl_validate_cmd_stream_common(view, lim, true, true);
 }
 
 static zr_result_t zr_dl_span_table_read_checked(const uint8_t* span_table, size_t span_count, uint32_t index,
@@ -1043,6 +1116,8 @@ zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limi
     rc = zr_dl_validate_cmd_stream_v2(&view, lim);
   } else if (hdr.version == ZR_DRAWLIST_VERSION_V3) {
     rc = zr_dl_validate_cmd_stream_v3(&view, lim);
+  } else if (hdr.version == ZR_DRAWLIST_VERSION_V4) {
+    rc = zr_dl_validate_cmd_stream_v4(&view, lim);
   } else {
     rc = ZR_ERR_UNSUPPORTED;
   }
@@ -1350,9 +1425,75 @@ static zr_result_t zr_dl_exec_set_cursor(zr_byte_reader_t* r, zr_cursor_state_t*
   return ZR_OK;
 }
 
+static zr_result_t zr_dl_exec_canvas_bounds(const zr_fb_t* fb, const zr_dl_cmd_draw_canvas_t* cmd) {
+  uint32_t col_end = 0u;
+  uint32_t row_end = 0u;
+  if (!fb || !cmd) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!zr_checked_add_u32((uint32_t)cmd->dst_col, (uint32_t)cmd->dst_cols, &col_end) ||
+      !zr_checked_add_u32((uint32_t)cmd->dst_row, (uint32_t)cmd->dst_rows, &row_end)) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (col_end > fb->cols || row_end > fb->rows) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  return ZR_OK;
+}
+
+/* Execute DRAW_CANVAS by routing RGBA bytes through the selected sub-cell blitter. */
+static zr_result_t zr_dl_exec_draw_canvas(zr_byte_reader_t* r, const zr_dl_view_t* v, zr_fb_painter_t* p,
+                                          const zr_blit_caps_t* blit_caps) {
+  zr_dl_cmd_draw_canvas_t cmd;
+  zr_blit_caps_t default_caps;
+  zr_blitter_t effective = ZR_BLIT_ASCII;
+  size_t blob_end = 0u;
+  uint32_t stride_bytes = 0u;
+  zr_blit_input_t input;
+  zr_rect_t dst_rect;
+  zr_result_t rc = zr_dl_read_cmd_draw_canvas(r, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  rc = zr_dl_exec_canvas_bounds(p->fb, &cmd);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  if (!zr_checked_add_u32_to_size(cmd.blob_offset, cmd.blob_len, &blob_end) || blob_end > v->blobs_bytes_len) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (!zr_checked_mul_u32((uint32_t)cmd.px_width, ZR_BLIT_RGBA_BYTES_PER_PIXEL, &stride_bytes) ||
+      stride_bytes > UINT16_MAX) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  input.pixels = v->blobs_bytes + cmd.blob_offset;
+  input.px_width = cmd.px_width;
+  input.px_height = cmd.px_height;
+  input.stride = (uint16_t)stride_bytes;
+
+  dst_rect.x = (int32_t)cmd.dst_col;
+  dst_rect.y = (int32_t)cmd.dst_row;
+  dst_rect.w = (int32_t)cmd.dst_cols;
+  dst_rect.h = (int32_t)cmd.dst_rows;
+
+  if (!blit_caps) {
+    memset(&default_caps, 0, sizeof(default_caps));
+    default_caps.supports_unicode = 1u;
+    default_caps.supports_halfblock = 1u;
+    default_caps.supports_quadrant = 1u;
+    default_caps.supports_braille = 1u;
+    blit_caps = &default_caps;
+  }
+
+  return zr_blit_dispatch(p, dst_rect, &input, (zr_blitter_t)cmd.blitter, blit_caps, &effective);
+}
+
 /* Execute a validated drawlist into the framebuffer; assumes view came from zr_dl_validate. */
 zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim, uint32_t tab_width,
-                          uint32_t width_policy, zr_cursor_state_t* inout_cursor_state) {
+                          uint32_t width_policy, const zr_blit_caps_t* blit_caps,
+                          zr_cursor_state_t* inout_cursor_state) {
   if (!v || !dst || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -1441,6 +1582,16 @@ zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t
         return ZR_ERR_UNSUPPORTED;
       }
       rc = zr_dl_exec_set_cursor(&r, inout_cursor_state);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_DRAW_CANVAS: {
+      if (view.hdr.version < ZR_DRAWLIST_VERSION_V4) {
+        return ZR_ERR_UNSUPPORTED;
+      }
+      rc = zr_dl_exec_draw_canvas(&r, &view, &painter, blit_caps);
       if (rc != ZR_OK) {
         return rc;
       }

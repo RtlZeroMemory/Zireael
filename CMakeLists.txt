@@ -73,6 +73,12 @@ set(ZIREAEL_SOURCES
         src/core/zr_diff.c
         src/core/zr_debug_overlay.c
         src/core/zr_debug_trace.c
+        src/core/zr_blit.c
+        src/core/zr_blit_ascii.c
+        src/core/zr_blit_braille.c
+        src/core/zr_blit_halfblock.c
+        src/core/zr_blit_quadrant.c
+        src/core/zr_blit_sextant.c
         src/core/zr_detect.c
         src/core/zr_drawlist.c
         src/core/zr_engine.c

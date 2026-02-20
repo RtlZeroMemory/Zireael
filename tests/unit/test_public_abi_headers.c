@@ -25,6 +25,8 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   ZR_ASSERT_TRUE(ZR_ENGINE_ABI_MAJOR == 1u);
   ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V1 == 1u);
   ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V2 == 2u);
+  ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V3 == 3u);
+  ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V4 == 4u);
   ZR_ASSERT_TRUE(ZR_EVENT_BATCH_VERSION_V1 == 1u);
 
   /* Ensure the public engine symbols link and are callable. */
@@ -76,6 +78,20 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
   dl.reserved0 = 0u;
   (void)h;
   (void)dl;
+
+  zr_dl_cmd_draw_canvas_t canvas;
+  canvas.dst_col = 0u;
+  canvas.dst_row = 0u;
+  canvas.dst_cols = 1u;
+  canvas.dst_rows = 1u;
+  canvas.px_width = 1u;
+  canvas.px_height = 1u;
+  canvas.blob_offset = 0u;
+  canvas.blob_len = 4u;
+  canvas.blitter = (uint8_t)ZR_BLIT_ASCII;
+  canvas.flags = 0u;
+  canvas.reserved = 0u;
+  (void)canvas;
 
   zr_terminal_caps_t caps;
   ZR_ASSERT_TRUE(engine_get_caps(e, &caps) == ZR_OK);

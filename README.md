@@ -18,7 +18,10 @@
 
 ## Overview
 
-Zireael is a **low-level terminal rendering engine** for embedding in higher-level TUI frameworks. It is intentionally narrow: wrappers submit a versioned binary drawlist, and receive a versioned packed event batch.
+Zireael is a **low-level terminal rendering engine** for embedding in
+higher-level TUI frameworks.\
+It is intentionally narrow: wrappers submit a versioned binary drawlist,
+and receive a versioned packed event batch.
 
 ```text
 Wrapper / Host Runtime                 Zireael Engine
@@ -30,35 +33,104 @@ Wrapper / Host Runtime                 Zireael Engine
  event batch bytes      <-----------   engine_poll_events()
 ```
 
+The primary reference integration is Rezi:\
+https://github.com/RtlZeroMemory/Rezi
+
+Rezi is a TypeScript TUI framework built directly on top of Zireael.
+
+---
+
+## Engine Capabilities
+
+Beyond traditional cell-grid rendering, Zireael exposes primitives most
+terminal engines do not implement.
+
+### Extended Styles
+
+-   Full SGR colon-subparameter support
+    -   curly underline
+    -   dotted underline
+    -   dashed underline
+    -   double underline
+-   Independent underline color (SGR 58)
+-   OSC 8 inline hyperlinks with ID deduplication
+-   Fully diff-aware style emission (only changed attributes are
+    written)
+
+### Terminal Capability Detection
+
+Active probing during engine initialization:
+
+-   XTVERSION
+-   DA1 / DA2
+-   DECRQM mode queries
+-   Cell pixel size measurement
+
+Builds a structured terminal profile (kitty, iTerm2, WezTerm, ghostty,
+xterm, etc.) with explicit feature flags.\
+Falls back to TERM / COLORTERM heuristics when probing is unavailable.
+
+### Sub-Cell Rendering
+
+    Halfblock  ██    Quadrant  ▗▘    Sextant  ▛▙     Braille  ⡷⣸
+    1×2 px/cell      2×2 px/cell     2×3 px/cell      2×4 px/cell
+    2 colors         2 colors        2 colors          1 color
+
+Four blitter backends with unified API:
+
+-   Halfblock (1×2)
+-   Quadrant (2×2)
+-   Sextant (2×3)
+-   Braille (2×4)
+
+Each increases effective resolution within standard terminal cells ---
+enabling line drawing, filled regions, pixel grids, and charts ---
+without requiring graphics protocol support.
+
+Automatic best-blitter selection based on detected terminal
+capabilities.
+
+---
+
 ## Project Status
 
 Zireael is currently in **alpha**.
 
-- APIs and wire formats are versioned, but pre-GA iteration is still active.
-- Wrapper authors should pin exact versions and expect fast-moving minor-line changes while alpha continues.
-- See `docs/release-model.md` for release-channel policy.
+-   APIs and wire formats are versioned
+-   Pre-GA iteration is active
+-   Wrapper authors should pin exact versions
+-   Expect fast-moving minor-line changes while alpha continues
 
-### What it is
+See `docs/release-model.md` for release-channel policy.
 
-- A deterministic C engine with a small public ABI
-- A versioned binary protocol pair (drawlist in, events out)
-- A boundary-safe core (`src/core`, `src/unicode`, `src/util`) with OS code isolated in `src/platform/*`
+---
 
-### What it is not
+## What it is
 
-- Not a widget/layout framework
-- Not an app runtime
-- Not a high-level immediate mode text API
+-   A deterministic C engine with a small public ABI
+-   A versioned binary protocol pair (drawlist in, events out)
+-   A boundary-safe core (`src/core`, `src/unicode`, `src/util`)
+-   OS code isolated strictly in `src/platform/*`
+
+## What it is not
+
+-   Not a widget/layout framework
+-   Not an app runtime
+-   Not a high-level immediate mode text API
+
+---
 
 ## Design Guarantees
 
-- **Binary in / binary out**: drawlist + event batch are versioned wire formats.
-- **Ownership (locked)**: engine owns engine allocations; caller never frees engine memory.
-- **Buffer-oriented API**: caller supplies drawlist input bytes and event output buffers.
-- **Determinism**: pinned versions, pinned Unicode policy, explicit caps.
-- **Platform boundary**: OS headers/code remain in `src/platform/posix` and `src/platform/win32`.
-- **No partial effects on failure**: malformed input/config errors fail cleanly.
-- **Single flush per present**: `engine_present()` performs one platform write on success.
+-   Binary in / binary out (versioned wire formats)
+-   Locked ownership model (engine owns engine allocations)
+-   Buffer-oriented API
+-   Determinism (pinned versions + pinned Unicode policy)
+-   Strict platform boundary isolation
+-   No partial effects on failure
+-   Single flush per present()
+
+---
 
 ## Architecture
 
@@ -78,9 +150,11 @@ flowchart TD
   C --> P
 ```
 
+---
+
 ## Quickstart
 
-### Build and run (Linux/macOS)
+### Linux / macOS
 
 ```bash
 cmake --preset posix-clang-debug
@@ -89,7 +163,7 @@ ctest --test-dir out/build/posix-clang-debug --output-on-failure
 ./out/build/posix-clang-debug/zr_example_minimal_render_loop
 ```
 
-### Build and run (Windows, clang-cl)
+### Windows (clang-cl)
 
 ```powershell
 .\scripts\vsdev.ps1
@@ -105,76 +179,91 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 bash scripts/guardrails.sh
 ```
 
-This enforces platform boundary and libc safety rules in core/unicode/util.
+Enforces platform boundary and libc safety rules.
+
+---
 
 ## Minimal Wrapper Loop
 
 ```c
-/* 1) poll packed events into caller buffer */
 int n = engine_poll_events(e, timeout_ms, event_buf, (int)sizeof(event_buf));
-if (n < 0) {
-  /* handle negative ZR_ERR_* */
-}
+if (n < 0) { /* handle error */ }
 
-/* 2) submit drawlist bytes */
 zr_result_t rc = engine_submit_drawlist(e, drawlist_bytes, drawlist_len);
-if (rc != ZR_OK) {
-  /* handle error */
-}
+if (rc != ZR_OK) { /* handle error */ }
 
-/* 3) present (diff + single flush) */
 rc = engine_present(e);
-if (rc != ZR_OK) {
-  /* handle error */
-}
+if (rc != ZR_OK) { /* handle error */ }
 ```
+
+---
 
 ## Public Surface
 
 | Surface | Purpose | Source |
 |---|---|---|
 | C ABI | lifecycle, polling, submit/present, config, metrics, caps, debug API | `include/zr/zr_engine.h` |
-| Drawlist format | wrapper -> engine render commands | `include/zr/zr_drawlist.h` |
-| Event batch format | engine -> wrapper input records | `include/zr/zr_event.h` |
+| Drawlist format | wrapper → engine render commands | `include/zr/zr_drawlist.h` |
+| Event batch format | engine → wrapper input records | `include/zr/zr_event.h` |
+| Terminal caps | detected features, profile, blitter support | `include/zr/zr_terminal_caps.h` |
 | Version pins | library/ABI/format negotiation constants | `include/zr/zr_version.h` |
 
-## Documentation Map
+---
 
-- Docs site: <https://rtlzeromemory.github.io/Zireael/>
-- Quickstart: <https://rtlzeromemory.github.io/Zireael/getting-started/quickstart/>
-- ABI policy: <https://rtlzeromemory.github.io/Zireael/abi/abi-policy/>
-- C ABI reference: <https://rtlzeromemory.github.io/Zireael/abi/c-abi-reference/>
-- Release model: <https://rtlzeromemory.github.io/Zireael/release-model/>
-- Internal normative docs index: `docs/00_INDEX.md`
+## Documentation
+
+-   Docs site: https://rtlzeromemory.github.io/Zireael/
+-   Quickstart:
+    https://rtlzeromemory.github.io/Zireael/getting-started/quickstart/
+-   ABI policy: https://rtlzeromemory.github.io/Zireael/abi/abi-policy/
+-   C ABI reference:
+    https://rtlzeromemory.github.io/Zireael/abi/c-abi-reference/
+-   Release model:
+    https://rtlzeromemory.github.io/Zireael/release-model/
+-   Internal specs: `docs/00_INDEX.md`
+
+---
 
 ## Versioning Snapshot
 
 Current pins (from `include/zr/zr_version.h`):
 
-- Library: `1.3.8`
-- Engine ABI: `1.1.0`
-- Drawlist formats: `v1`, `v2`
-- Event batch format: `v1`
+-   Library: 1.3.8
+-   Engine ABI: 1.2.0
+-   Drawlist formats: v1, v2, v3, v4, v5
+-   Event batch format: v1
 
-For evolution rules and compatibility expectations, see `docs/abi/versioning.md` and `docs/abi/abi-policy.md`.
+Version pins are determinism-critical and must not be overridden.
+
+---
 
 ## Repository Scope
 
-This repository is the **C engine only**.
+This repository contains the C engine only.
 
-- No TypeScript/Node runtime layer in this repo
-- No wrapper-specific ownership logic in core
-- Wrappers/bindings are expected to live in separate repositories
+-   No TypeScript runtime
+-   No wrapper ownership logic
+-   Wrappers live in separate repositories
+
+See https://github.com/RtlZeroMemory/Rezi for a full TUI framework built
+on Zireael.
+
+---
 
 ## Contributing
 
 See `CONTRIBUTING.md`.
 
-Implementation-ready internal specs are under `docs/` and are authoritative when conflicts occur.
+Normative internal specs under `docs/` take precedence if conflicts
+occur.
+
+---
 
 ## Security
 
-See `SECURITY.md` for vulnerability reporting and scope.
+See `SECURITY.md` for vulnerability reporting.
+
+---
 
 ## License
 

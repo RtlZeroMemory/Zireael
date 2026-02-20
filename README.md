@@ -48,12 +48,12 @@ terminal engines do not implement.
 ### Extended Styles
 
 -   Full SGR colon-subparameter support
-    -   curly underline\
-    -   dotted underline\
-    -   dashed underline\
-    -   double underline\
--   Independent underline color (SGR 58)\
--   OSC 8 inline hyperlinks with ID deduplication\
+    -   curly underline
+    -   dotted underline
+    -   dashed underline
+    -   double underline
+-   Independent underline color (SGR 58)
+-   OSC 8 inline hyperlinks with ID deduplication
 -   Fully diff-aware style emission (only changed attributes are
     written)
 
@@ -72,7 +72,7 @@ Falls back to TERM / COLORTERM heuristics when probing is unavailable.
 
 ### Sub-Cell Rendering
 
-    Halfblock  ██    Quadrant  ▗▘    Sextant  🬞🬓    Braille  ⡷⣸
+    Halfblock  ██    Quadrant  ▗▘    Sextant  ▛▙     Braille  ⡷⣸
     1×2 px/cell      2×2 px/cell     2×3 px/cell      2×4 px/cell
     2 colors         2 colors        2 colors          1 color
 

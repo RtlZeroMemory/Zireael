@@ -1,31 +1,20 @@
-```{=html}
 <p align="center">
-```
-`<img width="720" alt="Zireael" src="https://github.com/user-attachments/assets/179a0cbe-b3f1-410c-a99a-537781a1134d" />`{=html}
-```{=html}
+  <img width="720" alt="Zireael" src="https://github.com/user-attachments/assets/179a0cbe-b3f1-410c-a99a-537781a1134d" />
 </p>
-```
-```{=html}
-<p align="center">
-```
-`<em>`{=html}A deterministic terminal rendering engine in
-C`</em>`{=html}
-```{=html}
-</p>
-```
-```{=html}
-<p align="center">
-```
-`<a href="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml">`{=html}`<img src="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml/badge.svg" alt="CI">`{=html}`</a>`{=html}
-`<a href="https://github.com/RtlZeroMemory/Zireael/releases">`{=html}`<img src="https://img.shields.io/github/v/release/RtlZeroMemory/Zireael" alt="Release">`{=html}`</a>`{=html}
-`<a href="https://rtlzeromemory.github.io/Zireael/release-model/">`{=html}`<img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: Alpha">`{=html}`</a>`{=html}
-`<a href="LICENSE">`{=html}`<img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License">`{=html}`</a>`{=html}
-`<a href="https://rtlzeromemory.github.io/Zireael/">`{=html}`<img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs">`{=html}`</a>`{=html}
-```{=html}
-</p>
-```
 
-------------------------------------------------------------------------
+<p align="center">
+  <em>A deterministic terminal rendering engine in C</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml"><img src="https://github.com/RtlZeroMemory/Zireael/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/RtlZeroMemory/Zireael/releases"><img src="https://img.shields.io/github/v/release/RtlZeroMemory/Zireael" alt="Release"></a>
+  <a href="https://rtlzeromemory.github.io/Zireael/release-model/"><img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: Alpha"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  <a href="https://rtlzeromemory.github.io/Zireael/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs"></a>
+</p>
+
+---
 
 ## Overview
 
@@ -34,7 +23,7 @@ higher-level TUI frameworks.\
 It is intentionally narrow: wrappers submit a versioned binary drawlist,
 and receive a versioned packed event batch.
 
-``` text
+```text
 Wrapper / Host Runtime                 Zireael Engine
 ----------------------                 --------------
 
@@ -49,7 +38,7 @@ https://github.com/RtlZeroMemory/Rezi
 
 Rezi is a TypeScript TUI framework built directly on top of Zireael.
 
-------------------------------------------------------------------------
+---
 
 ## Engine Capabilities
 
@@ -101,7 +90,7 @@ without requiring graphics protocol support.
 Automatic best-blitter selection based on detected terminal
 capabilities.
 
-------------------------------------------------------------------------
+---
 
 ## Project Status
 
@@ -114,7 +103,7 @@ Zireael is currently in **alpha**.
 
 See `docs/release-model.md` for release-channel policy.
 
-------------------------------------------------------------------------
+---
 
 ## What it is
 
@@ -129,7 +118,7 @@ See `docs/release-model.md` for release-channel policy.
 -   Not an app runtime
 -   Not a high-level immediate mode text API
 
-------------------------------------------------------------------------
+---
 
 ## Design Guarantees
 
@@ -141,11 +130,11 @@ See `docs/release-model.md` for release-channel policy.
 -   No partial effects on failure
 -   Single flush per present()
 
-------------------------------------------------------------------------
+---
 
 ## Architecture
 
-``` mermaid
+```mermaid
 flowchart TD
   W[Wrapper / Binding<br/>Rust, Go, Python, C#]
   A[C ABI<br/>include/zr/*.h]
@@ -161,13 +150,13 @@ flowchart TD
   C --> P
 ```
 
-------------------------------------------------------------------------
+---
 
 ## Quickstart
 
 ### Linux / macOS
 
-``` bash
+```bash
 cmake --preset posix-clang-debug
 cmake --build --preset posix-clang-debug
 ctest --test-dir out/build/posix-clang-debug --output-on-failure
@@ -176,7 +165,7 @@ ctest --test-dir out/build/posix-clang-debug --output-on-failure
 
 ### Windows (clang-cl)
 
-``` powershell
+```powershell
 .\scripts\vsdev.ps1
 cmake --preset windows-clangcl-debug
 cmake --build --preset windows-clangcl-debug
@@ -186,17 +175,17 @@ ctest --test-dir out/build/windows-clangcl-debug --output-on-failure
 
 ### Guardrails
 
-``` bash
+```bash
 bash scripts/guardrails.sh
 ```
 
 Enforces platform boundary and libc safety rules.
 
-------------------------------------------------------------------------
+---
 
 ## Minimal Wrapper Loop
 
-``` c
+```c
 int n = engine_poll_events(e, timeout_ms, event_buf, (int)sizeof(event_buf));
 if (n < 0) { /* handle error */ }
 
@@ -207,33 +196,19 @@ rc = engine_present(e);
 if (rc != ZR_OK) { /* handle error */ }
 ```
 
-------------------------------------------------------------------------
+---
 
 ## Public Surface
 
-  ---------------------------------------------------------------------------------
-  Surface                 Purpose                 Source
-  ----------------------- ----------------------- ---------------------------------
-  C ABI                   lifecycle, polling,     `include/zr/zr_engine.h`
-                          submit/present, config, 
-                          metrics, caps, debug    
-                          API                     
+| Surface | Purpose | Source |
+|---|---|---|
+| C ABI | lifecycle, polling, submit/present, config, metrics, caps, debug API | `include/zr/zr_engine.h` |
+| Drawlist format | wrapper → engine render commands | `include/zr/zr_drawlist.h` |
+| Event batch format | engine → wrapper input records | `include/zr/zr_event.h` |
+| Terminal caps | detected features, profile, blitter support | `include/zr/zr_terminal_caps.h` |
+| Version pins | library/ABI/format negotiation constants | `include/zr/zr_version.h` |
 
-  Drawlist format         wrapper → engine render `include/zr/zr_drawlist.h`
-                          commands                
-
-  Event batch format      engine → wrapper input  `include/zr/zr_event.h`
-                          records                 
-
-  Terminal caps           detected features,      `include/zr/zr_terminal_caps.h`
-                          profile, blitter        
-                          support                 
-
-  Version pins            library/ABI/format      `include/zr/zr_version.h`
-                          negotiation constants   
-  ---------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
+---
 
 ## Documentation
 
@@ -247,7 +222,7 @@ if (rc != ZR_OK) { /* handle error */ }
     https://rtlzeromemory.github.io/Zireael/release-model/
 -   Internal specs: `docs/00_INDEX.md`
 
-------------------------------------------------------------------------
+---
 
 ## Versioning Snapshot
 
@@ -260,7 +235,7 @@ Current pins (from `include/zr/zr_version.h`):
 
 Version pins are determinism-critical and must not be overridden.
 
-------------------------------------------------------------------------
+---
 
 ## Repository Scope
 
@@ -273,7 +248,7 @@ This repository contains the C engine only.
 See https://github.com/RtlZeroMemory/Rezi for a full TUI framework built
 on Zireael.
 
-------------------------------------------------------------------------
+---
 
 ## Contributing
 
@@ -282,13 +257,13 @@ See `CONTRIBUTING.md`.
 Normative internal specs under `docs/` take precedence if conflicts
 occur.
 
-------------------------------------------------------------------------
+---
 
 ## Security
 
 See `SECURITY.md` for vulnerability reporting.
 
-------------------------------------------------------------------------
+---
 
 ## License
 

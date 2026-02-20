@@ -197,7 +197,7 @@ ZR_TEST_UNIT(drawlist_canvas_v1_v2_v3_rejected_as_unsupported) {
 }
 
 ZR_TEST_UNIT(drawlist_canvas_respects_clip_rectangle) {
-  uint8_t blob[8] = {255u, 0u,   0u,   255u, 0u,   0u,   255u, 255u};
+  uint8_t blob[8] = {255u, 0u, 0u, 255u, 0u, 0u, 255u, 255u};
   uint8_t bytes[192];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 2, 1, 2, 1, 0u, 8u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
   size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V4, &cmd, blob, 8u, 1u);

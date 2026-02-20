@@ -111,10 +111,12 @@ zr_result_t zr_blit_braille(zr_fb_painter_t* painter, zr_rect_t dst_rect, const 
       uint32_t fg = under_bg;
       uint32_t bg = under_bg;
       if (fg_count != 0u) {
-        fg = zr_blit_pack_rgb((uint8_t)(fg_acc_r / fg_count), (uint8_t)(fg_acc_g / fg_count), (uint8_t)(fg_acc_b / fg_count));
+        fg = zr_blit_pack_rgb((uint8_t)(fg_acc_r / fg_count), (uint8_t)(fg_acc_g / fg_count),
+                              (uint8_t)(fg_acc_b / fg_count));
       }
       if (bg_count != 0u) {
-        bg = zr_blit_pack_rgb((uint8_t)(bg_acc_r / bg_count), (uint8_t)(bg_acc_g / bg_count), (uint8_t)(bg_acc_b / bg_count));
+        bg = zr_blit_pack_rgb((uint8_t)(bg_acc_r / bg_count), (uint8_t)(bg_acc_g / bg_count),
+                              (uint8_t)(bg_acc_b / bg_count));
       }
 
       zr_style_t style;

@@ -70,7 +70,8 @@ static uint64_t zr_blit_quadrant_error(const uint32_t colors[4], uint8_t mask, u
 }
 
 /* Search all 16 patterns and pick the minimum-error 2-color partition. */
-static void zr_blit_quadrant_partition(const uint32_t colors[4], uint8_t* out_mask, uint32_t* out_fg, uint32_t* out_bg) {
+static void zr_blit_quadrant_partition(const uint32_t colors[4], uint8_t* out_mask, uint32_t* out_fg,
+                                       uint32_t* out_bg) {
   uint64_t best_err = UINT64_MAX;
   uint8_t best_mask = 0u;
   uint32_t best_fg = 0u;

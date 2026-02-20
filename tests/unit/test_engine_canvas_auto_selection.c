@@ -139,10 +139,7 @@ static zr_result_t zr_engine_canvas_auto_setup(zr_engine_t** out_engine) {
 
 ZR_TEST_UNIT(engine_canvas_auto_uses_ascii_in_pipe_mode_even_with_unicode_override) {
   static const uint8_t kBlob[16] = {
-      255u, 255u, 255u, 255u,
-      0u,   0u,   0u,   255u,
-      0u,   0u,   0u,   255u,
-      255u, 255u, 255u, 255u,
+      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u, 0u, 0u, 0u, 255u, 255u, 255u, 255u, 255u,
   };
 
   uint8_t drawlist[ZR_TEST_CANVAS_DL_BYTES_CAP];
@@ -168,10 +165,7 @@ ZR_TEST_UNIT(engine_canvas_auto_uses_ascii_in_pipe_mode_even_with_unicode_overri
 
 ZR_TEST_UNIT(engine_canvas_auto_uses_ascii_in_dumb_mode_even_with_unicode_override) {
   static const uint8_t kBlob[16] = {
-      255u, 255u, 255u, 255u,
-      0u,   0u,   0u,   255u,
-      0u,   0u,   0u,   255u,
-      255u, 255u, 255u, 255u,
+      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u, 0u, 0u, 0u, 255u, 255u, 255u, 255u, 255u,
   };
 
   uint8_t drawlist[ZR_TEST_CANVAS_DL_BYTES_CAP];
@@ -197,10 +191,7 @@ ZR_TEST_UNIT(engine_canvas_auto_uses_ascii_in_dumb_mode_even_with_unicode_overri
 
 ZR_TEST_UNIT(engine_canvas_auto_uses_unicode_when_terminal_mode_allows_it) {
   static const uint8_t kBlob[16] = {
-      255u, 255u, 255u, 255u,
-      0u,   0u,   0u,   255u,
-      0u,   0u,   0u,   255u,
-      255u, 255u, 255u, 255u,
+      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u, 0u, 0u, 0u, 255u, 255u, 255u, 255u, 255u,
   };
 
   uint8_t drawlist[ZR_TEST_CANVAS_DL_BYTES_CAP];

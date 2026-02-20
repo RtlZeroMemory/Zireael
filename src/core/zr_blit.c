@@ -23,14 +23,14 @@ static uint8_t zr_blit_is_valid_mode(zr_blitter_t mode) {
 
 static uint8_t zr_blit_terminal_known_sextant(zr_terminal_id_t id) {
   switch (id) {
-    case ZR_TERM_KITTY:
-    case ZR_TERM_GHOSTTY:
-    case ZR_TERM_WEZTERM:
-    case ZR_TERM_FOOT:
-    case ZR_TERM_CONTOUR:
-      return 1u;
-    default:
-      return 0u;
+  case ZR_TERM_KITTY:
+  case ZR_TERM_GHOSTTY:
+  case ZR_TERM_WEZTERM:
+  case ZR_TERM_FOOT:
+  case ZR_TERM_CONTOUR:
+    return 1u;
+  default:
+    return 0u;
   }
 }
 
@@ -141,8 +141,7 @@ uint32_t zr_blit_luma_bt709(uint32_t rgb) {
   const uint32_t r = (uint32_t)zr_blit_rgb_r(rgb);
   const uint32_t g = (uint32_t)zr_blit_rgb_g(rgb);
   const uint32_t b = (uint32_t)zr_blit_rgb_b(rgb);
-  return (r * ZR_BLIT_LUMA_R_WEIGHT + g * ZR_BLIT_LUMA_G_WEIGHT + b * ZR_BLIT_LUMA_B_WEIGHT) /
-         ZR_BLIT_LUMA_WEIGHT_SUM;
+  return (r * ZR_BLIT_LUMA_R_WEIGHT + g * ZR_BLIT_LUMA_G_WEIGHT + b * ZR_BLIT_LUMA_B_WEIGHT) / ZR_BLIT_LUMA_WEIGHT_SUM;
 }
 
 /* Map a destination sub-coordinate to a source axis index using floor division. */
@@ -244,20 +243,20 @@ zr_result_t zr_blit_dispatch(zr_fb_painter_t* painter, zr_rect_t dst_rect, const
   }
 
   switch (*out_effective) {
-    case ZR_BLIT_BRAILLE:
-      return zr_blit_braille(painter, dst_rect, input);
-    case ZR_BLIT_SEXTANT:
-      return zr_blit_sextant(painter, dst_rect, input);
-    case ZR_BLIT_QUADRANT:
-      return zr_blit_quadrant(painter, dst_rect, input);
-    case ZR_BLIT_HALFBLOCK:
-      return zr_blit_halfblock(painter, dst_rect, input);
-    case ZR_BLIT_ASCII:
-      return zr_blit_ascii(painter, dst_rect, input);
-    case ZR_BLIT_AUTO:
-    case ZR_BLIT_PIXEL:
-      return ZR_ERR_UNSUPPORTED;
-    default:
-      return ZR_ERR_INVALID_ARGUMENT;
+  case ZR_BLIT_BRAILLE:
+    return zr_blit_braille(painter, dst_rect, input);
+  case ZR_BLIT_SEXTANT:
+    return zr_blit_sextant(painter, dst_rect, input);
+  case ZR_BLIT_QUADRANT:
+    return zr_blit_quadrant(painter, dst_rect, input);
+  case ZR_BLIT_HALFBLOCK:
+    return zr_blit_halfblock(painter, dst_rect, input);
+  case ZR_BLIT_ASCII:
+    return zr_blit_ascii(painter, dst_rect, input);
+  case ZR_BLIT_AUTO:
+  case ZR_BLIT_PIXEL:
+    return ZR_ERR_UNSUPPORTED;
+  default:
+    return ZR_ERR_INVALID_ARGUMENT;
   }
 }

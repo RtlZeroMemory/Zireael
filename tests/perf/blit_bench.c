@@ -86,23 +86,22 @@ int main(void) {
 
   zr_blitter_t effective = ZR_BLIT_ASCII;
   for (uint32_t i = 0u; i < ZR_BLIT_BENCH_WARMUP; i++) {
-    (void)zr_blit_dispatch(&p, (zr_rect_t){0, 0, ZR_BLIT_BENCH_DST_W, ZR_BLIT_BENCH_DST_H}, &in, ZR_BLIT_BRAILLE,
-                           &caps, &effective);
+    (void)zr_blit_dispatch(&p, (zr_rect_t){0, 0, ZR_BLIT_BENCH_DST_W, ZR_BLIT_BENCH_DST_H}, &in, ZR_BLIT_BRAILLE, &caps,
+                           &effective);
   }
 
   uint64_t total_ns = 0u;
   for (uint32_t i = 0u; i < ZR_BLIT_BENCH_RUNS; i++) {
     const uint64_t t0 = zr_now_ns();
-    (void)zr_blit_dispatch(&p, (zr_rect_t){0, 0, ZR_BLIT_BENCH_DST_W, ZR_BLIT_BENCH_DST_H}, &in, ZR_BLIT_BRAILLE,
-                           &caps, &effective);
+    (void)zr_blit_dispatch(&p, (zr_rect_t){0, 0, ZR_BLIT_BENCH_DST_W, ZR_BLIT_BENCH_DST_H}, &in, ZR_BLIT_BRAILLE, &caps,
+                           &effective);
     const uint64_t t1 = zr_now_ns();
     total_ns += (t1 - t0);
   }
 
   const uint64_t mean_ns = total_ns / ZR_BLIT_BENCH_RUNS;
   const double mean_ms = (double)mean_ns / 1000000.0;
-  printf("blit_bench mean_ns=%llu mean_ms=%.3f mode=%u\n", (unsigned long long)mean_ns, mean_ms,
-         (unsigned)effective);
+  printf("blit_bench mean_ns=%llu mean_ms=%.3f mode=%u\n", (unsigned long long)mean_ns, mean_ms, (unsigned)effective);
 
   zr_fb_release(&fb);
   free(pixels);

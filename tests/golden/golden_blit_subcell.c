@@ -121,8 +121,7 @@ ZR_TEST_GOLDEN(blit_halfblock_001_upper_half) {
 
 ZR_TEST_GOLDEN(blit_quadrant_001_checkerboard) {
   uint8_t pixels[16] = {
-      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u,
-      0u,   0u,   0u,   255u, 255u, 255u, 255u, 255u,
+      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u, 0u, 0u, 0u, 255u, 255u, 255u, 255u, 255u,
   };
   zr_blit_input_t in = {pixels, 2u, 2u, 8u};
   zr_fb_t fb;
@@ -143,9 +142,8 @@ ZR_TEST_GOLDEN(blit_quadrant_001_checkerboard) {
 
 ZR_TEST_GOLDEN(blit_sextant_001_left_column) {
   uint8_t pixels[24] = {
-      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u,
-      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u,
-      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u,
+      255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u, 255u, 255u, 255u, 255u,
+      0u,   0u,   0u,   255u, 255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u,
   };
   zr_blit_input_t in = {pixels, 2u, 3u, 8u};
   zr_fb_t fb;

@@ -834,8 +834,8 @@ static zr_result_t zr_dl_validate_cmd_payload(const zr_dl_view_t* view, const zr
   }
 }
 
-static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim,
-                                                    bool allow_cursor, bool allow_canvas) {
+static zr_result_t zr_dl_validate_cmd_stream_common(const zr_dl_view_t* view, const zr_limits_t* lim, bool allow_cursor,
+                                                    bool allow_canvas) {
   if (!view || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }

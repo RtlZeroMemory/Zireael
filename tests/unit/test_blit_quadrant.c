@@ -11,8 +11,7 @@
 
 ZR_TEST_UNIT(blit_quadrant_vertical_split_maps_to_left_half_block) {
   uint8_t pixels[16] = {
-      255u, 0u,   0u,   255u, 0u,   0u,   255u, 255u,
-      255u, 0u,   0u,   255u, 0u,   0u,   255u, 255u,
+      255u, 0u, 0u, 255u, 0u, 0u, 255u, 255u, 255u, 0u, 0u, 255u, 0u, 0u, 255u, 255u,
   };
   zr_blit_input_t in = {pixels, 2u, 2u, 8u};
   zr_fb_t fb;
@@ -38,8 +37,7 @@ ZR_TEST_UNIT(blit_quadrant_vertical_split_maps_to_left_half_block) {
 
 ZR_TEST_UNIT(blit_quadrant_checkerboard_tie_break_is_deterministic) {
   uint8_t pixels[16] = {
-      255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u,
-      0u,   0u,   0u,   255u, 255u, 255u, 255u, 255u,
+      255u, 255u, 255u, 255u, 0u, 0u, 0u, 255u, 0u, 0u, 0u, 255u, 255u, 255u, 255u, 255u,
   };
   zr_blit_input_t in = {pixels, 2u, 2u, 8u};
   zr_fb_t fb;

@@ -11,9 +11,8 @@
 
 ZR_TEST_UNIT(blit_sextant_left_column_maps_to_left_half_fallback) {
   uint8_t pixels[24] = {
-      255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u,
-      255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u,
-      255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u,
+      255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u, 255u, 255u, 255u, 255u,
+      0u,   0u,   0u,   255u, 255u, 255u, 255u, 255u, 0u,   0u,   0u,   255u,
   };
   zr_blit_input_t in = {pixels, 2u, 3u, 8u};
   zr_fb_t fb;
@@ -37,9 +36,8 @@ ZR_TEST_UNIT(blit_sextant_left_column_maps_to_left_half_fallback) {
 
 ZR_TEST_UNIT(blit_sextant_determinism_same_input_same_cell_output) {
   uint8_t pixels[24] = {
-      255u, 0u,   0u,   255u, 0u,   0u,   255u, 255u,
-      0u,   255u, 0u,   255u, 255u, 255u, 0u,   255u,
-      0u,   255u, 255u, 255u, 255u, 0u,   255u, 255u,
+      255u, 0u,   0u, 255u, 0u, 0u,   255u, 255u, 0u,   255u, 0u,   255u,
+      255u, 255u, 0u, 255u, 0u, 255u, 255u, 255u, 255u, 0u,   255u, 255u,
   };
   zr_blit_input_t in = {pixels, 2u, 3u, 8u};
   zr_fb_t fb;

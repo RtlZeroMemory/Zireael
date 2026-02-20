@@ -336,7 +336,8 @@ ZR_TEST_UNIT(drawlist_execute_rejects_invalid_text_policy_arguments) {
   cursor.blink = 0u;
   cursor.reserved0 = 0u;
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 0u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor), ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 0u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &cursor),
+                   ZR_ERR_INVALID_ARGUMENT);
   ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, 999u, NULL, &cursor), ZR_ERR_INVALID_ARGUMENT);
 
   zr_fb_release(&fb);

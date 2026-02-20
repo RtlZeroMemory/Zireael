@@ -13,8 +13,8 @@
 
 ZR_TEST_UNIT(blit_halfblock_top_bottom_split_prefers_upper_for_brighter_top) {
   uint8_t pixels[8] = {
-      255u, 0u,   0u,   255u, /* top red */
-      0u,   0u,   255u, 255u  /* bottom blue */
+      255u, 0u, 0u,   255u, /* top red */
+      0u,   0u, 255u, 255u  /* bottom blue */
   };
   zr_blit_input_t in = {pixels, 1u, 2u, 4u};
   zr_fb_t fb;
@@ -39,8 +39,7 @@ ZR_TEST_UNIT(blit_halfblock_top_bottom_split_prefers_upper_for_brighter_top) {
 
 ZR_TEST_UNIT(blit_halfblock_solid_color_collapses_to_space) {
   uint8_t pixels[8] = {
-      10u, 20u, 30u, 255u,
-      10u, 20u, 30u, 255u,
+      10u, 20u, 30u, 255u, 10u, 20u, 30u, 255u,
   };
   zr_blit_input_t in = {pixels, 1u, 2u, 4u};
   zr_fb_t fb;

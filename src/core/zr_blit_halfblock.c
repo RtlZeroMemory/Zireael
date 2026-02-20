@@ -27,7 +27,7 @@ static void zr_blit_halfblock_style(zr_style_t* out_style, uint32_t fg, uint32_t
 }
 
 static const zr_blit_glyph_t* zr_blit_halfblock_pick_glyph(uint32_t top_rgb, uint32_t bot_rgb, uint8_t top_opaque,
-                                                            uint8_t bot_opaque, zr_style_t* out_style) {
+                                                           uint8_t bot_opaque, zr_style_t* out_style) {
   const uint32_t dist = zr_blit_rgb_distance_sq(top_rgb, bot_rgb);
   if (dist <= ZR_BLIT_HALFBLOCK_EQUAL_TOL_SQ) {
     zr_blit_halfblock_style(out_style, top_rgb, top_rgb);
@@ -60,12 +60,10 @@ zr_result_t zr_blit_halfblock(zr_fb_painter_t* painter, zr_rect_t dst_rect, cons
       const int32_t dst_x = dst_rect.x + x;
       const int32_t dst_y = dst_rect.y + y;
       const uint32_t bg_under = zr_blit_halfblock_cell_bg(painter, dst_x, dst_y);
-      const zr_result_t rc_top =
-          zr_blit_sample_subpixel(input, (uint32_t)x, (uint32_t)(y * 2), (uint32_t)dst_rect.w, (uint32_t)dst_rect.h,
-                                  1u, 2u, top_rgba);
-      const zr_result_t rc_bot =
-          zr_blit_sample_subpixel(input, (uint32_t)x, (uint32_t)(y * 2 + 1), (uint32_t)dst_rect.w,
-                                  (uint32_t)dst_rect.h, 1u, 2u, bot_rgba);
+      const zr_result_t rc_top = zr_blit_sample_subpixel(input, (uint32_t)x, (uint32_t)(y * 2), (uint32_t)dst_rect.w,
+                                                         (uint32_t)dst_rect.h, 1u, 2u, top_rgba);
+      const zr_result_t rc_bot = zr_blit_sample_subpixel(input, (uint32_t)x, (uint32_t)(y * 2 + 1),
+                                                         (uint32_t)dst_rect.w, (uint32_t)dst_rect.h, 1u, 2u, bot_rgba);
       if (rc_top != ZR_OK || rc_bot != ZR_OK) {
         return (rc_top != ZR_OK) ? rc_top : rc_bot;
       }

@@ -59,6 +59,7 @@ Malformed size/layout is rejected with `ZR_ERR_FORMAT` or `ZR_ERR_LIMIT`.
 | `ZR_DL_OP_DRAW_TEXT_RUN` | 6 | v1+ | 24 | draw segmented text run from blob |
 | `ZR_DL_OP_SET_CURSOR` | 7 | v2+ | 20 | set desired cursor state |
 | `ZR_DL_OP_DRAW_CANVAS` | 8 | v4+ | 32 | draw RGBA canvas through sub-cell blitter |
+| `ZR_DL_OP_DRAW_IMAGE` | 9 | v5+ | 40 | draw protocol image command with RGBA fallback |
 
 ## Style Encoding (`zr_dl_style_t`)
 
@@ -105,6 +106,35 @@ Core checks:
 - `blob_len == px_width * px_height * 4`
 - destination bounds checked against framebuffer during execution
 - command unsupported on versions `< v4`
+
+## Drawlist v5 Image Command
+
+`ZR_DL_OP_DRAW_IMAGE` payload (`zr_dl_cmd_draw_image_t`):
+
+- destination rect in cells (`dst_col`, `dst_row`, `dst_cols`, `dst_rows`)
+- source geometry (`px_width`, `px_height`)
+- blob range (`blob_offset`, `blob_len`)
+- stable image key (`image_id`)
+- format (`ZR_IMAGE_FORMAT_RGBA`, `ZR_IMAGE_FORMAT_PNG`)
+- protocol request (`auto`, `kitty`, `sixel`, `iterm2`)
+- z-layer (`-1`, `0`, `1`)
+- fit mode (`fill`, `contain`, `cover`)
+
+Core checks:
+
+- enum/range validation for format/protocol/fit/z-layer
+- all dims non-zero, reserved fields zero
+- `blob_offset + blob_len` in-bounds
+- RGBA payload length must equal `px_width * px_height * 4`
+- PNG payload length must be non-zero
+
+Execution behavior:
+
+- if selected protocol is unavailable:
+  - RGBA payload falls back to sub-cell blit (`ZR_BLIT_AUTO`)
+  - PNG payload returns `ZR_ERR_UNSUPPORTED`
+- when protocol is available, image bytes are staged and emitted in present path
+- command unsupported on versions `< v5`
 
 ## String and Blob Tables
 

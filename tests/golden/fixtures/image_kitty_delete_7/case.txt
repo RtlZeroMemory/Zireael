@@ -1,0 +1,6 @@
+id: image_kitty_delete_7
+kind: image-protocol
+protocol: kitty
+operation: delete
+input: kitty_id=7
+expected: kitty delete APC sequence

@@ -1,0 +1,6 @@
+id: image_iterm2_png_small
+kind: image-protocol
+protocol: iterm2
+operation: emit_png
+input: png bytes 89 50, dst_col=2, dst_row=1, dst=4x5
+expected: CUP + OSC 1337 with base64 payload and BEL terminator

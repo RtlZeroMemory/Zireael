@@ -11,8 +11,13 @@ add_library(zireael_unit_lib STATIC
         ${PROJECT_SOURCE_DIR}/src/core/zr_blit_halfblock.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_blit_quadrant.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_blit_sextant.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_base64.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_drawlist.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_engine.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_image.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_image_kitty.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_image_sixel.c
+        ${PROJECT_SOURCE_DIR}/src/core/zr_image_iterm2.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_event_pack.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_event_queue.c
         ${PROJECT_SOURCE_DIR}/src/core/zr_framebuffer.c
@@ -48,6 +53,7 @@ add_executable(zireael_unit_tests
         zr_tests_main.c
         unit/unit_smoke.c
         unit/test_arena.c
+        unit/test_base64.c
         unit/test_bytes.c
         unit/test_checked.c
         unit/test_damage_rects.c
@@ -85,16 +91,25 @@ add_executable(zireael_unit_tests
         unit/test_blit_selector.c
         unit/test_blit_sextant.c
         unit/test_drawlist_canvas.c
+        unit/test_drawlist_image.c
         unit/test_framebuffer_text.c
         unit/test_framebuffer_primitives.c
         unit/test_drawlist_validate.c
         unit/test_event_pack.c
         unit/test_event_queue.c
+        unit/test_image_cache.c
+        unit/test_image_fit.c
+        unit/test_image_iterm2.c
+        unit/test_image_kitty.c
+        unit/test_image_lifecycle.c
+        unit/test_image_selector.c
+        unit/test_image_sixel.c
         unit/test_limits.c
         unit/test_metrics_struct.c
         unit/test_overlay_render.c
         unit/test_public_abi_headers.c
         unit/test_ring.c
+        unit/test_sixel_quantize.c
         unit/test_string_builder.c
         unit/test_user_event_injection.c
         unit/test_vec.c
@@ -108,6 +123,7 @@ add_executable(zireael_unit_tests
         golden/golden_blit_subcell.c
         golden/golden_detect_parser.c
         golden/golden_diff_renderer.c
+        golden/golden_image_protocols.c
         golden/golden_runner_smoke.c
 )
 
@@ -144,6 +160,17 @@ target_include_directories(zireael_perf_blit_bench PRIVATE
 )
 target_link_libraries(zireael_perf_blit_bench PRIVATE zireael_build_settings)
 target_link_libraries(zireael_perf_blit_bench PRIVATE zireael_unit_lib)
+
+add_executable(zireael_perf_image_encode_bench
+        perf/image_encode_bench.c
+)
+target_include_directories(zireael_perf_image_encode_bench PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/tests
+)
+target_link_libraries(zireael_perf_image_encode_bench PRIVATE zireael_build_settings)
+target_link_libraries(zireael_perf_image_encode_bench PRIVATE zireael_unit_lib)
 
 add_test(NAME zireael.unit COMMAND zireael_unit_tests --prefix unit.)
 add_test(NAME zireael.golden COMMAND zireael_unit_tests --prefix golden.)

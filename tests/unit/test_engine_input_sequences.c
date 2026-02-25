@@ -1463,8 +1463,8 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel) {
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_MOUSE);
   const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 8u), (uint32_t)ZR_MOUSE_WHEEL);
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 20u), 0u); /* wheel_x */
-  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 24u), 1u); /* wheel_y */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 20u), 0u);           /* wheel_x */
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 24u), (uint32_t)-1); /* wheel_y */
 
   engine_destroy(e);
 }
@@ -1552,7 +1552,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
       ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 12u), 0u);
       ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 16u), 0u);
       ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 20u), 0u);
-      ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 24u), (uint32_t)-1);
+      ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 24u), 1u);
     }
 
     {

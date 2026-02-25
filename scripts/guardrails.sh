@@ -13,6 +13,7 @@ if ! command -v rg >/dev/null 2>&1; then
   exit 2
 fi
 
+# Boundary checks apply only to deterministic engine modules.
 scan_dirs=(
   "${repo_root}/src/core"
   "${repo_root}/src/unicode"

@@ -18,6 +18,10 @@ This performs:
 - Doxygen generation when `doxygen` is available
 - copy of generated API HTML to `out/site/api/`
 
+The script reuses `.venv-docs` and respects `$PYTHON`, so
+`PYTHON=python3.11 bash scripts/docs.sh build` runs with a pinned interpreter
+without rebuilding the virtualenv each time.
+
 ## Header Scope
 
 Doxygen input is configured to include public headers under `include/zr/`.

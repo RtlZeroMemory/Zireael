@@ -24,6 +24,7 @@
 
 #define ZR_EX_LINES_MAX (16u)
 #define ZR_EX_LINE_CAP (96u)
+#define ZR_EX_CMD_BYTES_CAP (1024u)
 
 typedef struct zr_ex_lines_t {
   char lines[ZR_EX_LINES_MAX][ZR_EX_LINE_CAP];
@@ -47,6 +48,12 @@ static void zr_ex_lines_push(zr_ex_lines_t* ls, const char* s) {
   snprintf(ls->lines[ZR_EX_LINES_MAX - 1u], ZR_EX_LINE_CAP, "%s", s);
 }
 
+/*
+  Parse and pretty-print packed event-batch records for the demo UI.
+
+  Why: Shows wrapper-side record framing (bounds checks + aligned stepping)
+  while staying resilient to unknown event types.
+*/
 static bool zr_ex_parse_events(zr_ex_lines_t* lines, const uint8_t* bytes, uint32_t len) {
   if (!lines || !bytes || len < (uint32_t)sizeof(zr_evbatch_header_t)) {
     return false;
@@ -76,25 +83,31 @@ static bool zr_ex_parse_events(zr_ex_lines_t* lines, const uint8_t* bytes, uint3
       const uint32_t mods = zr_ex_le32_read(bytes + payload_off + 4u);
       const uint32_t action = zr_ex_le32_read(bytes + payload_off + 8u);
       snprintf(buf, sizeof(buf), "KEY key=%u mods=0x%X action=%u", key, (unsigned)mods, action);
-    } else if (type == (uint32_t)ZR_EV_TEXT && size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t))) {
+    } else if (type == (uint32_t)ZR_EV_TEXT &&
+               size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_text_t))) {
       const uint32_t cp = zr_ex_le32_read(bytes + payload_off + 0u);
       snprintf(buf, sizeof(buf), "TEXT U+%04X", (unsigned)cp);
-    } else if (type == (uint32_t)ZR_EV_PASTE && size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_paste_t))) {
+    } else if (type == (uint32_t)ZR_EV_PASTE &&
+               size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_paste_t))) {
       const uint32_t byte_len = zr_ex_le32_read(bytes + payload_off + 0u);
       snprintf(buf, sizeof(buf), "PASTE bytes=%u", (unsigned)byte_len);
-    } else if (type == (uint32_t)ZR_EV_MOUSE && size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_mouse_t))) {
+    } else if (type == (uint32_t)ZR_EV_MOUSE &&
+               size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_mouse_t))) {
       const int32_t x = (int32_t)zr_ex_le32_read(bytes + payload_off + 0u);
       const int32_t y = (int32_t)zr_ex_le32_read(bytes + payload_off + 4u);
       const uint32_t kind = zr_ex_le32_read(bytes + payload_off + 8u);
       snprintf(buf, sizeof(buf), "MOUSE kind=%u x=%d y=%d", (unsigned)kind, (int)x, (int)y);
-    } else if (type == (uint32_t)ZR_EV_RESIZE && size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_resize_t))) {
+    } else if (type == (uint32_t)ZR_EV_RESIZE &&
+               size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_resize_t))) {
       const uint32_t cols = zr_ex_le32_read(bytes + payload_off + 0u);
       const uint32_t rows = zr_ex_le32_read(bytes + payload_off + 4u);
       snprintf(buf, sizeof(buf), "RESIZE cols=%u rows=%u", (unsigned)cols, (unsigned)rows);
-    } else if (type == (uint32_t)ZR_EV_TICK && size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_tick_t))) {
+    } else if (type == (uint32_t)ZR_EV_TICK &&
+               size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_tick_t))) {
       const uint32_t dt_ms = zr_ex_le32_read(bytes + payload_off + 0u);
       snprintf(buf, sizeof(buf), "TICK dt_ms=%u", (unsigned)dt_ms);
-    } else if (type == (uint32_t)ZR_EV_USER && size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_user_t))) {
+    } else if (type == (uint32_t)ZR_EV_USER &&
+               size >= (uint32_t)(sizeof(zr_ev_record_header_t) + sizeof(zr_ev_user_t))) {
       const uint32_t tag = zr_ex_le32_read(bytes + payload_off + 0u);
       const uint32_t byte_len = zr_ex_le32_read(bytes + payload_off + 4u);
       snprintf(buf, sizeof(buf), "USER tag=%u bytes=%u", (unsigned)tag, (unsigned)byte_len);
@@ -109,6 +122,12 @@ static bool zr_ex_parse_events(zr_ex_lines_t* lines, const uint8_t* bytes, uint3
   return true;
 }
 
+/*
+  Build a simple drawlist containing CLEAR + one DRAW_TEXT per cached line.
+
+  Layout:
+    [header][command stream][string spans][string bytes]
+*/
 static int zr_ex_build_lines_drawlist(uint8_t* out, int out_cap, const zr_ex_lines_t* lines) {
   static const zr_dl_style_t kTextStyle = {0x00FFFFFFu, 0x00000000u, 0u, 0u};
 
@@ -116,12 +135,15 @@ static int zr_ex_build_lines_drawlist(uint8_t* out, int out_cap, const zr_ex_lin
     return -1;
   }
 
-  uint8_t cmd_bytes[1024];
+  uint8_t cmd_bytes[ZR_EX_CMD_BYTES_CAP];
   uint32_t cmd_len = 0u;
   uint32_t cmd_count = 0u;
 
   /* CLEAR */
   {
+    if ((size_t)cmd_len + 8u > ZR_EX_CMD_BYTES_CAP) {
+      return -1;
+    }
     zr_ex_le16_write(cmd_bytes + cmd_len + 0u, (uint16_t)ZR_DL_OP_CLEAR);
     zr_ex_le16_write(cmd_bytes + cmd_len + 2u, 0u);
     zr_ex_le32_write(cmd_bytes + cmd_len + 4u, 8u);
@@ -132,6 +154,9 @@ static int zr_ex_build_lines_drawlist(uint8_t* out, int out_cap, const zr_ex_lin
   /* One DRAW_TEXT per line. */
   for (uint32_t i = 0u; i < lines->count; i++) {
     const uint32_t line_len = (uint32_t)strlen(lines->lines[i]);
+    if ((size_t)cmd_len + 48u > ZR_EX_CMD_BYTES_CAP) {
+      return -1;
+    }
     uint8_t* p = cmd_bytes + cmd_len;
     zr_ex_le16_write(p + 0u, (uint16_t)ZR_DL_OP_DRAW_TEXT);
     zr_ex_le16_write(p + 2u, 0u);
@@ -200,6 +225,11 @@ static int zr_ex_build_lines_drawlist(uint8_t* out, int out_cap, const zr_ex_lin
   return (int)total_size;
 }
 
+/*
+  Detect whether a packed event batch contains KEY(ESCAPE, DOWN).
+
+  Why: Keeps demo exit behavior driven by engine event protocol, not raw bytes.
+*/
 static bool zr_ex_should_exit_on_escape(const uint8_t* bytes, uint32_t len) {
   if (!bytes || len < (uint32_t)sizeof(zr_evbatch_header_t)) {
     return false;
@@ -256,6 +286,14 @@ int main(void) {
   uint8_t event_buf[4096];
   uint8_t dl_buf[8192];
 
+  /*
+    Per-frame flow:
+    1) poll packed events
+    2) update line cache / exit flag
+    3) build drawlist
+    4) submit drawlist
+    5) present once
+  */
   for (;;) {
     const int n = engine_poll_events(e, 16, event_buf, (int)sizeof(event_buf));
     if (n < 0) {
@@ -296,4 +334,3 @@ int main(void) {
   engine_destroy(e);
   return 0;
 }
-

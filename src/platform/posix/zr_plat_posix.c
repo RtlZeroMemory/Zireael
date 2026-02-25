@@ -293,6 +293,17 @@ static bool zr_posix_str_has_any_ci(const char* s, const char* const* needles, s
   return false;
 }
 
+/* Shared modern-terminal environment markers used by capability probes. */
+static const char* const ZR_POSIX_MODERN_TERM_VARS_CORE[] = {
+    "KITTY_WINDOW_ID", "WEZTERM_PANE",    "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR",
+    "VTE_VERSION",     "KONSOLE_VERSION", "WT_SESSION"};
+static const char* const ZR_POSIX_MODERN_TERM_VARS_FOCUS[] = {
+    "KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR", "VTE_VERSION", "WT_SESSION"};
+static const char* const ZR_POSIX_MODERN_TERM_VARS_UNDERLINE[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE",
+                                                                  "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR"};
+static const char* const ZR_POSIX_MODERN_TERM_VARS_SYNC_OSC52[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE",
+                                                                   "WEZTERM_EXECUTABLE"};
+
 static zr_terminal_id_t zr_posix_terminal_id_from_term_program(const char* term_program) {
   if (!term_program) {
     return ZR_TERM_UNKNOWN;
@@ -444,16 +455,13 @@ static bool zr_posix_term_indicates_truecolor(const char* term) {
 }
 
 static bool zr_posix_detect_truecolor_env(void) {
-  static const char* kModernTermVars[] = {
-      "KITTY_WINDOW_ID", "WEZTERM_PANE",    "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR",
-      "VTE_VERSION",     "KONSOLE_VERSION", "WT_SESSION"};
   const char* colorterm = zr_posix_getenv_nonempty("COLORTERM");
   if (zr_posix_str_contains_ci(colorterm, "truecolor") || zr_posix_str_contains_ci(colorterm, "24bit") ||
       zr_posix_str_contains_ci(colorterm, "24-bit") || zr_posix_str_contains_ci(colorterm, "rgb")) {
     return true;
   }
 
-  if (zr_posix_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_CORE, ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_CORE))) {
     return true;
   }
 
@@ -516,13 +524,11 @@ static uint8_t zr_posix_detect_bracketed_paste(void) {
 }
 
 static uint8_t zr_posix_detect_focus_events(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID",       "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR", "VTE_VERSION",  "WT_SESSION"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_FOCUS, ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_FOCUS))) {
     return 1u;
   }
 
@@ -533,13 +539,12 @@ static uint8_t zr_posix_detect_focus_events(void) {
 }
 
 static uint8_t zr_posix_detect_underline_styles(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_UNDERLINE,
+                                    ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_UNDERLINE))) {
     return 1u;
   }
 
@@ -549,13 +554,12 @@ static uint8_t zr_posix_detect_underline_styles(void) {
 }
 
 static uint8_t zr_posix_detect_colored_underlines(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_UNDERLINE,
+                                    ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_UNDERLINE))) {
     return 1u;
   }
 
@@ -565,14 +569,11 @@ static uint8_t zr_posix_detect_colored_underlines(void) {
 }
 
 static uint8_t zr_posix_detect_hyperlinks(void) {
-  static const char* kModernTermVars[] = {
-      "KITTY_WINDOW_ID", "WEZTERM_PANE",    "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR",
-      "VTE_VERSION",     "KONSOLE_VERSION", "WT_SESSION"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_CORE, ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_CORE))) {
     return 1u;
   }
 
@@ -619,14 +620,14 @@ static uint32_t zr_posix_detect_sgr_attrs_supported(void) {
 }
 
 static uint8_t zr_posix_detect_osc52(void) {
-  static const char* kOsc52ModernVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE"};
   static const char* kOsc52Programs[] = {"iTerm.app"};
   static const char* kOsc52Terms[] = {"xterm", "screen", "tmux", "rxvt", "kitty", "wezterm"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_env_has_any_nonempty(kOsc52ModernVars, ZR_ARRAYLEN(kOsc52ModernVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_SYNC_OSC52,
+                                    ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_SYNC_OSC52))) {
     return 1u;
   }
 
@@ -644,14 +645,14 @@ static uint8_t zr_posix_detect_sync_update(void) {
     Synchronized output (DEC private mode ?2026) is not universally supported.
     Use a conservative allowlist based on well-known environment markers.
   */
-  static const char* kSyncModernVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE"};
   static const char* kSyncPrograms[] = {"iTerm.app", "Rio", "rio"};
   static const char* kSyncTerms[] = {"kitty", "wezterm", "rio"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_env_has_any_nonempty(kSyncModernVars, ZR_ARRAYLEN(kSyncModernVars))) {
+  if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_SYNC_OSC52,
+                                    ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_SYNC_OSC52))) {
     return 1u;
   }
 

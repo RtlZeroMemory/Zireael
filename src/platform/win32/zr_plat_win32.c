@@ -305,10 +305,17 @@ static zr_terminal_id_t zr_win32_terminal_id_from_term(const char* term) {
   return ZR_TERM_UNKNOWN;
 }
 
+/* Shared modern-terminal environment markers used by capability probes. */
+static const char* const ZR_WIN32_MODERN_VARS_BASE[] = {"WT_SESSION", "KITTY_WINDOW_ID", "WEZTERM_PANE",
+                                                        "WEZTERM_EXECUTABLE", "ANSICON"};
+static const char* const ZR_WIN32_MODERN_VARS_UNDERLINE[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
+                                                             "GHOSTTY_RESOURCES_DIR"};
+static const char* const ZR_WIN32_MODERN_VARS_HYPERLINKS[] = {"WT_SESSION", "KITTY_WINDOW_ID", "WEZTERM_PANE",
+                                                              "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR"};
+static const char* const ZR_WIN32_MODERN_VARS_SYNC_OSC52[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE"};
+
 static bool zr_win32_detect_modern_vt_host(void) {
-  static const char* kModernTermVars[] = {"WT_SESSION", "KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "ANSICON"};
-  if (zr_win32_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_BASE, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_BASE))) {
     return true;
   }
 
@@ -330,13 +337,11 @@ static bool zr_win32_detect_modern_vt_host(void) {
 }
 
 static uint8_t zr_win32_detect_focus_events(void) {
-  return zr_win32_detect_modern_vt_host() ? 1u : 0u;
+  return zr_win32_detect_modern_vt_host();
 }
 
 static uint8_t zr_win32_detect_underline_styles(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR"};
-  if (zr_win32_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_UNDERLINE, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_UNDERLINE))) {
     return 1u;
   }
 
@@ -346,9 +351,7 @@ static uint8_t zr_win32_detect_underline_styles(void) {
 }
 
 static uint8_t zr_win32_detect_colored_underlines(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR"};
-  if (zr_win32_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_UNDERLINE, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_UNDERLINE))) {
     return 1u;
   }
 
@@ -358,9 +361,7 @@ static uint8_t zr_win32_detect_colored_underlines(void) {
 }
 
 static uint8_t zr_win32_detect_hyperlinks(void) {
-  static const char* kModernTermVars[] = {"WT_SESSION", "KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR"};
-  if (zr_win32_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
+  if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_HYPERLINKS, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_HYPERLINKS))) {
     return 1u;
   }
 
@@ -394,29 +395,24 @@ static plat_color_mode_t zr_win32_color_mode_clamp(plat_color_mode_t requested, 
 }
 
 static uint8_t zr_win32_detect_sync_update(void) {
-  if (zr_win32_getenv_nonempty("KITTY_WINDOW_ID")) {
-    return 1u;
-  }
-  if (zr_win32_getenv_nonempty("WEZTERM_PANE") || zr_win32_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+  static const char* kSyncTerms[] = {"kitty", "wezterm", "rio"};
+  if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_SYNC_OSC52, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_SYNC_OSC52))) {
     return 1u;
   }
   const char* term = zr_win32_getenv_nonempty("TERM");
-  if (term && (strstr(term, "kitty") || strstr(term, "wezterm") || strstr(term, "rio"))) {
+  if (zr_win32_str_has_any_ci(term, kSyncTerms, ZR_ARRAYLEN(kSyncTerms))) {
     return 1u;
   }
   return 0u;
 }
 
 static uint8_t zr_win32_detect_osc52(void) {
-  if (zr_win32_getenv_nonempty("KITTY_WINDOW_ID")) {
-    return 1u;
-  }
-  if (zr_win32_getenv_nonempty("WEZTERM_PANE") || zr_win32_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+  static const char* kOsc52Terms[] = {"xterm", "screen", "tmux", "kitty", "wezterm"};
+  if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_SYNC_OSC52, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_SYNC_OSC52))) {
     return 1u;
   }
   const char* term = zr_win32_getenv_nonempty("TERM");
-  if (term && (strstr(term, "xterm") || strstr(term, "screen") || strstr(term, "tmux") || strstr(term, "kitty") ||
-               strstr(term, "wezterm"))) {
+  if (zr_win32_str_has_any_ci(term, kOsc52Terms, ZR_ARRAYLEN(kOsc52Terms))) {
     return 1u;
   }
   return 0u;
@@ -885,55 +881,70 @@ static zr_result_t zr_win32_restore_modes_best_effort(plat_t* plat) {
   return ZR_OK;
 }
 
-/* Enable VT output/input per locked v1 rules; restores saved modes on failure. */
-static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
-  if (!plat) {
+static zr_result_t zr_win32_save_original_console_modes(plat_t* plat, DWORD* out_in_mode, DWORD* out_out_mode) {
+  if (!plat || !out_in_mode || !out_out_mode) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
-  /* --- Save original modes --- */
   DWORD in_mode = 0u;
   DWORD out_mode = 0u;
   if (!GetConsoleMode(plat->h_in, &in_mode) || !GetConsoleMode(plat->h_out, &out_mode)) {
     return ZR_ERR_PLATFORM;
   }
+
   plat->in_mode_orig = in_mode;
   plat->out_mode_orig = out_mode;
   plat->modes_valid = true;
+  *out_in_mode = in_mode;
+  *out_out_mode = out_mode;
+  return ZR_OK;
+}
 
-  /* --- Prefer UTF-8 console code pages for correct glyph rendering --- */
+static zr_result_t zr_win32_enable_utf8_console_codepages(plat_t* plat) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
   plat->in_cp_orig = GetConsoleCP();
   plat->out_cp_orig = GetConsoleOutputCP();
   plat->cp_valid = (plat->in_cp_orig != 0u && plat->out_cp_orig != 0u);
+
   if (!SetConsoleCP(CP_UTF8) || !SetConsoleOutputCP(CP_UTF8)) {
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_UNSUPPORTED;
   }
   if (GetConsoleCP() != (UINT)CP_UTF8 || GetConsoleOutputCP() != (UINT)CP_UTF8) {
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_UNSUPPORTED;
   }
+  return ZR_OK;
+}
 
-  /* --- Enable VT output (required) --- */
-  DWORD out_mode_new = out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+static zr_result_t zr_win32_enable_vt_output_mode(plat_t* plat, DWORD out_mode) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  const DWORD out_mode_new = out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
   if (!SetConsoleMode(plat->h_out, out_mode_new)) {
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_PLATFORM;
   }
+
   DWORD out_mode_after = 0u;
   if (!GetConsoleMode(plat->h_out, &out_mode_after) || (out_mode_after & ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0u) {
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_PLATFORM;
   }
+  return ZR_OK;
+}
 
-  /* --- Enable VT input (required; no legacy fallback in v1) --- */
+static zr_result_t zr_win32_enable_vt_input_mode(plat_t* plat, DWORD in_mode) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
   /*
     "Raw" input in practice means:
       - no cooked line buffering and no echo
       - no ctrl-c signal translation (engine parses bytes)
       - avoid QuickEdit mode (can freeze input on mouse selection)
-
-    Note: we intentionally keep this logic deterministic and config-driven.
   */
   DWORD in_mode_base = in_mode | ENABLE_VIRTUAL_TERMINAL_INPUT;
 
@@ -966,12 +977,11 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
     }
   }
   if (!set_ok) {
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_UNSUPPORTED;
   }
+
   DWORD in_mode_after = 0u;
   if (!GetConsoleMode(plat->h_in, &in_mode_after) || (in_mode_after & ENABLE_VIRTUAL_TERMINAL_INPUT) == 0u) {
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_UNSUPPORTED;
   }
   if ((in_mode_after & ENABLE_LINE_INPUT) != 0u) {
@@ -980,8 +990,41 @@ static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
       keys won't arrive as VT sequences. Treat as unsupported so callers can
       surface a clear error.
     */
-    (void)zr_win32_restore_modes_best_effort(plat);
     return ZR_ERR_UNSUPPORTED;
+  }
+
+  return ZR_OK;
+}
+
+/* Enable VT output/input per locked v1 rules; restores saved modes on failure. */
+static zr_result_t zr_win32_enable_vt_or_fail(plat_t* plat) {
+  if (!plat) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  DWORD in_mode = 0u;
+  DWORD out_mode = 0u;
+  zr_result_t rc = zr_win32_save_original_console_modes(plat, &in_mode, &out_mode);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  rc = zr_win32_enable_utf8_console_codepages(plat);
+  if (rc != ZR_OK) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return rc;
+  }
+
+  rc = zr_win32_enable_vt_output_mode(plat, out_mode);
+  if (rc != ZR_OK) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return rc;
+  }
+
+  rc = zr_win32_enable_vt_input_mode(plat, in_mode);
+  if (rc != ZR_OK) {
+    (void)zr_win32_restore_modes_best_effort(plat);
+    return rc;
   }
 
   return ZR_OK;

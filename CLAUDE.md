@@ -49,6 +49,14 @@ Follow `docs/CODE_STANDARDS.md`. Key points:
 - Add ASCII diagrams for complex data structures (ring buffers, etc.)
 - Add section markers in long functions (`/* --- Section Name --- */`)
 
+### Readability gate (required)
+
+- Comments in complex paths must explain decision rationale (`why this tradeoff`), not field glossaries (`what each field is`).
+- Split dense expressions into named intermediates when logic mixes shifts/masks, chained ternaries, or multi-branch fallbacks.
+- Replace magic thresholds and protocol constants with named constants in local enums/macros.
+- For long functions and tests, add section markers (`/* --- Arrange/Act/Assert --- */`, `/* --- Validate/Compute/Emit --- */`).
+- Prefer small helper functions for repeated bit/offset calculations to avoid copy-pasted arithmetic.
+
 See `.claude/skills/zireael-code-style/SKILL.md` for detailed guidance.
 
 ## Repo layout (high level)

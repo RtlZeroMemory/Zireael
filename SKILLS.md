@@ -25,4 +25,16 @@ For any non-trivial task, invoke the guardian first:
 $zireael-spec-guardian
 ```
 
+For any code edit or review, invoke code style immediately after guardian:
+
+```
+$zireael-code-style
+```
+
 Then invoke domain-specific skills as needed.
+
+## Mandatory skill order for code changes
+
+1. `zireael-spec-guardian` (scope + boundary + locked docs)
+2. `zireael-code-style` (readability + comments + named constants)
+3. Domain skill(s) relevant to the touched module

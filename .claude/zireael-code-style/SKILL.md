@@ -14,6 +14,7 @@ Use this skill when:
 - adding comments to existing code
 - extracting magic numbers to constants
 - normalizing coding patterns
+- simplifying dense bitwise/mask/ternary expressions
 
 ## Source of truth
 
@@ -33,11 +34,27 @@ Every `.c`/`.h` file MUST start with:
 */
 ```
 
-## Function-level comments (when needed)
+## Function-level comments (required for non-trivial functions)
 
-Add comments for:
+**MUST have a function-level comment when:**
+
+- Public API function (appears in header, called by other modules)
+- Function is > 20 lines with non-obvious behavior
+- Function has subtle behavior (coalescing, tie-breaking, capability downgrading)
+- Internal helper called from multiple places
+
+**DO NOT need function-level comment:**
+
+- Trivial one-liners (e.g., `zr_rgb_r()`, `zr_style_default()`)
+- Simple getters/setters with self-explanatory names
+- Static helpers < 10 lines with obvious intent
+
+### Inside-function comments (strategic)
+
+Add comments inside functions for:
 
 - Complex algorithms (brief overview, not line-by-line)
+- Decision rationale (why this ranking/tie-break exists, not field glossary)
 - State machines (what each state variable tracks)
 - Spec-derived logic (reference the spec, e.g., "UAX #29 GB11")
 - Non-obvious defensive patterns (e.g., "accepts NULL for cleanup convenience")
@@ -84,6 +101,23 @@ Do NOT add comments that:
 
 ```c
 /* Ensures offset + size doesn't overflow before pointer creation */
+```
+
+## Expression readability (required)
+
+When expressions combine shifts, masks, chained ternaries, or multiple fallbacks:
+
+- split into named intermediate values
+- keep each line to one conceptual operation
+- extract repeated encoding/offset math into small helpers
+
+```c
+/* AVOID */
+g.bytes[0] = (uint8_t)(ZR_UTF8_3BYTE_LEAD | ((cp >> 12u) & ZR_UTF8_3BYTE_MASK));
+
+/* PREFERRED */
+const uint8_t cp_top4 = zr_utf8_bits(cp, 12u, ZR_UTF8_3BYTE_MASK);
+g.bytes[0] = zr_utf8_make_lead(ZR_UTF8_3BYTE_LEAD, cp_top4);
 ```
 
 ## Named constants (required)
@@ -140,7 +174,9 @@ if (ptr == NULL) return ZR_ERR_INVALID_ARGUMENT;
 Before finalizing code:
 
 - [ ] File has header comment with "Why"
-- [ ] Complex functions have brief overview comment
+- [ ] Non-trivial functions (> 20 lines or subtle behavior) have function-level comment
+- [ ] Complex-path comments explain rationale/tradeoffs, not only field semantics
+- [ ] Dense shift/mask/ternary expressions are split into named intermediates or helpers
 - [ ] Magic numbers extracted to named constants
 - [ ] NULL checks use `!ptr` style
 - [ ] Functions under 50 lines

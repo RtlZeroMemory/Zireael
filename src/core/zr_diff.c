@@ -1209,10 +1209,10 @@ static void zr_scroll_plan_consider_run(zr_scroll_plan_t* best, uint32_t cols, u
   }
 
   /*
-    Candidate semantics:
-    - run_len: number of rows that match after applying this shift.
-    - delta: shift magnitude in rows (how many lines terminal scrolls).
-    - moved_lines: rows saved from per-cell redraw if this plan is chosen.
+    Ranking rationale:
+    - moved_lines dominates because each moved row avoids repainting `cols` cells.
+    - delta is tracked separately so ties can prefer smaller terminal scroll moves.
+    - run_len feeds moved_lines directly for this contiguous-match candidate.
   */
   zr_scroll_plan_t cand;
   memset(&cand, 0, sizeof(cand));

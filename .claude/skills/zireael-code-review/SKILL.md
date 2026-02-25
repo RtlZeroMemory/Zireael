@@ -65,8 +65,10 @@ Per `docs/CODE_STANDARDS.md`:
 
 - [ ] File has header comment with "Why"
 - [ ] Non-trivial functions have function-level comments
+- [ ] Complex comments explain decision rationale/tradeoffs, not field glossaries
 - [ ] Functions under 50 lines (target 20-40)
 - [ ] Magic numbers extracted to named constants
+- [ ] Dense shift/mask/ternary expressions split into named intermediates or helpers
 - [ ] NULL checks use `!ptr` style
 - [ ] Naming follows conventions (`module_action_noun()`, `snake_case` vars)
 

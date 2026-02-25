@@ -19,10 +19,13 @@ static uint32_t zr_blit_braille_cell_bg(const zr_fb_painter_t* painter, int32_t 
 
 static zr_blit_glyph_t zr_blit_braille_glyph(uint8_t pattern) {
   const uint32_t cp = 0x2800u + (uint32_t)pattern;
+  const uint8_t top = (uint8_t)((cp >> 12u) & 0x0Fu);
+  const uint8_t mid = (uint8_t)((cp >> 6u) & 0x3Fu);
+  const uint8_t low = (uint8_t)(cp & 0x3Fu);
   zr_blit_glyph_t g;
-  g.bytes[0] = (uint8_t)(0xE0u | ((cp >> 12u) & 0x0Fu));
-  g.bytes[1] = (uint8_t)(0x80u | ((cp >> 6u) & 0x3Fu));
-  g.bytes[2] = (uint8_t)(0x80u | (cp & 0x3Fu));
+  g.bytes[0] = (uint8_t)(0xE0u | top);
+  g.bytes[1] = (uint8_t)(0x80u | mid);
+  g.bytes[2] = (uint8_t)(0x80u | low);
   g.bytes[3] = 0u;
   g.len = 3u;
   g._pad0[0] = 0u;

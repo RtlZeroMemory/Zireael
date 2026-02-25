@@ -376,8 +376,7 @@ static void zr_engine_maybe_enqueue_tick(zr_engine_t* e, uint32_t now_ms) {
     dt_ms = 1u;
   }
 
-  zr_event_t ev;
-  memset(&ev, 0, sizeof(ev));
+  zr_event_t ev = {0};
   ev.type = ZR_EV_TICK;
   ev.time_ms = now_ms;
   ev.flags = 0u;
@@ -1207,8 +1206,7 @@ static void zr_engine_enqueue_initial_resize(zr_engine_t* e) {
     return;
   }
 
-  zr_event_t ev;
-  memset(&ev, 0, sizeof(ev));
+  zr_event_t ev = {0};
   ev.type = ZR_EV_RESIZE;
   ev.time_ms = e->last_tick_ms;
   ev.flags = 0u;

@@ -54,8 +54,7 @@ static uint32_t zr__mods_from_csi_param(uint32_t mod_param) {
 }
 
 static void zr__push_key(zr_event_queue_t* q, uint32_t time_ms, zr_key_t key, uint32_t mods, zr_key_action_t action) {
-  zr_event_t ev;
-  memset(&ev, 0, sizeof(ev));
+  zr_event_t ev = {0};
   ev.type = ZR_EV_KEY;
   ev.time_ms = time_ms;
   ev.flags = 0u;
@@ -68,8 +67,7 @@ static void zr__push_key(zr_event_queue_t* q, uint32_t time_ms, zr_key_t key, ui
 
 static void zr__push_mouse(zr_event_queue_t* q, uint32_t time_ms, int32_t x, int32_t y, uint32_t kind, uint32_t mods,
                            uint32_t buttons, int32_t wheel_x, int32_t wheel_y) {
-  zr_event_t ev;
-  memset(&ev, 0, sizeof(ev));
+  zr_event_t ev = {0};
   ev.type = ZR_EV_MOUSE;
   ev.time_ms = time_ms;
   ev.flags = 0u;
@@ -85,8 +83,7 @@ static void zr__push_mouse(zr_event_queue_t* q, uint32_t time_ms, int32_t x, int
 }
 
 static void zr__push_text_scalar(zr_event_queue_t* q, uint32_t time_ms, uint32_t scalar) {
-  zr_event_t ev;
-  memset(&ev, 0, sizeof(ev));
+  zr_event_t ev = {0};
   ev.type = ZR_EV_TEXT;
   ev.time_ms = time_ms;
   ev.flags = 0u;

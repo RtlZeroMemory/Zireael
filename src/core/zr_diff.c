@@ -1208,6 +1208,12 @@ static void zr_scroll_plan_consider_run(zr_scroll_plan_t* best, uint32_t cols, u
     return;
   }
 
+  /*
+    Candidate semantics:
+    - run_len: number of rows that match after applying this shift.
+    - delta: shift magnitude in rows (how many lines terminal scrolls).
+    - moved_lines: rows saved from per-cell redraw if this plan is chosen.
+  */
   zr_scroll_plan_t cand;
   memset(&cand, 0, sizeof(cand));
   cand.active = true;
@@ -1374,6 +1380,7 @@ static bool zr_emit_scroll_op(zr_sb_t* sb, zr_term_state_t* ts, bool up, uint32_
   if (!zr_diff_write_csi(sb)) {
     return false;
   }
+  /* CSI Ps S scrolls up; CSI Ps T scrolls down (within active margins). */
   if (!zr_sb_write_u32_dec(sb, lines) || !zr_sb_write_u8(sb, up ? (uint8_t)'S' : (uint8_t)'T')) {
     return false;
   }
@@ -2041,6 +2048,7 @@ static zr_result_t zr_diff_render_sweep_rows(zr_diff_ctx_t* ctx, uint32_t skip_t
  */
 static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, uint32_t* out_skip_top,
                                           uint32_t* out_skip_bottom) {
+  /* --- Validate + initialize defaults --- */
   if (!ctx || !out_skip || !out_skip_top || !out_skip_bottom) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -2062,6 +2070,7 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   }
   ctx->stats.scroll_opt_hit = 1u;
 
+  /* --- Emit scroll-region operations (DECSTBM + scroll + reset) --- */
   if (!zr_emit_decstbm(&ctx->sb, &ctx->ts, plan.top, plan.bottom)) {
     return ZR_ERR_LIMIT;
   }
@@ -2072,6 +2081,7 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
     return ZR_ERR_LIMIT;
   }
 
+  /* --- Redraw only newly exposed rows after scroll --- */
   /*
     After the terminal scroll, only the newly exposed lines need redraw.
     Redraw the full width to avoid relying on terminal-inserted blank style.
@@ -2098,6 +2108,7 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
     }
   }
 
+  /* --- Skip now-synchronized region in normal row sweep --- */
   *out_skip = true;
   *out_skip_top = plan.top;
   *out_skip_bottom = plan.bottom;

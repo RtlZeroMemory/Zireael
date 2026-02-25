@@ -81,6 +81,9 @@ enum {
   ZR_WIN32_UTF8_LEAD_3 = 0xE0u,
   ZR_WIN32_UTF8_LEAD_4 = 0xF0u,
   ZR_WIN32_UTF8_CONT = 0x80u,
+  ZR_WIN32_UTF8_SHIFT_6 = 6u,
+  ZR_WIN32_UTF8_SHIFT_12 = 12u,
+  ZR_WIN32_UTF8_SHIFT_18 = 18u,
   ZR_WIN32_UTF8_2BYTE_MASK = 0x1Fu,
   ZR_WIN32_UTF8_3BYTE_MASK = 0x0Fu,
   ZR_WIN32_UTF8_4BYTE_MASK = 0x07u,
@@ -681,6 +684,10 @@ static uint8_t zr_win32_utf8_make_cont_byte(uint8_t payload_bits) {
   return (uint8_t)(ZR_WIN32_UTF8_CONT | payload_bits);
 }
 
+static uint8_t zr_win32_utf8_payload_bits(uint32_t scalar, uint8_t shift, uint8_t mask) {
+  return (uint8_t)((scalar >> shift) & (uint32_t)mask);
+}
+
 static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
   if (!out) {
     return 0u;
@@ -695,16 +702,16 @@ static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
     return 1u;
   }
   if (scalar <= 0x7FFu) {
-    const uint8_t top = (uint8_t)((scalar >> 6u) & ZR_WIN32_UTF8_2BYTE_MASK);
-    const uint8_t low = (uint8_t)(scalar & ZR_WIN32_UTF8_CONT_MASK);
+    const uint8_t top = zr_win32_utf8_payload_bits(scalar, ZR_WIN32_UTF8_SHIFT_6, ZR_WIN32_UTF8_2BYTE_MASK);
+    const uint8_t low = zr_win32_utf8_payload_bits(scalar, 0u, ZR_WIN32_UTF8_CONT_MASK);
     out[0] = (uint8_t)(ZR_WIN32_UTF8_LEAD_2 | top);
     out[1] = zr_win32_utf8_make_cont_byte(low);
     return 2u;
   }
   if (scalar <= 0xFFFFu) {
-    const uint8_t top = (uint8_t)((scalar >> 12u) & ZR_WIN32_UTF8_3BYTE_MASK);
-    const uint8_t mid = (uint8_t)((scalar >> 6u) & ZR_WIN32_UTF8_CONT_MASK);
-    const uint8_t low = (uint8_t)(scalar & ZR_WIN32_UTF8_CONT_MASK);
+    const uint8_t top = zr_win32_utf8_payload_bits(scalar, ZR_WIN32_UTF8_SHIFT_12, ZR_WIN32_UTF8_3BYTE_MASK);
+    const uint8_t mid = zr_win32_utf8_payload_bits(scalar, ZR_WIN32_UTF8_SHIFT_6, ZR_WIN32_UTF8_CONT_MASK);
+    const uint8_t low = zr_win32_utf8_payload_bits(scalar, 0u, ZR_WIN32_UTF8_CONT_MASK);
     out[0] = (uint8_t)(ZR_WIN32_UTF8_LEAD_3 | top);
     out[1] = zr_win32_utf8_make_cont_byte(mid);
     out[2] = zr_win32_utf8_make_cont_byte(low);
@@ -712,10 +719,10 @@ static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
   }
 
   {
-    const uint8_t top = (uint8_t)((scalar >> 18u) & ZR_WIN32_UTF8_4BYTE_MASK);
-    const uint8_t high = (uint8_t)((scalar >> 12u) & ZR_WIN32_UTF8_CONT_MASK);
-    const uint8_t mid = (uint8_t)((scalar >> 6u) & ZR_WIN32_UTF8_CONT_MASK);
-    const uint8_t low = (uint8_t)(scalar & ZR_WIN32_UTF8_CONT_MASK);
+    const uint8_t top = zr_win32_utf8_payload_bits(scalar, ZR_WIN32_UTF8_SHIFT_18, ZR_WIN32_UTF8_4BYTE_MASK);
+    const uint8_t high = zr_win32_utf8_payload_bits(scalar, ZR_WIN32_UTF8_SHIFT_12, ZR_WIN32_UTF8_CONT_MASK);
+    const uint8_t mid = zr_win32_utf8_payload_bits(scalar, ZR_WIN32_UTF8_SHIFT_6, ZR_WIN32_UTF8_CONT_MASK);
+    const uint8_t low = zr_win32_utf8_payload_bits(scalar, 0u, ZR_WIN32_UTF8_CONT_MASK);
     out[0] = (uint8_t)(ZR_WIN32_UTF8_LEAD_4 | top);
     out[1] = zr_win32_utf8_make_cont_byte(high);
     out[2] = zr_win32_utf8_make_cont_byte(mid);

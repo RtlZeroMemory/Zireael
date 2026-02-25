@@ -15,12 +15,19 @@ enum {
   ZR_UTF8_CONT_BYTE = 0x80u,
   ZR_UTF8_3BYTE_MASK = 0x0Fu,
   ZR_UTF8_CONT_MASK = 0x3Fu,
+  ZR_UTF8_SHIFT_6 = 6u,
+  ZR_UTF8_SHIFT_12 = 12u,
   ZR_RGB_BYTE_MASK = 0xFFu,
 };
 
 /* UTF-8 continuation bytes always have the 10xxxxxx shape. */
 static uint8_t zr_utf8_make_cont_byte(uint8_t payload_bits) {
   return (uint8_t)(ZR_UTF8_CONT_BYTE | payload_bits);
+}
+
+/* Extract UTF-8 payload bits at a named shift position. */
+static uint8_t zr_utf8_payload_bits(uint32_t scalar, uint8_t shift, uint8_t mask) {
+  return (uint8_t)((scalar >> shift) & (uint32_t)mask);
 }
 
 static uint32_t zr_blit_braille_cell_bg(const zr_fb_painter_t* painter, int32_t x, int32_t y) {
@@ -33,9 +40,9 @@ static uint32_t zr_blit_braille_cell_bg(const zr_fb_painter_t* painter, int32_t 
 
 static zr_blit_glyph_t zr_blit_braille_glyph(uint8_t pattern) {
   const uint32_t cp = ZR_BRAILLE_BASE_SCALAR + (uint32_t)pattern;
-  const uint8_t top = (uint8_t)((cp >> 12u) & ZR_UTF8_3BYTE_MASK);
-  const uint8_t mid = (uint8_t)((cp >> 6u) & ZR_UTF8_CONT_MASK);
-  const uint8_t low = (uint8_t)(cp & ZR_UTF8_CONT_MASK);
+  const uint8_t top = zr_utf8_payload_bits(cp, ZR_UTF8_SHIFT_12, ZR_UTF8_3BYTE_MASK);
+  const uint8_t mid = zr_utf8_payload_bits(cp, ZR_UTF8_SHIFT_6, ZR_UTF8_CONT_MASK);
+  const uint8_t low = zr_utf8_payload_bits(cp, 0u, ZR_UTF8_CONT_MASK);
   zr_blit_glyph_t g;
   g.bytes[0] = (uint8_t)(ZR_UTF8_3BYTE_LEAD | top);
   g.bytes[1] = zr_utf8_make_cont_byte(mid);

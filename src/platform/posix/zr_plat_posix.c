@@ -77,6 +77,18 @@ enum {
   ZR_STYLE_ATTR_ALL_MASK = (1u << 8u) - 1u,
 };
 
+/*
+  Canonical raw-mode masks used by plat_enter_raw().
+
+  Why: Keeping these grouped avoids repeated inline bit algebra and makes the
+  "clear input processing / clear local line discipline / keep CS8" policy
+  obvious at a glance.
+*/
+static const tcflag_t ZR_POSIX_RAW_IFLAG_CLEAR = (tcflag_t)(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+static const tcflag_t ZR_POSIX_RAW_OFLAG_CLEAR = (tcflag_t)(OPOST);
+static const tcflag_t ZR_POSIX_RAW_CFLAG_SET = (tcflag_t)(CS8);
+static const tcflag_t ZR_POSIX_RAW_LFLAG_CLEAR = (tcflag_t)(ECHO | ICANON | IEXTEN | ISIG);
+
 static _Atomic int g_posix_wake_fd_slots[ZR_POSIX_SIGWINCH_MAX_WAKE_FDS];
 static _Atomic int g_posix_wake_overflow_slots[ZR_POSIX_SIGWINCH_MAX_WAKE_FDS];
 static _Atomic int g_posix_test_force_sigwinch_overflow = 0;
@@ -1410,10 +1422,10 @@ zr_result_t plat_enter_raw(plat_t* plat) {
   }
 
   struct termios raw = plat->termios_saved;
-  raw.c_iflag &= (tcflag_t) ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-  raw.c_oflag &= (tcflag_t) ~(OPOST);
-  raw.c_cflag |= (tcflag_t)(CS8);
-  raw.c_lflag &= (tcflag_t) ~(ECHO | ICANON | IEXTEN | ISIG);
+  raw.c_iflag &= (tcflag_t)~ZR_POSIX_RAW_IFLAG_CLEAR;
+  raw.c_oflag &= (tcflag_t)~ZR_POSIX_RAW_OFLAG_CLEAR;
+  raw.c_cflag |= ZR_POSIX_RAW_CFLAG_SET;
+  raw.c_lflag &= (tcflag_t)~ZR_POSIX_RAW_LFLAG_CLEAR;
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 0;
 

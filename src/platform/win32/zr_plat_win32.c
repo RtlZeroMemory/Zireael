@@ -71,6 +71,12 @@ enum {
   ZR_WIN32_XTERM_KEY_F10 = 21u,
   ZR_WIN32_XTERM_KEY_F11 = 23u,
   ZR_WIN32_XTERM_KEY_F12 = 24u,
+  ZR_WIN32_ASCII_ESC = 0x1Bu,
+  ZR_WIN32_ASCII_DEL = 0x7Fu,
+  ZR_WIN32_REPLACEMENT_SCALAR = 0xFFFDu,
+  ZR_WIN32_MAX_UNICODE_SCALAR = 0x10FFFFu,
+  ZR_WIN32_SURROGATE_MIN = 0xD800u,
+  ZR_WIN32_SURROGATE_MAX = 0xDFFFu,
   ZR_WIN32_UTF8_LEAD_2 = 0xC0u,
   ZR_WIN32_UTF8_LEAD_3 = 0xE0u,
   ZR_WIN32_UTF8_LEAD_4 = 0xF0u,
@@ -500,14 +506,14 @@ static void zr_win32_emit_csi_final_repeat(uint8_t* out_buf, size_t out_cap, siz
 
   for (WORD i = 0u; i < repeat; i++) {
     if (mods == 0u) {
-      const uint8_t seq[] = {0x1Bu, (uint8_t)'[', final_byte};
+      const uint8_t seq[] = {ZR_WIN32_ASCII_ESC, (uint8_t)'[', final_byte};
       zr_win32_emit_repeat(out_buf, out_cap, io_len, seq, sizeof(seq), 1u);
       continue;
     }
 
     uint8_t seq[24];
     size_t n = 0u;
-    seq[n++] = 0x1Bu;
+    seq[n++] = ZR_WIN32_ASCII_ESC;
     seq[n++] = (uint8_t)'[';
     seq[n++] = (uint8_t)'1';
     seq[n++] = (uint8_t)';';
@@ -539,7 +545,7 @@ static void zr_win32_emit_csi_tilde_repeat(uint8_t* out_buf, size_t out_cap, siz
   for (WORD i = 0u; i < repeat; i++) {
     uint8_t seq[32];
     size_t n = 0u;
-    seq[n++] = 0x1Bu;
+    seq[n++] = ZR_WIN32_ASCII_ESC;
     seq[n++] = (uint8_t)'[';
 
     const size_t p1 = zr_win32_emit_u32_dec(seq + n, sizeof(seq) - n, first_param);
@@ -571,7 +577,7 @@ static void zr_win32_emit_csi_tilde_repeat(uint8_t* out_buf, size_t out_cap, siz
 /* Emit SS3 key sequence (ESC O <final>); repeat defaults to 1. */
 static void zr_win32_emit_ss3_final_repeat(uint8_t* out_buf, size_t out_cap, size_t* io_len, uint8_t final_byte,
                                            WORD repeat) {
-  const uint8_t seq[] = {0x1Bu, (uint8_t)'O', final_byte};
+  const uint8_t seq[] = {ZR_WIN32_ASCII_ESC, (uint8_t)'O', final_byte};
   zr_win32_emit_repeat(out_buf, out_cap, io_len, seq, sizeof(seq), repeat);
 }
 
@@ -671,13 +677,17 @@ static bool zr_win32_vk_to_ss3(WORD vk, uint8_t* out_final) {
   }
 }
 
+static uint8_t zr_win32_utf8_make_cont_byte(uint8_t payload_bits) {
+  return (uint8_t)(ZR_WIN32_UTF8_CONT | payload_bits);
+}
+
 static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
   if (!out) {
     return 0u;
   }
 
-  if (scalar > 0x10FFFFu || (scalar >= 0xD800u && scalar <= 0xDFFFu)) {
-    scalar = 0xFFFDu;
+  if (scalar > ZR_WIN32_MAX_UNICODE_SCALAR || (scalar >= ZR_WIN32_SURROGATE_MIN && scalar <= ZR_WIN32_SURROGATE_MAX)) {
+    scalar = ZR_WIN32_REPLACEMENT_SCALAR;
   }
 
   if (scalar <= 0x7Fu) {
@@ -688,7 +698,7 @@ static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
     const uint8_t top = (uint8_t)((scalar >> 6u) & ZR_WIN32_UTF8_2BYTE_MASK);
     const uint8_t low = (uint8_t)(scalar & ZR_WIN32_UTF8_CONT_MASK);
     out[0] = (uint8_t)(ZR_WIN32_UTF8_LEAD_2 | top);
-    out[1] = (uint8_t)(ZR_WIN32_UTF8_CONT | low);
+    out[1] = zr_win32_utf8_make_cont_byte(low);
     return 2u;
   }
   if (scalar <= 0xFFFFu) {
@@ -696,8 +706,8 @@ static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
     const uint8_t mid = (uint8_t)((scalar >> 6u) & ZR_WIN32_UTF8_CONT_MASK);
     const uint8_t low = (uint8_t)(scalar & ZR_WIN32_UTF8_CONT_MASK);
     out[0] = (uint8_t)(ZR_WIN32_UTF8_LEAD_3 | top);
-    out[1] = (uint8_t)(ZR_WIN32_UTF8_CONT | mid);
-    out[2] = (uint8_t)(ZR_WIN32_UTF8_CONT | low);
+    out[1] = zr_win32_utf8_make_cont_byte(mid);
+    out[2] = zr_win32_utf8_make_cont_byte(low);
     return 3u;
   }
 
@@ -707,9 +717,9 @@ static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
     const uint8_t mid = (uint8_t)((scalar >> 6u) & ZR_WIN32_UTF8_CONT_MASK);
     const uint8_t low = (uint8_t)(scalar & ZR_WIN32_UTF8_CONT_MASK);
     out[0] = (uint8_t)(ZR_WIN32_UTF8_LEAD_4 | top);
-    out[1] = (uint8_t)(ZR_WIN32_UTF8_CONT | high);
-    out[2] = (uint8_t)(ZR_WIN32_UTF8_CONT | mid);
-    out[3] = (uint8_t)(ZR_WIN32_UTF8_CONT | low);
+    out[1] = zr_win32_utf8_make_cont_byte(high);
+    out[2] = zr_win32_utf8_make_cont_byte(mid);
+    out[3] = zr_win32_utf8_make_cont_byte(low);
   }
   return 4u;
 }
@@ -752,7 +762,7 @@ static void zr_win32_emit_text_scalar_repeat(uint8_t* out_buf, size_t out_cap, s
   if (repeat == 0u) {
     repeat = 1u;
   }
-  const uint8_t esc = 0x1Bu;
+  const uint8_t esc = ZR_WIN32_ASCII_ESC;
   for (WORD i = 0u; i < repeat; i++) {
     zr_win32_emit_repeat(out_buf, out_cap, io_len, &esc, 1u, 1u);
     zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap, io_len, scalar, 1u);
@@ -763,7 +773,7 @@ static void zr_win32_flush_pending_high_surrogate(plat_t* plat, uint8_t* out_buf
   if (!plat || !plat->has_pending_high_surrogate) {
     return;
   }
-  zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap, io_len, 0xFFFDu, 1u);
+  zr_win32_emit_utf8_scalar_repeat(out_buf, out_cap, io_len, ZR_WIN32_REPLACEMENT_SCALAR, 1u);
   plat->has_pending_high_surrogate = false;
   plat->pending_high_surrogate = 0u;
 }
@@ -962,11 +972,15 @@ static zr_result_t zr_win32_enable_vt_input_mode(plat_t* plat, DWORD in_mode) {
     VT-input-capable mode on failure. The fallback ladder must still disable
     line buffering; otherwise, input may not be delivered until Enter.
   */
+  const DWORD raw_input_strict_clear =
+      (DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT);
+  const DWORD raw_input_relaxed_clear = (DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_WINDOW_INPUT);
+  const DWORD raw_input_minimal_clear = (DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
+
   DWORD candidates[4];
-  candidates[0] =
-      in_mode_base & ~((DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT));
-  candidates[1] = in_mode_base & ~((DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_WINDOW_INPUT));
-  candidates[2] = in_mode_base & ~((DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT));
+  candidates[0] = in_mode_base & ~raw_input_strict_clear;
+  candidates[1] = in_mode_base & ~raw_input_relaxed_clear;
+  candidates[2] = in_mode_base & ~raw_input_minimal_clear;
   candidates[3] = in_mode_base;
 
   bool set_ok = false;
@@ -1295,6 +1309,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
   const uint32_t mods = zr_win32_mod_bits_from_control_state(k->dwControlKeyState);
   const bool has_alt = (mods & ZR_WIN32_MOD_ALT_BIT) != 0u;
 
+  /* --- VT-native function/navigation keys (CSI/SS3 forms) --- */
   uint8_t csi_final = 0u;
   if (zr_win32_vk_to_csi_final(vk, &csi_final)) {
     zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
@@ -1316,6 +1331,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
     return;
   }
 
+  /* --- Control-key normalization (Enter/Escape/Tab/Backspace) --- */
   if (vk == VK_RETURN) {
     zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
     const uint8_t seq[] = {(uint8_t)'\r'};
@@ -1324,7 +1340,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
   }
   if (vk == VK_ESCAPE) {
     zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
-    const uint8_t seq[] = {0x1Bu};
+    const uint8_t seq[] = {ZR_WIN32_ASCII_ESC};
     zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
     return;
   }
@@ -1335,7 +1351,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
         zr_win32_emit_csi_final_repeat(out_buf, out_cap, out_len, (uint8_t)'Z', mods, repeat);
         return;
       }
-      const uint8_t seq[] = {0x1Bu, (uint8_t)'[', (uint8_t)'Z'};
+      const uint8_t seq[] = {ZR_WIN32_ASCII_ESC, (uint8_t)'[', (uint8_t)'Z'};
       zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
       return;
     }
@@ -1345,11 +1361,12 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
   }
   if (vk == VK_BACK) {
     zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
-    const uint8_t seq[] = {0x7Fu};
+    const uint8_t seq[] = {ZR_WIN32_ASCII_DEL};
     zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
     return;
   }
 
+  /* --- UTF-16 surrogate/text path to UTF-8 event bytes --- */
   if (ch == 0) {
     zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
     return;
@@ -1369,7 +1386,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
       zr_win32_emit_text_scalar_repeat(out_buf, out_cap, out_len, scalar, repeat, has_alt);
       return;
     }
-    zr_win32_emit_text_scalar_repeat(out_buf, out_cap, out_len, 0xFFFDu, repeat, has_alt);
+    zr_win32_emit_text_scalar_repeat(out_buf, out_cap, out_len, ZR_WIN32_REPLACEMENT_SCALAR, repeat, has_alt);
     return;
   }
 

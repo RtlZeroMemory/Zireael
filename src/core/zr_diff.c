@@ -76,6 +76,8 @@ static const uint8_t ZR_ANSI16_PALETTE[16][3] = {
 #define ZR_SGR_FG_BRIGHT 90u  /* FG colors 8-15: 90-97 */
 #define ZR_SGR_BG_BASE 40u    /* BG colors 0-7: 40-47 */
 #define ZR_SGR_BG_BRIGHT 100u /* BG colors 8-15: 100-107 */
+#define ZR_SGR_256_INDEX_MASK 0xFFu
+#define ZR_SGR_16_INDEX_MASK 0x0Fu
 
 /* Style attribute bits (v1). */
 #define ZR_STYLE_ATTR_BOLD (1u << 0)
@@ -731,6 +733,26 @@ static bool zr_emit_cursor_desired(zr_sb_t* sb, zr_term_state_t* ts, const zr_cu
   return zr_emit_cup(sb, ts, x, y);
 }
 
+/*
+ * Convert a terminal 16-color index (0..15) into the matching SGR code.
+ *
+ * Why: idx < 8 uses base colors (30-37 / 40-47); idx >= 8 uses bright
+ * colors (90-97 / 100-107). Keeping this mapping in one helper avoids
+ * nested ternaries at call sites.
+ */
+static uint32_t zr_sgr_16color_code(bool foreground, uint8_t idx) {
+  if (foreground) {
+    if (idx < 8u) {
+      return ZR_SGR_FG_BASE + (uint32_t)idx;
+    }
+    return ZR_SGR_FG_BRIGHT + (uint32_t)(idx - 8u);
+  }
+  if (idx < 8u) {
+    return ZR_SGR_BG_BASE + (uint32_t)idx;
+  }
+  return ZR_SGR_BG_BRIGHT + (uint32_t)(idx - 8u);
+}
+
 static bool zr_emit_sgr_color_param(zr_sb_t* sb, zr_style_t desired, const plat_caps_t* caps, bool foreground) {
   if (!sb) {
     return false;
@@ -753,7 +775,8 @@ static bool zr_emit_sgr_color_param(zr_sb_t* sb, zr_style_t desired, const plat_
   }
 
   if (caps->color_mode == PLAT_COLOR_MODE_256) {
-    const uint32_t idx = foreground ? (desired.fg_rgb & 0xFFu) : (desired.bg_rgb & 0xFFu);
+    const uint32_t idx =
+        foreground ? (desired.fg_rgb & ZR_SGR_256_INDEX_MASK) : (desired.bg_rgb & ZR_SGR_256_INDEX_MASK);
     const uint32_t base = foreground ? ZR_SGR_FG_256 : ZR_SGR_BG_256;
     if (!zr_sb_write_u32_dec(sb, base) || !zr_sb_write_u8(sb, (uint8_t)';') ||
         !zr_sb_write_u32_dec(sb, ZR_SGR_COLOR_MODE_256) || !zr_sb_write_u8(sb, (uint8_t)';') ||
@@ -764,10 +787,8 @@ static bool zr_emit_sgr_color_param(zr_sb_t* sb, zr_style_t desired, const plat_
   }
 
   /* 16-color (or unknown degraded to 16): desired.fg_rgb/bg_rgb are indices 0..15. */
-  const uint8_t idx = (uint8_t)((foreground ? desired.fg_rgb : desired.bg_rgb) & 0x0Fu);
-  const uint32_t code =
-      foreground ? ((idx < 8u) ? (ZR_SGR_FG_BASE + (uint32_t)idx) : (ZR_SGR_FG_BRIGHT + (uint32_t)(idx - 8u)))
-                 : ((idx < 8u) ? (ZR_SGR_BG_BASE + (uint32_t)idx) : (ZR_SGR_BG_BRIGHT + (uint32_t)(idx - 8u)));
+  const uint8_t idx = (uint8_t)((foreground ? desired.fg_rgb : desired.bg_rgb) & ZR_SGR_16_INDEX_MASK);
+  const uint32_t code = zr_sgr_16color_code(foreground, idx);
   return zr_sb_write_u32_dec(sb, code);
 }
 

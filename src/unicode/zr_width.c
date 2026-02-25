@@ -98,6 +98,11 @@ static bool zr_width_cluster_has_emoji_presentation(bool keycap_emoji, bool has_
     has_emoji = true;
   }
 
+  /*
+    FE0E (VS15) requests text presentation for text-default emoji-capable
+    scalars. Respect it unless stronger emoji signals are present (VS16,
+    Emoji_Presentation code points, or keycap grammar match).
+  */
   if (has_vs15 && !has_vs16 && !has_emoji_presentation && !keycap_emoji) {
     return false;
   }

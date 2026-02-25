@@ -195,7 +195,11 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
       continue;
     }
 
-    /* Overflow: prefer breaking after the last whitespace. */
+    /*
+      Overflow: prefer breaking after the last whitespace.
+      Rewind iterator to the chosen line start so the next loop iteration
+      re-evaluates the first grapheme of the new line from a clean column=0.
+    */
     if (last_ws_break_off != ZR_WRAP_WS_BREAK_NONE && last_ws_break_off > line_start) {
       it.off = last_ws_break_off;
       line_start = last_ws_break_off;

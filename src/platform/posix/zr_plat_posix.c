@@ -467,6 +467,13 @@ static bool zr_posix_term_indicates_truecolor(const char* term) {
 }
 
 static bool zr_posix_detect_truecolor_env(void) {
+  /*
+    Detection order is strongest-signal first:
+    1) COLORTERM explicit markers
+    2) modern terminal env markers (known emulators/muxers)
+    3) TERM_PROGRAM identity
+    4) TERM fallback heuristics
+  */
   const char* colorterm = zr_posix_getenv_nonempty("COLORTERM");
   if (zr_posix_str_contains_ci(colorterm, "truecolor") || zr_posix_str_contains_ci(colorterm, "24bit") ||
       zr_posix_str_contains_ci(colorterm, "24-bit") || zr_posix_str_contains_ci(colorterm, "rgb")) {
@@ -1623,6 +1630,10 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
   fds[1].revents = 0;
 
   for (;;) {
+    /*
+      Check overflow slot before poll to catch races where a wake signal
+      couldn't enqueue a byte because the self-pipe was already full.
+    */
     if (timeout_ms != 0 && zr_posix_wake_slot_consume_overflow(plat)) {
       return 1;
     }
@@ -1638,6 +1649,7 @@ int32_t plat_wait(plat_t* plat, int32_t timeout_ms) {
     fds[1].revents = 0;
     int rc = poll(fds, 2u, poll_timeout);
     if (rc == 0) {
+      /* Poll timeout can race with overflow wake bookkeeping, re-check once. */
       if (zr_posix_wake_slot_consume_overflow(plat)) {
         return 1;
       }

@@ -20,6 +20,10 @@ static zr_engine_runtime_config_t zr_runtime_cfg_from_create_cfg(const zr_engine
   if (!cfg) {
     return runtime;
   }
+  /*
+    Tests mutate runtime fields after create-time validation. Keep this helper as
+    a field-by-field copy to mirror engine defaults without sharing object state.
+  */
   runtime.limits = cfg->limits;
   runtime.plat = cfg->plat;
   runtime.tab_width = cfg->tab_width;

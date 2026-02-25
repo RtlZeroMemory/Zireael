@@ -13,6 +13,8 @@ metadata:
 - changing ownership/memory behavior
 - changing Unicode, rendering, diff output, or tests
 
+After guardian checks, run `zireael-code-style` for any code edit/review.
+
 ## Source of truth
 
 - `README.md` — GitHub-facing overview
@@ -59,3 +61,4 @@ Key locked docs:
 - [ ] Parsers have bounds checks and fuzz consideration
 - [ ] Golden outputs updated if behavior changed
 - [ ] Docs updated if behavior/ABI/formats changed
+- [ ] Readability gate met (named constants, rationale comments, no dense opaque expressions)

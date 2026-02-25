@@ -55,7 +55,7 @@ typedef struct zr_term_known_caps_t {
 static const zr_term_known_caps_t ZR_DETECT_KNOWN_CAPS[] = {
     {ZR_TERM_KITTY, 0u, 1u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u},
     {ZR_TERM_GHOSTTY, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 0u},
-    {ZR_TERM_WEZTERM, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u},
+    {ZR_TERM_WEZTERM, 1u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u},
     {ZR_TERM_FOOT, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 0u, 0u},
     {ZR_TERM_ITERM2, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 1u, 0u, 0u, 0u},
     {ZR_TERM_VTE, 0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u, 0u, 0u, 0u},
@@ -560,8 +560,9 @@ static void zr_detect_apply_parsed(zr_terminal_profile_t* profile, const zr_dete
   profile->da1_responded = parsed->da1_responded;
   profile->da2_responded = parsed->da2_responded;
 
-  if (parsed->da1_responded != 0u && parsed->da1_has_sixel != 0u) {
-    profile->supports_sixel = 1u;
+  if (parsed->da1_responded != 0u) {
+    /* DA1 is authoritative when present: Ps=4 means sixel is available. */
+    profile->supports_sixel = parsed->da1_has_sixel != 0u ? 1u : 0u;
   }
 
   profile->supports_sync_update =

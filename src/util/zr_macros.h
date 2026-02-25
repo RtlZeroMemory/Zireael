@@ -8,8 +8,14 @@
 #ifndef ZR_UTIL_ZR_MACROS_H_INCLUDED
 #define ZR_UTIL_ZR_MACROS_H_INCLUDED
 
-/* Number of elements in a fixed-size array. */
-#define ZR_ARRAYLEN(arr) (sizeof(arr) / sizeof((arr)[0]))
+/*
+  Number of elements in a fixed-size array.
+
+  Rejects pointer arguments at compile time.
+*/
+#define ZR_ARRAYLEN(arr)                                                                                               \
+  ((sizeof(arr) / sizeof((arr)[0])) +                                                                                  \
+   0u * sizeof(char[1 - 2 * !!__builtin_types_compatible_p(__typeof__(arr), __typeof__(&(arr)[0]))]))
 
 /*
   Generic min/max helpers.

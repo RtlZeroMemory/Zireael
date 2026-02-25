@@ -1648,6 +1648,12 @@ static zr_result_t zr_diff_render_damage_coalesced_scan(zr_diff_ctx_t* ctx) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
 
+  /*
+    Per-row span invariant:
+    - have_span==false means no pending render range for the current row.
+    - [span_start, span_end] is the merged union of seen rect segments.
+    - Non-overlapping segments force a flush to preserve left-to-right order.
+  */
   for (uint32_t y = 0u; y < ctx->next->rows; y++) {
     uint32_t span_start = 0u;
     uint32_t span_end = 0u;
@@ -1832,10 +1838,16 @@ static zr_result_t zr_diff_render_damage_coalesced_indexed(zr_diff_ctx_t* ctx) {
   }
 
   const uint32_t rows = ctx->next->rows;
+  /*
+    Reuse prev_row_hashes as per-row head indices for this frame's damage lists.
+    Why: Indexed coalescing needs row scratch memory but the present path stays
+    allocation-free by borrowing preallocated row-cache storage.
+  */
   uint64_t* row_heads = ctx->prev_row_hashes;
   zr_diff_row_heads_reset(row_heads, rows);
   zr_diff_indexed_build_row_heads(ctx, row_heads, rows);
 
+  /* Active list links are stored intrusively in rect.y0 via zr_diff_rect_link_*(). */
   zr_diff_active_rects_t active;
   zr_diff_active_rects_init(&active);
 
@@ -2038,6 +2050,11 @@ static zr_result_t zr_diff_try_scroll_opt(zr_diff_ctx_t* ctx, bool* out_skip, ui
   *out_skip_bottom = 0u;
 
   const uint32_t dirty_row_count = ctx->has_row_cache ? ctx->dirty_row_count : ZR_DIFF_DIRTY_ROW_COUNT_UNKNOWN;
+  /*
+    plan.{top,bottom}: inclusive scroll region rows
+    plan.up: true for scroll-up (content moves toward row 0), false for down
+    plan.lines: number of rows shifted inside [top,bottom]
+  */
   const zr_scroll_plan_t plan = zr_diff_detect_scroll_fullwidth(ctx->prev, ctx->next, ctx->prev_row_hashes,
                                                                 ctx->next_row_hashes, dirty_row_count);
   if (!plan.active) {

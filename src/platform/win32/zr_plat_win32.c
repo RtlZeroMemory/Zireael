@@ -1358,6 +1358,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
         zr_win32_emit_csi_final_repeat(out_buf, out_cap, out_len, (uint8_t)'Z', mods, repeat);
         return;
       }
+      /* Shift-only Tab is the legacy BackTab sequence ESC [ Z. */
       const uint8_t seq[] = {ZR_WIN32_ASCII_ESC, (uint8_t)'[', (uint8_t)'Z'};
       zr_win32_emit_repeat(out_buf, out_cap, out_len, seq, sizeof(seq), repeat);
       return;
@@ -1380,6 +1381,7 @@ static void zr_win32_translate_console_key(const KEY_EVENT_RECORD* k, plat_t* pl
   }
 
   if (zr_win32_is_high_surrogate((uint32_t)ch)) {
+    /* Flush stale pending high surrogate before starting a new surrogate pair. */
     zr_win32_flush_pending_high_surrogate(plat, out_buf, out_cap, out_len);
     plat->has_pending_high_surrogate = true;
     plat->pending_high_surrogate = (uint16_t)ch;

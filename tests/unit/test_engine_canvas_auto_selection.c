@@ -47,6 +47,13 @@ static size_t zr_make_canvas_drawlist_auto(uint8_t* out, const uint8_t* blob, ui
   const uint32_t total = 64u + cmd_bytes + 8u + blob_len;
   size_t at = 0u;
 
+  /*
+    Drawlist byte layout used by this fixture:
+      [header v4:64][command stream:40][blob table:8][blob bytes:N]
+    Commands:
+      1) CLEAR
+      2) DRAW_CANVAS (blitter=AUTO) referencing blob[0]
+  */
   memset(out, 0, (size_t)total);
 
   zr_w32(out, &at, 0x4C44525Au);

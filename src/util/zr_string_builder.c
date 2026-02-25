@@ -40,9 +40,11 @@ static bool zr_sb__can_write(const zr_sb_t* sb, size_t n) {
   if (!sb || (!sb->buf && sb->cap != 0u)) {
     return false;
   }
+  /* len > cap indicates corrupted state; refuse further writes deterministically. */
   if (sb->len > sb->cap) {
     return false;
   }
+  /* No partial writes: caller must have full remaining capacity for n bytes. */
   if (n > (sb->cap - sb->len)) {
     return false;
   }

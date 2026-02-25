@@ -649,21 +649,32 @@ static size_t zr_win32_encode_utf8_scalar(uint32_t scalar, uint8_t out[4]) {
     return 1u;
   }
   if (scalar <= 0x7FFu) {
-    out[0] = (uint8_t)(0xC0u | ((scalar >> 6u) & 0x1Fu));
-    out[1] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    const uint8_t top = (uint8_t)((scalar >> 6u) & 0x1Fu);
+    const uint8_t low = (uint8_t)(scalar & 0x3Fu);
+    out[0] = (uint8_t)(0xC0u | top);
+    out[1] = (uint8_t)(0x80u | low);
     return 2u;
   }
   if (scalar <= 0xFFFFu) {
-    out[0] = (uint8_t)(0xE0u | ((scalar >> 12u) & 0x0Fu));
-    out[1] = (uint8_t)(0x80u | ((scalar >> 6u) & 0x3Fu));
-    out[2] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+    const uint8_t top = (uint8_t)((scalar >> 12u) & 0x0Fu);
+    const uint8_t mid = (uint8_t)((scalar >> 6u) & 0x3Fu);
+    const uint8_t low = (uint8_t)(scalar & 0x3Fu);
+    out[0] = (uint8_t)(0xE0u | top);
+    out[1] = (uint8_t)(0x80u | mid);
+    out[2] = (uint8_t)(0x80u | low);
     return 3u;
   }
 
-  out[0] = (uint8_t)(0xF0u | ((scalar >> 18u) & 0x07u));
-  out[1] = (uint8_t)(0x80u | ((scalar >> 12u) & 0x3Fu));
-  out[2] = (uint8_t)(0x80u | ((scalar >> 6u) & 0x3Fu));
-  out[3] = (uint8_t)(0x80u | (scalar & 0x3Fu));
+  {
+    const uint8_t top = (uint8_t)((scalar >> 18u) & 0x07u);
+    const uint8_t high = (uint8_t)((scalar >> 12u) & 0x3Fu);
+    const uint8_t mid = (uint8_t)((scalar >> 6u) & 0x3Fu);
+    const uint8_t low = (uint8_t)(scalar & 0x3Fu);
+    out[0] = (uint8_t)(0xF0u | top);
+    out[1] = (uint8_t)(0x80u | high);
+    out[2] = (uint8_t)(0x80u | mid);
+    out[3] = (uint8_t)(0x80u | low);
+  }
   return 4u;
 }
 

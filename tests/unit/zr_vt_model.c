@@ -326,7 +326,12 @@ static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, cons
         const uint32_t r = params[i++] & 0xFFu;
         const uint32_t g = params[i++] & 0xFFu;
         const uint32_t b = params[i++] & 0xFFu;
-        m->ts.style.underline_rgb = (r << 16) | (g << 8) | b;
+        {
+          const uint32_t rr = (r << 16u);
+          const uint32_t gg = (g << 8u);
+          const uint32_t bb = b;
+          m->ts.style.underline_rgb = rr | gg | bb;
+        }
         m->ts.flags |= ZR_TERM_STATE_STYLE_VALID;
       } else if (mode == 5u) {
         if (i >= count) {
@@ -357,7 +362,10 @@ static void zr_vt_model_apply_sgr(zr_vt_model_t* m, const uint32_t* params, cons
         const uint32_t r = params[i++];
         const uint32_t g = params[i++];
         const uint32_t b = params[i++];
-        const uint32_t rgb = ((r & 0xFFu) << 16) | ((g & 0xFFu) << 8) | (b & 0xFFu);
+        const uint32_t rr = ((r & 0xFFu) << 16u);
+        const uint32_t gg = ((g & 0xFFu) << 8u);
+        const uint32_t bb = (b & 0xFFu);
+        const uint32_t rgb = rr | gg | bb;
         if (fg) {
           m->ts.style.fg_rgb = rgb;
         } else {

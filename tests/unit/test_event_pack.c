@@ -19,8 +19,8 @@
 #include <string.h>
 
 /* Helper macro for little-endian u32 byte expansion in expected arrays. */
-#define ZR_U32LE(v)                                                                    \
-  (uint8_t)((uint32_t)(v)&0xFFu), (uint8_t)(((uint32_t)(v) >> 8u) & 0xFFu),             \
+#define ZR_U32LE(v)                                                                                                    \
+  (uint8_t)((uint32_t)(v) & 0xFFu), (uint8_t)(((uint32_t)(v) >> 8u) & 0xFFu),                                          \
       (uint8_t)(((uint32_t)(v) >> 16u) & 0xFFu), (uint8_t)(((uint32_t)(v) >> 24u) & 0xFFu)
 
 static uint32_t zr_test_load_u32le_at(const uint8_t* bytes, size_t off) {
@@ -63,15 +63,24 @@ ZR_TEST_UNIT(event_pack_writes_header_and_one_record) {
   /* --- Assert: Matches expected binary format --- */
   const uint8_t expected[] = {
       /* zr_evbatch_header_t (6 u32) */
-      ZR_U32LE(ZR_EV_MAGIC), ZR_U32LE(ZR_EVENT_BATCH_VERSION_V1), ZR_U32LE(56u), ZR_U32LE(1u),
-      ZR_U32LE(0u), ZR_U32LE(0u),
+      ZR_U32LE(ZR_EV_MAGIC),
+      ZR_U32LE(ZR_EVENT_BATCH_VERSION_V1),
+      ZR_U32LE(56u),
+      ZR_U32LE(1u),
+      ZR_U32LE(0u),
+      ZR_U32LE(0u),
 
       /* zr_ev_record_header_t (4 u32) */
-      ZR_U32LE((uint32_t)ZR_EV_KEY), ZR_U32LE(32u), ZR_U32LE(123u), ZR_U32LE(0u),
+      ZR_U32LE((uint32_t)ZR_EV_KEY),
+      ZR_U32LE(32u),
+      ZR_U32LE(123u),
+      ZR_U32LE(0u),
 
       /* zr_ev_key_t (4 u32) */
-      ZR_U32LE((uint32_t)ZR_KEY_ENTER), ZR_U32LE((uint32_t)ZR_MOD_SHIFT),
-      ZR_U32LE((uint32_t)ZR_KEY_ACTION_DOWN), ZR_U32LE(0u),
+      ZR_U32LE((uint32_t)ZR_KEY_ENTER),
+      ZR_U32LE((uint32_t)ZR_MOD_SHIFT),
+      ZR_U32LE((uint32_t)ZR_KEY_ACTION_DOWN),
+      ZR_U32LE(0u),
   };
 
   ZR_ASSERT_EQ_U32((uint32_t)n, (uint32_t)sizeof(expected));
@@ -135,8 +144,8 @@ ZR_TEST_UNIT(event_pack_truncates_without_partial_record) {
   ZR_ASSERT_TRUE(!appended);
 
   const uint8_t expected_hdr[] = {
-      ZR_U32LE(ZR_EV_MAGIC), ZR_U32LE(ZR_EVENT_BATCH_VERSION_V1), ZR_U32LE(24u), ZR_U32LE(0u),
-      ZR_U32LE(ZR_EV_BATCH_TRUNCATED), ZR_U32LE(0u),
+      ZR_U32LE(ZR_EV_MAGIC), ZR_U32LE(ZR_EVENT_BATCH_VERSION_V1), ZR_U32LE(24u),
+      ZR_U32LE(0u),          ZR_U32LE(ZR_EV_BATCH_TRUNCATED),     ZR_U32LE(0u),
   };
 
   ZR_ASSERT_EQ_U32((uint32_t)n, 24u);

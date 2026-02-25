@@ -212,8 +212,12 @@ static zr_rect_t zr_rect_empty(void) {
   return r;
 }
 
-static int64_t zr_rect_right(zr_rect_t r) { return (int64_t)r.x + (int64_t)r.w; }
-static int64_t zr_rect_bottom(zr_rect_t r) { return (int64_t)r.y + (int64_t)r.h; }
+static int64_t zr_rect_right(zr_rect_t r) {
+  return (int64_t)r.x + (int64_t)r.w;
+}
+static int64_t zr_rect_bottom(zr_rect_t r) {
+  return (int64_t)r.y + (int64_t)r.h;
+}
 
 static zr_rect_t zr_fb_bounds_rect(const zr_fb_t* fb) {
   zr_rect_t r;

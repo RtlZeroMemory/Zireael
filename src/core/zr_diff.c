@@ -657,8 +657,8 @@ static bool zr_emit_cursor_shape(zr_sb_t* sb, zr_term_state_t* ts, uint8_t shape
   }
 
   const uint32_t ps = zr_cursor_shape_ps(shape, blink);
-  if (!zr_diff_write_csi(sb) || !zr_sb_write_u32_dec(sb, ps) ||
-      !zr_sb_write_u8(sb, (uint8_t)' ') || !zr_sb_write_u8(sb, (uint8_t)'q')) {
+  if (!zr_diff_write_csi(sb) || !zr_sb_write_u32_dec(sb, ps) || !zr_sb_write_u8(sb, (uint8_t)' ') ||
+      !zr_sb_write_u8(sb, (uint8_t)'q')) {
     return false;
   }
 

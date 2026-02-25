@@ -354,14 +354,12 @@ static uint8_t zr_win32_detect_colored_underlines(void) {
 
   const char* term = zr_win32_getenv_nonempty("TERM");
   static const char* kColoredUnderlineTerms[] = {"kitty", "wezterm", "ghostty", "foot"};
-  return zr_win32_str_has_any_ci(term, kColoredUnderlineTerms, ZR_ARRAYLEN(kColoredUnderlineTerms))
-             ? 1u
-             : 0u;
+  return zr_win32_str_has_any_ci(term, kColoredUnderlineTerms, ZR_ARRAYLEN(kColoredUnderlineTerms)) ? 1u : 0u;
 }
 
 static uint8_t zr_win32_detect_hyperlinks(void) {
-  static const char* kModernTermVars[] = {"WT_SESSION", "KITTY_WINDOW_ID", "WEZTERM_PANE",
-                                          "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR"};
+  static const char* kModernTermVars[] = {"WT_SESSION", "KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
+                                          "GHOSTTY_RESOURCES_DIR"};
   if (zr_win32_env_has_any_nonempty(kModernTermVars, ZR_ARRAYLEN(kModernTermVars))) {
     return 1u;
   }

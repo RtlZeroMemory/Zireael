@@ -81,7 +81,7 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
   zr_grapheme_t g;
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
-    const size_t   gl = g.size;
+    const size_t gl = g.size;
 
     if (zr_wrap_is_hard_break_grapheme(gb, gl)) {
       if (col > out->max_cols) {
@@ -109,8 +109,8 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
 
 /* Compute greedy line-break offsets for UTF-8 text within max_cols, preferring whitespace breaks. */
 zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_cols, zr_width_policy_t policy,
-                                uint32_t tab_stop, size_t* out_offsets, size_t out_offsets_cap,
-                                size_t* out_count, bool* out_truncated) {
+                                uint32_t tab_stop, size_t* out_offsets, size_t out_offsets_cap, size_t* out_count,
+                                bool* out_truncated) {
   if (!out_count || !out_truncated) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -136,15 +136,15 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
   zr_grapheme_iter_t it;
   zr_grapheme_iter_init(&it, bytes, len);
 
-  size_t   line_start = 0u;
+  size_t line_start = 0u;
   uint32_t col = 0u;
 
-  size_t   last_ws_break_off = ZR_WRAP_NO_BREAK;
+  size_t last_ws_break_off = ZR_WRAP_NO_BREAK;
 
   zr_grapheme_t g;
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
-    const size_t   gl = g.size;
+    const size_t gl = g.size;
 
     if (zr_wrap_is_hard_break_grapheme(gb, gl)) {
       line_start = g.offset + g.size;
@@ -155,7 +155,7 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
     }
 
     uint32_t adv = 0u;
-    bool     is_ws_break = false;
+    bool is_ws_break = false;
     if (zr_wrap_is_tab_grapheme(gb, gl)) {
       adv = zr_wrap_tab_advance(col, tab_stop);
       is_ws_break = true;

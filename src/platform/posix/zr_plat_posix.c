@@ -444,9 +444,9 @@ static bool zr_posix_term_indicates_truecolor(const char* term) {
 }
 
 static bool zr_posix_detect_truecolor_env(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE",       "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR", "VTE_VERSION",   "KONSOLE_VERSION",
-                                          "WT_SESSION"};
+  static const char* kModernTermVars[] = {
+      "KITTY_WINDOW_ID", "WEZTERM_PANE",    "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR",
+      "VTE_VERSION",     "KONSOLE_VERSION", "WT_SESSION"};
   const char* colorterm = zr_posix_getenv_nonempty("COLORTERM");
   if (zr_posix_str_contains_ci(colorterm, "truecolor") || zr_posix_str_contains_ci(colorterm, "24bit") ||
       zr_posix_str_contains_ci(colorterm, "24-bit") || zr_posix_str_contains_ci(colorterm, "rgb")) {
@@ -516,8 +516,8 @@ static uint8_t zr_posix_detect_bracketed_paste(void) {
 }
 
 static uint8_t zr_posix_detect_focus_events(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR", "VTE_VERSION", "WT_SESSION"};
+  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID",       "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
+                                          "GHOSTTY_RESOURCES_DIR", "VTE_VERSION",  "WT_SESSION"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
@@ -561,15 +561,13 @@ static uint8_t zr_posix_detect_colored_underlines(void) {
 
   const char* term = zr_posix_getenv_nonempty("TERM");
   static const char* kColoredUnderlineTerms[] = {"kitty", "wezterm", "ghostty", "foot"};
-  return zr_posix_str_has_any_ci(term, kColoredUnderlineTerms, ZR_ARRAYLEN(kColoredUnderlineTerms))
-             ? 1u
-             : 0u;
+  return zr_posix_str_has_any_ci(term, kColoredUnderlineTerms, ZR_ARRAYLEN(kColoredUnderlineTerms)) ? 1u : 0u;
 }
 
 static uint8_t zr_posix_detect_hyperlinks(void) {
-  static const char* kModernTermVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE",       "WEZTERM_EXECUTABLE",
-                                          "GHOSTTY_RESOURCES_DIR", "VTE_VERSION",   "KONSOLE_VERSION",
-                                          "WT_SESSION"};
+  static const char* kModernTermVars[] = {
+      "KITTY_WINDOW_ID", "WEZTERM_PANE",    "WEZTERM_EXECUTABLE", "GHOSTTY_RESOURCES_DIR",
+      "VTE_VERSION",     "KONSOLE_VERSION", "WT_SESSION"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }

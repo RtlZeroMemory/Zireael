@@ -518,7 +518,7 @@ static uint8_t zr_detect_mode_enabled(uint8_t seen, uint8_t value, uint8_t fallb
   if (seen == 0u) {
     return fallback;
   }
-  return (value == ZR_DETECT_DECRQM_SET) ? 1u : 0u;
+  return value == ZR_DETECT_DECRQM_SET;
 }
 
 static void zr_detect_profile_defaults_from_caps(const plat_caps_t* caps, zr_terminal_profile_t* out_profile) {
@@ -562,7 +562,7 @@ static void zr_detect_apply_parsed(zr_terminal_profile_t* profile, const zr_dete
 
   if (parsed->da1_responded != 0u) {
     /* DA1 is authoritative when present: Ps=4 means sixel is available. */
-    profile->supports_sixel = parsed->da1_has_sixel != 0u ? 1u : 0u;
+    profile->supports_sixel = (uint8_t)(parsed->da1_has_sixel != 0u);
   }
 
   profile->supports_sync_update =
@@ -643,30 +643,36 @@ zr_terminal_cap_flags_t zr_detect_profile_cap_flags(const zr_terminal_profile_t*
   return flags;
 }
 
+/*
+  Apply normalized capability bit flags into profile + caps mirrors.
+
+  Why: Keeps bit-to-field wiring explicit and in one place so ABI-facing cap
+  layout changes remain easy to audit.
+*/
 static void zr_detect_apply_flags(zr_terminal_profile_t* profile, plat_caps_t* caps, zr_terminal_cap_flags_t flags) {
   if (!profile || !caps) {
     return;
   }
 
-  profile->supports_sixel = (flags & ZR_TERM_CAP_SIXEL) != 0u ? 1u : 0u;
-  profile->supports_kitty_graphics = (flags & ZR_TERM_CAP_KITTY_GRAPHICS) != 0u ? 1u : 0u;
-  profile->supports_iterm2_images = (flags & ZR_TERM_CAP_ITERM2_IMAGES) != 0u ? 1u : 0u;
-  profile->supports_underline_styles = (flags & ZR_TERM_CAP_UNDERLINE_STYLES) != 0u ? 1u : 0u;
-  profile->supports_colored_underlines = (flags & ZR_TERM_CAP_COLORED_UNDERLINES) != 0u ? 1u : 0u;
-  profile->supports_hyperlinks = (flags & ZR_TERM_CAP_HYPERLINKS) != 0u ? 1u : 0u;
-  profile->supports_grapheme_clusters = (flags & ZR_TERM_CAP_GRAPHEME_CLUSTERS) != 0u ? 1u : 0u;
-  profile->supports_overline = (flags & ZR_TERM_CAP_OVERLINE) != 0u ? 1u : 0u;
-  profile->supports_pixel_mouse = (flags & ZR_TERM_CAP_PIXEL_MOUSE) != 0u ? 1u : 0u;
-  profile->supports_kitty_keyboard = (flags & ZR_TERM_CAP_KITTY_KEYBOARD) != 0u ? 1u : 0u;
+  profile->supports_sixel = (uint8_t)((flags & ZR_TERM_CAP_SIXEL) != 0u);
+  profile->supports_kitty_graphics = (uint8_t)((flags & ZR_TERM_CAP_KITTY_GRAPHICS) != 0u);
+  profile->supports_iterm2_images = (uint8_t)((flags & ZR_TERM_CAP_ITERM2_IMAGES) != 0u);
+  profile->supports_underline_styles = (uint8_t)((flags & ZR_TERM_CAP_UNDERLINE_STYLES) != 0u);
+  profile->supports_colored_underlines = (uint8_t)((flags & ZR_TERM_CAP_COLORED_UNDERLINES) != 0u);
+  profile->supports_hyperlinks = (uint8_t)((flags & ZR_TERM_CAP_HYPERLINKS) != 0u);
+  profile->supports_grapheme_clusters = (uint8_t)((flags & ZR_TERM_CAP_GRAPHEME_CLUSTERS) != 0u);
+  profile->supports_overline = (uint8_t)((flags & ZR_TERM_CAP_OVERLINE) != 0u);
+  profile->supports_pixel_mouse = (uint8_t)((flags & ZR_TERM_CAP_PIXEL_MOUSE) != 0u);
+  profile->supports_kitty_keyboard = (uint8_t)((flags & ZR_TERM_CAP_KITTY_KEYBOARD) != 0u);
 
-  caps->supports_mouse = (flags & ZR_TERM_CAP_MOUSE) != 0u ? 1u : 0u;
-  caps->supports_bracketed_paste = (flags & ZR_TERM_CAP_BRACKETED_PASTE) != 0u ? 1u : 0u;
-  caps->supports_focus_events = (flags & ZR_TERM_CAP_FOCUS_EVENTS) != 0u ? 1u : 0u;
-  caps->supports_osc52 = (flags & ZR_TERM_CAP_OSC52) != 0u ? 1u : 0u;
-  caps->supports_sync_update = (flags & ZR_TERM_CAP_SYNC_UPDATE) != 0u ? 1u : 0u;
-  caps->supports_scroll_region = (flags & ZR_TERM_CAP_SCROLL_REGION) != 0u ? 1u : 0u;
-  caps->supports_cursor_shape = (flags & ZR_TERM_CAP_CURSOR_SHAPE) != 0u ? 1u : 0u;
-  caps->supports_output_wait_writable = (flags & ZR_TERM_CAP_OUTPUT_WAIT_WRITABLE) != 0u ? 1u : 0u;
+  caps->supports_mouse = (uint8_t)((flags & ZR_TERM_CAP_MOUSE) != 0u);
+  caps->supports_bracketed_paste = (uint8_t)((flags & ZR_TERM_CAP_BRACKETED_PASTE) != 0u);
+  caps->supports_focus_events = (uint8_t)((flags & ZR_TERM_CAP_FOCUS_EVENTS) != 0u);
+  caps->supports_osc52 = (uint8_t)((flags & ZR_TERM_CAP_OSC52) != 0u);
+  caps->supports_sync_update = (uint8_t)((flags & ZR_TERM_CAP_SYNC_UPDATE) != 0u);
+  caps->supports_scroll_region = (uint8_t)((flags & ZR_TERM_CAP_SCROLL_REGION) != 0u);
+  caps->supports_cursor_shape = (uint8_t)((flags & ZR_TERM_CAP_CURSOR_SHAPE) != 0u);
+  caps->supports_output_wait_writable = (uint8_t)((flags & ZR_TERM_CAP_OUTPUT_WAIT_WRITABLE) != 0u);
 
   profile->supports_mouse = caps->supports_mouse;
   profile->supports_bracketed_paste = caps->supports_bracketed_paste;

@@ -168,6 +168,7 @@ static bool zr_posix_wake_slot_register_fd(int wake_fd, int* out_slot_index) {
       return true;
     }
     if (expected == encoded) {
+      /* Re-registering the same fd is valid; also clear stale overflow mark. */
       atomic_store_explicit(&g_posix_wake_overflow_slots[i], 0, memory_order_release);
       if (out_slot_index) {
         *out_slot_index = (int)i;
@@ -375,6 +376,12 @@ static zr_terminal_id_t zr_posix_terminal_id_from_term(const char* term) {
   return ZR_TERM_UNKNOWN;
 }
 
+/*
+  Parse environment overrides in a strict, table-driven way.
+
+  Why: Capability detection must be deterministic. Accept only known boolean
+  spellings and fully-valid unsigned integers, otherwise ignore the override.
+*/
 static bool zr_posix_env_bool_override(const char* key, uint8_t* out_value) {
   if (!key || !out_value) {
     return false;
@@ -547,10 +554,12 @@ static uint8_t zr_posix_detect_focus_events(void) {
     return 0u;
   }
 
+  /* Environment markers are strongest signals for modern focus protocol support. */
   if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_FOCUS, ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_FOCUS))) {
     return 1u;
   }
 
+  /* Fallback to conservative TERM allowlist to avoid false positives. */
   const char* term = zr_posix_getenv_nonempty("TERM");
   static const char* kFocusTerms[] = {"xterm",   "screen", "tmux", "rxvt", "alacritty", "kitty",
                                       "wezterm", "foot",   "st",   "rio",  "ghostty"};
@@ -562,6 +571,7 @@ static uint8_t zr_posix_detect_underline_styles(void) {
     return 0u;
   }
 
+  /* Prefer explicit modern-terminal markers before TERM heuristics. */
   if (zr_posix_env_has_any_nonempty(ZR_POSIX_MODERN_TERM_VARS_UNDERLINE,
                                     ZR_ARRAYLEN(ZR_POSIX_MODERN_TERM_VARS_UNDERLINE))) {
     return 1u;
@@ -1405,10 +1415,15 @@ zr_result_t plat_enter_raw(plat_t* plat) {
   if (!plat) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
+  /* Idempotent entry: callers can safely retry raw-mode transitions. */
   if (plat->raw_active) {
     return ZR_OK;
   }
   if (plat->explicit_pipe_mode) {
+    /*
+      Pipe mode has no terminal modes to mutate, but raw_active still tracks
+      lifecycle so plat_leave_raw() remains symmetric for callers.
+    */
     plat->raw_active = true;
     return ZR_OK;
   }

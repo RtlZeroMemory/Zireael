@@ -619,23 +619,23 @@ static uint32_t zr_posix_detect_sgr_attrs_supported(void) {
 }
 
 static uint8_t zr_posix_detect_osc52(void) {
+  static const char* kOsc52ModernVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE"};
+  static const char* kOsc52Programs[] = {"iTerm.app"};
+  static const char* kOsc52Terms[] = {"xterm", "screen", "tmux", "rxvt", "kitty", "wezterm"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID")) {
+  if (zr_posix_env_has_any_nonempty(kOsc52ModernVars, ZR_ARRAYLEN(kOsc52ModernVars))) {
     return 1u;
   }
-  if (zr_posix_getenv_nonempty("WEZTERM_PANE") || zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE")) {
-    return 1u;
-  }
+
   const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
-  if (term_program && strcmp(term_program, "iTerm.app") == 0) {
+  if (zr_posix_str_equals_any(term_program, kOsc52Programs, ZR_ARRAYLEN(kOsc52Programs))) {
     return 1u;
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  static const char* kOsc52Terms[] = {"xterm", "screen", "tmux", "rxvt", "kitty", "wezterm"};
   return zr_posix_str_has_any(term, kOsc52Terms, ZR_ARRAYLEN(kOsc52Terms)) ? 1u : 0u;
 }
 
@@ -644,27 +644,24 @@ static uint8_t zr_posix_detect_sync_update(void) {
     Synchronized output (DEC private mode ?2026) is not universally supported.
     Use a conservative allowlist based on well-known environment markers.
   */
+  static const char* kSyncModernVars[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE"};
+  static const char* kSyncPrograms[] = {"iTerm.app", "Rio", "rio"};
+  static const char* kSyncTerms[] = {"kitty", "wezterm", "rio"};
   if (zr_posix_term_is_dumb()) {
     return 0u;
   }
 
-  if (zr_posix_getenv_nonempty("KITTY_WINDOW_ID")) {
-    return 1u;
-  }
-  if (zr_posix_getenv_nonempty("WEZTERM_PANE") || zr_posix_getenv_nonempty("WEZTERM_EXECUTABLE")) {
+  if (zr_posix_env_has_any_nonempty(kSyncModernVars, ZR_ARRAYLEN(kSyncModernVars))) {
     return 1u;
   }
 
   const char* term_program = zr_posix_getenv_nonempty("TERM_PROGRAM");
-  if (term_program && strcmp(term_program, "iTerm.app") == 0) {
-    return 1u;
-  }
-  if (term_program && (strcmp(term_program, "Rio") == 0 || strcmp(term_program, "rio") == 0)) {
+  if (zr_posix_str_equals_any(term_program, kSyncPrograms, ZR_ARRAYLEN(kSyncPrograms))) {
     return 1u;
   }
 
   const char* term = zr_posix_getenv_nonempty("TERM");
-  if (term && (strstr(term, "kitty") || strstr(term, "wezterm") || strstr(term, "rio"))) {
+  if (zr_posix_str_has_any(term, kSyncTerms, ZR_ARRAYLEN(kSyncTerms))) {
     return 1u;
   }
 

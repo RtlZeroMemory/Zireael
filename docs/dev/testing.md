@@ -53,6 +53,8 @@ python3 scripts/check_version_pins.py
 - run at least one clang and one gcc preset on POSIX
 - include sanitizer preset on Linux
 - run docs strict build in CI (`bash scripts/docs.sh build`)
+- `scripts/docs.sh` reuses `.venv-docs` and respects `$PYTHON`, so CI can pin
+  a deterministic interpreter
 - treat guardrail failures as blocking
 
 ## Related Specs

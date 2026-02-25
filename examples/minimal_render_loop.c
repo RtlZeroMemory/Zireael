@@ -82,6 +82,11 @@ static int zr_ex_build_drawlist(uint8_t* out, int out_cap, const char* status_li
     cmd_len += 48u;
   }
 
+  /*
+    Drawlist memory layout for this example:
+      [fixed header][command stream][string spans table][string bytes]
+    Offsets below are absolute from start-of-buffer and 4-byte aligned.
+  */
   const uint32_t cmd_off = ZR_EX_DL_HEADER_SIZE;
   const uint32_t strings_span_off = zr_ex_align4_u32(cmd_off + cmd_len);
   const uint32_t strings_bytes_off = zr_ex_align4_u32(strings_span_off + 2u * (uint32_t)sizeof(zr_dl_span_t));
@@ -146,6 +151,7 @@ static bool zr_ex_batch_has_escape(const uint8_t* bytes, uint32_t len) {
   }
 
   uint32_t off = (uint32_t)sizeof(zr_evbatch_header_t);
+  /* Scan packed records for KEY(ESC, DOWN), skipping unknown record types safely. */
   while (off + (uint32_t)sizeof(zr_ev_record_header_t) <= total_size) {
     const uint32_t type = zr_ex_le32_read(bytes + off + 0u);
     const uint32_t size = zr_ex_le32_read(bytes + off + 4u);
@@ -224,4 +230,3 @@ int main(void) {
   engine_destroy(e);
   return 0;
 }
-

@@ -10,14 +10,26 @@
 #include "unicode/zr_grapheme.h"
 #include "unicode/zr_utf8.h"
 
+enum {
+  ZR_WRAP_SCALAR_SPACE = 0x20u,
+  ZR_WRAP_SCALAR_TAB = 0x09u,
+  ZR_WRAP_SCALAR_LF = 0x0Au,
+  ZR_WRAP_SCALAR_CR = 0x0Du,
+};
+
+/*
+  Sentinel for "no whitespace break candidate has been recorded yet."
+*/
+#define ZR_WRAP_WS_BREAK_NONE ((size_t)(-1))
+
 static bool zr_wrap_is_space_grapheme(const uint8_t* bytes, size_t len) {
   zr_utf8_decode_result_t d = zr_utf8_decode_one(bytes, len);
-  return d.valid != 0u && d.scalar == 0x20u;
+  return d.valid != 0u && d.scalar == ZR_WRAP_SCALAR_SPACE;
 }
 
 static bool zr_wrap_is_tab_grapheme(const uint8_t* bytes, size_t len) {
   zr_utf8_decode_result_t d = zr_utf8_decode_one(bytes, len);
-  return d.valid != 0u && d.scalar == 0x09u;
+  return d.valid != 0u && d.scalar == ZR_WRAP_SCALAR_TAB;
 }
 
 static bool zr_wrap_is_hard_break_grapheme(const uint8_t* bytes, size_t len) {
@@ -25,7 +37,7 @@ static bool zr_wrap_is_hard_break_grapheme(const uint8_t* bytes, size_t len) {
   if (d.valid == 0u) {
     return false;
   }
-  if (d.scalar == 0x0Au || d.scalar == 0x0Du) {
+  if (d.scalar == ZR_WRAP_SCALAR_LF || d.scalar == ZR_WRAP_SCALAR_CR) {
     return true;
   }
   return false;
@@ -72,7 +84,7 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
   zr_grapheme_t g;
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
-    const size_t   gl = g.size;
+    const size_t gl = g.size;
 
     if (zr_wrap_is_hard_break_grapheme(gb, gl)) {
       if (col > out->max_cols) {
@@ -100,8 +112,8 @@ zr_result_t zr_measure_utf8(const uint8_t* bytes, size_t len, zr_width_policy_t 
 
 /* Compute greedy line-break offsets for UTF-8 text within max_cols, preferring whitespace breaks. */
 zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_cols, zr_width_policy_t policy,
-                                uint32_t tab_stop, size_t* out_offsets, size_t out_offsets_cap,
-                                size_t* out_count, bool* out_truncated) {
+                                uint32_t tab_stop, size_t* out_offsets, size_t out_offsets_cap, size_t* out_count,
+                                bool* out_truncated) {
   if (!out_count || !out_truncated) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
@@ -127,26 +139,26 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
   zr_grapheme_iter_t it;
   zr_grapheme_iter_init(&it, bytes, len);
 
-  size_t   line_start = 0u;
+  size_t line_start = 0u;
   uint32_t col = 0u;
 
-  size_t   last_ws_break_off = (size_t)(-1);
+  size_t last_ws_break_off = ZR_WRAP_WS_BREAK_NONE;
 
   zr_grapheme_t g;
   while (zr_grapheme_next(&it, &g)) {
     const uint8_t* gb = bytes + g.offset;
-    const size_t   gl = g.size;
+    const size_t gl = g.size;
 
     if (zr_wrap_is_hard_break_grapheme(gb, gl)) {
       line_start = g.offset + g.size;
       col = 0u;
-      last_ws_break_off = (size_t)(-1);
+      last_ws_break_off = ZR_WRAP_WS_BREAK_NONE;
       zr_wrap_push_offset(line_start, out_offsets, out_offsets_cap, out_count, out_truncated);
       continue;
     }
 
     uint32_t adv = 0u;
-    bool     is_ws_break = false;
+    bool is_ws_break = false;
     if (zr_wrap_is_tab_grapheme(gb, gl)) {
       adv = zr_wrap_tab_advance(col, tab_stop);
       is_ws_break = true;
@@ -170,7 +182,7 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
     if (is_ws_break && col + adv > max_cols) {
       line_start = g.offset + g.size;
       col = 0u;
-      last_ws_break_off = (size_t)(-1);
+      last_ws_break_off = ZR_WRAP_WS_BREAK_NONE;
       zr_wrap_push_offset(line_start, out_offsets, out_offsets_cap, out_count, out_truncated);
       continue;
     }
@@ -183,12 +195,16 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
       continue;
     }
 
-    /* Overflow: prefer breaking after the last whitespace. */
-    if (last_ws_break_off != (size_t)(-1) && last_ws_break_off > line_start) {
+    /*
+      Overflow: prefer breaking after the last whitespace.
+      Rewind iterator to the chosen line start so the next loop iteration
+      re-evaluates the first grapheme of the new line from a clean column=0.
+    */
+    if (last_ws_break_off != ZR_WRAP_WS_BREAK_NONE && last_ws_break_off > line_start) {
       it.off = last_ws_break_off;
       line_start = last_ws_break_off;
       col = 0u;
-      last_ws_break_off = (size_t)(-1);
+      last_ws_break_off = ZR_WRAP_WS_BREAK_NONE;
       zr_wrap_push_offset(line_start, out_offsets, out_offsets_cap, out_count, out_truncated);
       continue;
     }
@@ -206,7 +222,7 @@ zr_result_t zr_wrap_greedy_utf8(const uint8_t* bytes, size_t len, uint32_t max_c
     it.off = g.offset;
     line_start = g.offset;
     col = 0u;
-    last_ws_break_off = (size_t)(-1);
+    last_ws_break_off = ZR_WRAP_WS_BREAK_NONE;
     zr_wrap_push_offset(line_start, out_offsets, out_offsets_cap, out_count, out_truncated);
   }
 

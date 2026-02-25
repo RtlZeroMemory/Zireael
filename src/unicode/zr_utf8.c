@@ -19,6 +19,19 @@ enum {
   ZR_UTF8_LEAD_4_MAX = 0xF4u,
   ZR_UTF8_CONT_MASK = 0xC0u,
   ZR_UTF8_CONT_VALUE = 0x80u,
+  ZR_UTF8_PAYLOAD_2BYTE_MASK = 0x1Fu,
+  ZR_UTF8_PAYLOAD_3BYTE_MASK = 0x0Fu,
+  ZR_UTF8_PAYLOAD_4BYTE_MASK = 0x07u,
+  ZR_UTF8_PAYLOAD_CONT_MASK = 0x3Fu,
+  ZR_UTF8_SHIFT_6 = 6u,
+  ZR_UTF8_SHIFT_12 = 12u,
+  ZR_UTF8_SHIFT_18 = 18u,
+  ZR_UTF8_LEAD_3_SURROGATE = 0xEDu,
+  ZR_UTF8_LEAD_4_MAX_BOUNDARY = 0xF4u,
+  ZR_UTF8_3BYTE_MIN_SECOND = 0xA0u,
+  ZR_UTF8_3BYTE_SURROGATE_MAX_SECOND = 0x9Fu,
+  ZR_UTF8_4BYTE_MIN_SECOND = 0x90u,
+  ZR_UTF8_4BYTE_MAX_SECOND = 0x8Fu,
   ZR_UTF8_REPLACEMENT = 0xFFFDu,
   ZR_UTF8_MIN_3BYTE = 0x800u,
   ZR_UTF8_MIN_4BYTE = 0x10000u,
@@ -48,6 +61,22 @@ static zr_utf8_decode_result_t zr_utf8_decode_ascii(uint8_t b0) {
   return zr_utf8_make_result((uint32_t)b0, 1u, 1u);
 }
 
+static uint32_t zr_utf8_payload_bits(uint8_t byte, uint8_t payload_mask) {
+  return (uint32_t)(byte & payload_mask);
+}
+
+static uint32_t zr_utf8_join_payloads_2(uint32_t top, uint32_t low) {
+  return (top << ZR_UTF8_SHIFT_6) | low;
+}
+
+static uint32_t zr_utf8_join_payloads_3(uint32_t top, uint32_t mid, uint32_t low) {
+  return (top << ZR_UTF8_SHIFT_12) | (mid << ZR_UTF8_SHIFT_6) | low;
+}
+
+static uint32_t zr_utf8_join_payloads_4(uint32_t top, uint32_t high, uint32_t mid, uint32_t low) {
+  return (top << ZR_UTF8_SHIFT_18) | (high << ZR_UTF8_SHIFT_12) | (mid << ZR_UTF8_SHIFT_6) | low;
+}
+
 /* Decode a 2-byte UTF-8 scalar (C2..DF 80..BF). */
 static zr_utf8_decode_result_t zr_utf8_decode_two_bytes(const uint8_t* s, size_t len) {
   if (len < 2u) {
@@ -59,7 +88,9 @@ static zr_utf8_decode_result_t zr_utf8_decode_two_bytes(const uint8_t* s, size_t
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp = ((uint32_t)(s[0] & 0x1Fu) << 6) | (uint32_t)(b1 & 0x3Fu);
+  const uint32_t top = zr_utf8_payload_bits(s[0], ZR_UTF8_PAYLOAD_2BYTE_MASK);
+  const uint32_t low = zr_utf8_payload_bits(b1, ZR_UTF8_PAYLOAD_CONT_MASK);
+  const uint32_t cp = zr_utf8_join_payloads_2(top, low);
   return zr_utf8_make_result(cp, 2u, 1u);
 }
 
@@ -76,14 +107,17 @@ static zr_utf8_decode_result_t zr_utf8_decode_three_bytes(const uint8_t* s, size
     return zr_utf8_invalid(len);
   }
 
-  if (b0 == 0xE0u && b1 < 0xA0u) {
+  if (b0 == ZR_UTF8_LEAD_3_MIN && b1 < ZR_UTF8_3BYTE_MIN_SECOND) {
     return zr_utf8_invalid(len);
   }
-  if (b0 == 0xEDu && b1 > 0x9Fu) {
+  if (b0 == ZR_UTF8_LEAD_3_SURROGATE && b1 > ZR_UTF8_3BYTE_SURROGATE_MAX_SECOND) {
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp = ((uint32_t)(b0 & 0x0Fu) << 12) | ((uint32_t)(b1 & 0x3Fu) << 6) | (uint32_t)(b2 & 0x3Fu);
+  const uint32_t top = zr_utf8_payload_bits(b0, ZR_UTF8_PAYLOAD_3BYTE_MASK);
+  const uint32_t mid = zr_utf8_payload_bits(b1, ZR_UTF8_PAYLOAD_CONT_MASK);
+  const uint32_t low = zr_utf8_payload_bits(b2, ZR_UTF8_PAYLOAD_CONT_MASK);
+  const uint32_t cp = zr_utf8_join_payloads_3(top, mid, low);
   if (cp >= ZR_UTF8_SURROGATE_MIN && cp <= ZR_UTF8_SURROGATE_MAX) {
     return zr_utf8_invalid(len);
   }
@@ -107,15 +141,18 @@ static zr_utf8_decode_result_t zr_utf8_decode_four_bytes(const uint8_t* s, size_
     return zr_utf8_invalid(len);
   }
 
-  if (b0 == 0xF0u && b1 < 0x90u) {
+  if (b0 == ZR_UTF8_LEAD_4_MIN && b1 < ZR_UTF8_4BYTE_MIN_SECOND) {
     return zr_utf8_invalid(len);
   }
-  if (b0 == 0xF4u && b1 > 0x8Fu) {
+  if (b0 == ZR_UTF8_LEAD_4_MAX_BOUNDARY && b1 > ZR_UTF8_4BYTE_MAX_SECOND) {
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp = ((uint32_t)(b0 & 0x07u) << 18) | ((uint32_t)(b1 & 0x3Fu) << 12) | ((uint32_t)(b2 & 0x3Fu) << 6) |
-                      (uint32_t)(b3 & 0x3Fu);
+  const uint32_t top = zr_utf8_payload_bits(b0, ZR_UTF8_PAYLOAD_4BYTE_MASK);
+  const uint32_t high = zr_utf8_payload_bits(b1, ZR_UTF8_PAYLOAD_CONT_MASK);
+  const uint32_t mid = zr_utf8_payload_bits(b2, ZR_UTF8_PAYLOAD_CONT_MASK);
+  const uint32_t low = zr_utf8_payload_bits(b3, ZR_UTF8_PAYLOAD_CONT_MASK);
+  const uint32_t cp = zr_utf8_join_payloads_4(top, high, mid, low);
   if (cp > ZR_UTF8_MAX_SCALAR) {
     return zr_utf8_invalid(len);
   }

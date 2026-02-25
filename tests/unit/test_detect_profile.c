@@ -114,6 +114,50 @@ ZR_TEST_UNIT(detect_profile_known_terminal_foot) {
   zr_test_close_mock_platform(plat);
 }
 
+ZR_TEST_UNIT(detect_profile_wezterm_da1_without_sixel_clears_support) {
+  mock_plat_reset();
+
+  plat_t* plat = NULL;
+  plat_caps_t baseline;
+  ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
+
+  static const uint8_t kResponses[] = "\x1bP>|WezTerm 20240203-110809-5046fc22\x1b\\"
+                                      "\x1b[?1;2c";
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(kResponses, sizeof(kResponses) - 1u), ZR_OK);
+
+  zr_terminal_profile_t profile;
+  plat_caps_t out_caps;
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
+
+  ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_WEZTERM);
+  ZR_ASSERT_EQ_U32(profile.da1_responded, 1u);
+  ZR_ASSERT_EQ_U32(profile.supports_sixel, 0u);
+
+  zr_test_close_mock_platform(plat);
+}
+
+ZR_TEST_UNIT(detect_profile_wezterm_da1_with_sixel_keeps_support) {
+  mock_plat_reset();
+
+  plat_t* plat = NULL;
+  plat_caps_t baseline;
+  ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
+
+  static const uint8_t kResponses[] = "\x1bP>|WezTerm 20240203-110809-5046fc22\x1b\\"
+                                      "\x1b[?1;2;4c";
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(kResponses, sizeof(kResponses) - 1u), ZR_OK);
+
+  zr_terminal_profile_t profile;
+  plat_caps_t out_caps;
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
+
+  ZR_ASSERT_EQ_U32((uint32_t)profile.id, (uint32_t)ZR_TERM_WEZTERM);
+  ZR_ASSERT_EQ_U32(profile.da1_responded, 1u);
+  ZR_ASSERT_EQ_U32(profile.supports_sixel, 1u);
+
+  zr_test_close_mock_platform(plat);
+}
+
 ZR_TEST_UNIT(detect_profile_unknown_terminal_is_conservative) {
   mock_plat_reset();
 

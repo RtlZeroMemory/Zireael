@@ -161,6 +161,7 @@ static bool zr_win32_env_bool_override(const char* key, uint8_t* out_value) {
   if (!v) {
     return false;
   }
+  /* Keep override parsing deterministic by accepting only explicit spellings. */
   static const char* kTrueValues[] = {"1", "true", "TRUE", "yes", "YES", "on", "ON"};
   static const char* kFalseValues[] = {"0", "false", "FALSE", "no", "NO", "off", "OFF"};
 
@@ -220,6 +221,7 @@ static uint8_t zr_win32_ascii_tolower(uint8_t c) {
   return c;
 }
 
+/* ASCII-only case-insensitive substring match used by TERM heuristics. */
 static bool zr_win32_str_contains_ci(const char* s, const char* needle) {
   if (!s || !needle || needle[0] == '\0') {
     return false;
@@ -324,6 +326,10 @@ static const char* const ZR_WIN32_MODERN_VARS_HYPERLINKS[] = {"WT_SESSION", "KIT
 static const char* const ZR_WIN32_MODERN_VARS_SYNC_OSC52[] = {"KITTY_WINDOW_ID", "WEZTERM_PANE", "WEZTERM_EXECUTABLE"};
 
 static bool zr_win32_detect_modern_vt_host(void) {
+  /*
+    Heuristic: modern VT host markers from env vars first, then TERM_PROGRAM
+    identity and TERM fallback patterns.
+  */
   if (zr_win32_env_has_any_nonempty(ZR_WIN32_MODERN_VARS_BASE, ZR_ARRAYLEN(ZR_WIN32_MODERN_VARS_BASE))) {
     return true;
   }

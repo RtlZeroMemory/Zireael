@@ -193,6 +193,12 @@ void zr_detect_parsed_reset(zr_detect_parsed_t* out_parsed) {
   out_parsed->xtversion_id = ZR_TERM_UNKNOWN;
 }
 
+/*
+  Parse XTGETTCAP/XTVersion reply: ESC P > | ... ST.
+
+  Why: Terminal identity from this payload helps choose stable capability
+  defaults before applying optional DA/DECRQM refinements.
+*/
 static bool zr_detect_parse_xtversion(const uint8_t* bytes, size_t len, size_t i, size_t* out_consumed,
                                       zr_detect_parsed_t* parsed) {
   if (!bytes || !out_consumed || !parsed) {
@@ -241,6 +247,11 @@ static bool zr_detect_parse_xtversion(const uint8_t* bytes, size_t len, size_t i
   return true;
 }
 
+/*
+  Parse DA1 reply: ESC [ ? Ps ; ... c.
+
+  Why: We currently extract only whether capability code 4 (sixel) appears.
+*/
 static bool zr_detect_parse_da1(const uint8_t* bytes, size_t len, size_t i, size_t* out_consumed,
                                 zr_detect_parsed_t* parsed) {
   if (!bytes || !out_consumed || !parsed) {
@@ -287,6 +298,11 @@ static bool zr_detect_parse_da1(const uint8_t* bytes, size_t len, size_t i, size
   return false;
 }
 
+/*
+  Parse DA2 reply: ESC [ > Pp ; Pv ; Pc c.
+
+  Why: Model/version values are used for deterministic profile heuristics.
+*/
 static bool zr_detect_parse_da2(const uint8_t* bytes, size_t len, size_t i, size_t* out_consumed,
                                 zr_detect_parsed_t* parsed) {
   if (!bytes || !out_consumed || !parsed) {
@@ -331,6 +347,12 @@ static bool zr_detect_parse_da2(const uint8_t* bytes, size_t len, size_t i, size
   return true;
 }
 
+/*
+  Parse DECRQM mode report: ESC [ ? mode ; value $ y.
+
+  Why: Confirms runtime support for specific modes (sync update, bracketed
+  paste, sgr-pixel mouse, etc.) instead of relying on static heuristics only.
+*/
 static bool zr_detect_parse_decrqm(const uint8_t* bytes, size_t len, size_t i, size_t* out_consumed,
                                    zr_detect_parsed_t* parsed) {
   if (!bytes || !out_consumed || !parsed) {
@@ -441,6 +463,36 @@ static void zr_detect_mark_consumed(uint8_t* out_mask, size_t mask_cap, size_t b
   memset(out_mask + begin, 1, n);
 }
 
+typedef bool (*zr_detect_parser_fn)(const uint8_t*, size_t, size_t, size_t*, zr_detect_parsed_t*);
+
+/*
+  Run one parser and update scan position + consumed mask consistently.
+
+  Returns true when parser matched (even if consumed length was invalid and the
+  caller should advance by one byte as recovery), false when parser did not match.
+*/
+static bool zr_detect_try_parse_response(const uint8_t* bytes, size_t len, size_t i, zr_detect_parsed_t* parsed,
+                                         uint8_t* out_consumed_mask, size_t consumed_mask_cap,
+                                         zr_detect_parser_fn parser, size_t* out_next) {
+  if (!bytes || !parsed || !parser || !out_next || i >= len) {
+    return false;
+  }
+
+  size_t consumed = 0u;
+  if (!parser(bytes, len, i, &consumed, parsed)) {
+    return false;
+  }
+
+  if (consumed == 0u || consumed > (len - i)) {
+    *out_next = i + 1u;
+    return true;
+  }
+
+  zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
+  *out_next = i + consumed;
+  return true;
+}
+
 static zr_result_t zr_detect_parse_responses_impl(const uint8_t* bytes, size_t len, zr_detect_parsed_t* io_parsed,
                                                   uint8_t* out_consumed_mask, size_t consumed_mask_cap) {
   if (!io_parsed) {
@@ -457,50 +509,18 @@ static zr_result_t zr_detect_parse_responses_impl(const uint8_t* bytes, size_t l
       continue;
     }
 
-    size_t consumed = 0u;
-    if (zr_detect_parse_xtversion(bytes, len, i, &consumed, io_parsed)) {
-      if (consumed == 0u || consumed > (len - i)) {
-        i++;
-        continue;
-      }
-      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
-      i += consumed;
-      continue;
-    }
-    if (zr_detect_parse_decrqm(bytes, len, i, &consumed, io_parsed)) {
-      if (consumed == 0u || consumed > (len - i)) {
-        i++;
-        continue;
-      }
-      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
-      i += consumed;
-      continue;
-    }
-    if (zr_detect_parse_da2(bytes, len, i, &consumed, io_parsed)) {
-      if (consumed == 0u || consumed > (len - i)) {
-        i++;
-        continue;
-      }
-      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
-      i += consumed;
-      continue;
-    }
-    if (zr_detect_parse_da1(bytes, len, i, &consumed, io_parsed)) {
-      if (consumed == 0u || consumed > (len - i)) {
-        i++;
-        continue;
-      }
-      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
-      i += consumed;
-      continue;
-    }
-    if (zr_detect_parse_window_report(bytes, len, i, &consumed, io_parsed)) {
-      if (consumed == 0u || consumed > (len - i)) {
-        i++;
-        continue;
-      }
-      zr_detect_mark_consumed(out_consumed_mask, consumed_mask_cap, i, consumed);
-      i += consumed;
+    size_t next = i;
+    if (zr_detect_try_parse_response(bytes, len, i, io_parsed, out_consumed_mask, consumed_mask_cap,
+                                     zr_detect_parse_xtversion, &next) ||
+        zr_detect_try_parse_response(bytes, len, i, io_parsed, out_consumed_mask, consumed_mask_cap,
+                                     zr_detect_parse_decrqm, &next) ||
+        zr_detect_try_parse_response(bytes, len, i, io_parsed, out_consumed_mask, consumed_mask_cap,
+                                     zr_detect_parse_da2, &next) ||
+        zr_detect_try_parse_response(bytes, len, i, io_parsed, out_consumed_mask, consumed_mask_cap,
+                                     zr_detect_parse_da1, &next) ||
+        zr_detect_try_parse_response(bytes, len, i, io_parsed, out_consumed_mask, consumed_mask_cap,
+                                     zr_detect_parse_window_report, &next)) {
+      i = next;
       continue;
     }
 

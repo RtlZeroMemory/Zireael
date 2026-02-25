@@ -69,6 +69,8 @@ bash scripts/docs.sh build
 ```
 
 This runs strict MkDocs and, when available, Doxygen generation.
+It reuses `.venv-docs` and honors `$PYTHON`, so CI can pin an interpreter
+without rebuilding the docs environment on each invocation.
 
 ## Next Steps
 

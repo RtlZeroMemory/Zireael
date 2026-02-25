@@ -23,6 +23,14 @@
   (uint8_t)((uint32_t)(v)&0xFFu), (uint8_t)(((uint32_t)(v) >> 8u) & 0xFFu),             \
       (uint8_t)(((uint32_t)(v) >> 16u) & 0xFFu), (uint8_t)(((uint32_t)(v) >> 24u) & 0xFFu)
 
+static uint32_t zr_test_load_u32le_at(const uint8_t* bytes, size_t off) {
+  const uint32_t b0 = (uint32_t)bytes[off + 0u];
+  const uint32_t b1 = ((uint32_t)bytes[off + 1u] << 8u);
+  const uint32_t b2 = ((uint32_t)bytes[off + 2u] << 16u);
+  const uint32_t b3 = ((uint32_t)bytes[off + 3u] << 24u);
+  return b0 | b1 | b2 | b3;
+}
+
 /*
  * Test: event_pack_writes_header_and_one_record
  *
@@ -177,12 +185,9 @@ ZR_TEST_UNIT(event_pack_truncates_after_some_records_fit) {
   ZR_ASSERT_EQ_U32((uint32_t)n, 44u);
 
   /* Validate flags and event_count in patched header. */
-  const uint32_t total_size = (uint32_t)(buf[2 * 4 + 0] | (buf[2 * 4 + 1] << 8u) |
-                                        (buf[2 * 4 + 2] << 16u) | (buf[2 * 4 + 3] << 24u));
-  const uint32_t event_count = (uint32_t)(buf[3 * 4 + 0] | (buf[3 * 4 + 1] << 8u) |
-                                         (buf[3 * 4 + 2] << 16u) | (buf[3 * 4 + 3] << 24u));
-  const uint32_t flags = (uint32_t)(buf[4 * 4 + 0] | (buf[4 * 4 + 1] << 8u) |
-                                   (buf[4 * 4 + 2] << 16u) | (buf[4 * 4 + 3] << 24u));
+  const uint32_t total_size = zr_test_load_u32le_at(buf, 2u * 4u);
+  const uint32_t event_count = zr_test_load_u32le_at(buf, 3u * 4u);
+  const uint32_t flags = zr_test_load_u32le_at(buf, 4u * 4u);
 
   ZR_ASSERT_EQ_U32(total_size, 44u);
   ZR_ASSERT_EQ_U32(event_count, 1u);
@@ -195,4 +200,3 @@ ZR_TEST_UNIT(event_pack_truncates_after_some_records_fit) {
   ZR_ASSERT_EQ_U32(buf[42], 0u);
   ZR_ASSERT_EQ_U32(buf[43], 0u);
 }
-

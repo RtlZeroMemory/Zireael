@@ -59,7 +59,9 @@ static zr_utf8_decode_result_t zr_utf8_decode_two_bytes(const uint8_t* s, size_t
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp = ((uint32_t)(s[0] & 0x1Fu) << 6) | (uint32_t)(b1 & 0x3Fu);
+  const uint32_t top = (uint32_t)(s[0] & 0x1Fu);
+  const uint32_t low = (uint32_t)(b1 & 0x3Fu);
+  const uint32_t cp = (top << 6u) | low;
   return zr_utf8_make_result(cp, 2u, 1u);
 }
 
@@ -83,7 +85,10 @@ static zr_utf8_decode_result_t zr_utf8_decode_three_bytes(const uint8_t* s, size
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp = ((uint32_t)(b0 & 0x0Fu) << 12) | ((uint32_t)(b1 & 0x3Fu) << 6) | (uint32_t)(b2 & 0x3Fu);
+  const uint32_t top = (uint32_t)(b0 & 0x0Fu);
+  const uint32_t mid = (uint32_t)(b1 & 0x3Fu);
+  const uint32_t low = (uint32_t)(b2 & 0x3Fu);
+  const uint32_t cp = (top << 12u) | (mid << 6u) | low;
   if (cp >= ZR_UTF8_SURROGATE_MIN && cp <= ZR_UTF8_SURROGATE_MAX) {
     return zr_utf8_invalid(len);
   }
@@ -114,8 +119,11 @@ static zr_utf8_decode_result_t zr_utf8_decode_four_bytes(const uint8_t* s, size_
     return zr_utf8_invalid(len);
   }
 
-  const uint32_t cp = ((uint32_t)(b0 & 0x07u) << 18) | ((uint32_t)(b1 & 0x3Fu) << 12) | ((uint32_t)(b2 & 0x3Fu) << 6) |
-                      (uint32_t)(b3 & 0x3Fu);
+  const uint32_t top = (uint32_t)(b0 & 0x07u);
+  const uint32_t high = (uint32_t)(b1 & 0x3Fu);
+  const uint32_t mid = (uint32_t)(b2 & 0x3Fu);
+  const uint32_t low = (uint32_t)(b3 & 0x3Fu);
+  const uint32_t cp = (top << 18u) | (high << 12u) | (mid << 6u) | low;
   if (cp > ZR_UTF8_MAX_SCALAR) {
     return zr_utf8_invalid(len);
   }

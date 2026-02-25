@@ -20,13 +20,24 @@
 #include <stddef.h>
 #include <string.h>
 
+/*
+  Escape sequence helpers used in test byte fixtures:
+    - CSI: ESC '['
+    - SS3: ESC 'O'
+*/
+enum {
+  ZR_TEST_ESC_BYTE = 27u,
+};
+#define ZR_TEST_ESC ((uint8_t)ZR_TEST_ESC_BYTE)
+#define ZR_TEST_CSI ZR_TEST_ESC, (uint8_t)'['
+#define ZR_TEST_SS3 ZR_TEST_ESC, (uint8_t)'O'
+
 static uint32_t zr_u32le_at(const uint8_t* p) {
   return zr_load_u32le(p);
 }
 
 static void zr_drain_initial_resize(zr_test_ctx_t* ctx, zr_engine_t* e) {
-  uint8_t out0[128];
-  memset(out0, 0, sizeof(out0));
+  uint8_t out0[128] = {0};
   const int n0 = engine_poll_events(e, 0, out0, (int)sizeof(out0));
   ZR_ASSERT_TRUE(n0 > 0);
   ZR_ASSERT_EQ_U32(zr_u32le_at(out0 + 0u), ZR_EV_MAGIC);
@@ -116,7 +127,7 @@ static void zr_mock_set_caps_with_focus(uint8_t supports_focus_events) {
   caps.color_mode = PLAT_COLOR_MODE_RGB;
   caps.supports_mouse = 1u;
   caps.supports_bracketed_paste = 1u;
-  caps.supports_focus_events = (supports_focus_events != 0u) ? 1u : 0u;
+  caps.supports_focus_events = (supports_focus_events != 0u);
   caps.supports_osc52 = 0u;
   caps.supports_sync_update = 0u;
   caps.supports_scroll_region = 1u;
@@ -188,11 +199,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_arrow_with_params) {
   zr_drain_initial_resize(ctx, e);
 
   /* Common xterm-style arrow with modifiers: ESC [ 1 ; 5 A */
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)';', (uint8_t)'5', (uint8_t)'A'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'1', (uint8_t)';', (uint8_t)'5', (uint8_t)'A'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -227,11 +237,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_shift_tab) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'Z'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'Z'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -263,11 +272,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_focus_in_out) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'I', 0x1Bu, (uint8_t)'[', (uint8_t)'O'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'I', ZR_TEST_CSI, (uint8_t)'O'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -305,11 +313,10 @@ ZR_TEST_UNIT(engine_poll_events_does_not_parse_csi_focus_when_disabled_by_caps) 
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'I', 0x1Bu, (uint8_t)'[', (uint8_t)'O'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'I', ZR_TEST_CSI, (uint8_t)'O'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -336,11 +343,10 @@ ZR_TEST_UNIT(engine_poll_events_does_not_parse_csi_focus_when_disabled_by_config
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'I', 0x1Bu, (uint8_t)'[', (uint8_t)'O'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'I', ZR_TEST_CSI, (uint8_t)'O'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -365,11 +371,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_tab_with_ctrl) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'9', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -404,12 +409,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_modify_other_keys_alt_text) {
     xterm modifyOtherKeys: CSI 27;3;97~ means Alt+'a'.
     Parser normalizes this as Escape key + text scalar 'a'.
   */
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';',
-                        (uint8_t)'3', (uint8_t)';', (uint8_t)'9', (uint8_t)'7', (uint8_t)'~'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'3',
+                        (uint8_t)';', (uint8_t)'9', (uint8_t)'7', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -445,7 +449,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_split_csi_focus_in) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in0[] = {0x1Bu, (uint8_t)'['};
+  const uint8_t in0[] = {ZR_TEST_CSI};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in0, sizeof(in0)), ZR_OK);
 
   uint8_t out0[128];
@@ -486,7 +490,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_split_csi_focus_out) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in0[] = {0x1Bu, (uint8_t)'['};
+  const uint8_t in0[] = {ZR_TEST_CSI};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in0, sizeof(in0)), ZR_OK);
 
   uint8_t out0[128];
@@ -526,7 +530,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_split_csi_u_across_polls) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in0[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'5'};
+  const uint8_t in0[] = {ZR_TEST_CSI, (uint8_t)'9', (uint8_t)';', (uint8_t)'5'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in0, sizeof(in0)), ZR_OK);
 
   uint8_t out0[128];
@@ -566,11 +570,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_alt_text) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'9', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -603,11 +606,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_enter_with_ctrl) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'1', (uint8_t)'3', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'1', (uint8_t)'3', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -637,12 +639,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_with_extra_param) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'5',
-                        (uint8_t)';', (uint8_t)'1', (uint8_t)'2', (uint8_t)'3', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'9', (uint8_t)';', (uint8_t)'5', (uint8_t)';',
+                        (uint8_t)'1', (uint8_t)'2', (uint8_t)'3', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -671,12 +672,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_invalid_scalar_with_mods_as_unknown
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'1', (uint8_t)'1', (uint8_t)'4',
-                        (uint8_t)'1', (uint8_t)'1', (uint8_t)'2', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'1', (uint8_t)'1', (uint8_t)'1', (uint8_t)'4', (uint8_t)'1',
+                        (uint8_t)'1', (uint8_t)'2', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -705,12 +705,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_modify_other_keys_ctrl_tab) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';',
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'7', (uint8_t)';',
                         (uint8_t)'5', (uint8_t)';', (uint8_t)'9', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -739,12 +738,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_modify_other_keys_meta_text) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';',
-                        (uint8_t)'9', (uint8_t)';', (uint8_t)'9', (uint8_t)'7', (uint8_t)'~'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'9',
+                        (uint8_t)';', (uint8_t)'9', (uint8_t)'7', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -777,12 +775,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_modify_other_keys_with_extra_param) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'5',
-                        (uint8_t)';', (uint8_t)'9', (uint8_t)';', (uint8_t)'7', (uint8_t)'7', (uint8_t)'~'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'5', (uint8_t)';',
+                        (uint8_t)'9', (uint8_t)';', (uint8_t)'7', (uint8_t)'7', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -813,7 +810,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_split_modify_other_keys_alt_text) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in0[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)';',
+      ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)';',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in0, sizeof(in0)), ZR_OK);
 
@@ -858,11 +855,10 @@ ZR_TEST_UNIT(engine_poll_events_falls_back_on_malformed_csi_u_sequence) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'x', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'9', (uint8_t)';', (uint8_t)'x', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[512];
-  memset(out, 0, sizeof(out));
+  uint8_t out[512] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -886,12 +882,11 @@ ZR_TEST_UNIT(engine_poll_events_falls_back_on_csi_u_invalid_scalar_without_mods)
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'1', (uint8_t)'1',
-                        (uint8_t)'4', (uint8_t)'1', (uint8_t)'1', (uint8_t)'2', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'1', (uint8_t)'1', (uint8_t)'1', (uint8_t)'4',
+                        (uint8_t)'1', (uint8_t)'1', (uint8_t)'2', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[512];
-  memset(out, 0, sizeof(out));
+  uint8_t out[512] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -915,11 +910,10 @@ ZR_TEST_UNIT(engine_poll_events_falls_back_on_malformed_modify_other_keys_sequen
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)'~'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'7', (uint8_t)';', (uint8_t)'3', (uint8_t)'~'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[512];
-  memset(out, 0, sizeof(out));
+  uint8_t out[512] = {0};
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
@@ -944,7 +938,7 @@ ZR_TEST_UNIT(engine_poll_events_flushes_incomplete_csi_u_on_idle_poll) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)';'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'9', (uint8_t)';'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out0[128];
@@ -980,8 +974,7 @@ ZR_TEST_UNIT(engine_poll_events_emits_text_scalars_from_utf8_and_invalid_bytes) 
   const uint8_t in[] = {0xE2u, 0x82u, 0xACu, 0xFFu};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1045,8 +1038,7 @@ ZR_TEST_UNIT(engine_poll_events_buffers_split_4byte_utf8_prefix) {
   mock_plat_set_read_max(2u);
   ZR_ASSERT_EQ_U32(mock_plat_push_input(b0b1, sizeof(b0b1)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
   ZR_ASSERT_EQ_U32(engine_poll_events(e, 0, out, (int)sizeof(out)), 0);
 
   ZR_ASSERT_EQ_U32(mock_plat_push_input(b2b3, sizeof(b2b3)), ZR_OK);
@@ -1107,8 +1099,7 @@ ZR_TEST_UNIT(engine_poll_events_does_not_buffer_impossible_utf8_prefix) {
   const uint8_t in[] = {0xE0u, 0x80u};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1162,11 +1153,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_ss3_arrow) {
   zr_drain_initial_resize(ctx, e);
 
   /* Application cursor mode: ESC O A */
-  const uint8_t in[] = {0x1Bu, (uint8_t)'O', (uint8_t)'A'};
+  const uint8_t in[] = {ZR_TEST_SS3, (uint8_t)'A'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1197,11 +1187,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_split_csi_arrow) {
   zr_drain_initial_resize(ctx, e);
 
   /* ESC [ A split across reads must not generate spurious ESC/TEXT events. */
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'A'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'A'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1231,11 +1220,10 @@ ZR_TEST_UNIT(engine_poll_events_parses_split_csi_u_key) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu, (uint8_t)'[', (uint8_t)'9', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'9', (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[128];
-  memset(out, 0, sizeof(out));
+  uint8_t out[128] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1267,13 +1255,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_ss3_function_keys) {
 
   /* Common SS3 function keys: F1..F4 as ESC O P/Q/R/S. */
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'O', (uint8_t)'P', 0x1Bu, (uint8_t)'O', (uint8_t)'Q',
-      0x1Bu, (uint8_t)'O', (uint8_t)'R', 0x1Bu, (uint8_t)'O', (uint8_t)'S',
+      ZR_TEST_SS3, (uint8_t)'P', ZR_TEST_SS3, (uint8_t)'Q', ZR_TEST_SS3, (uint8_t)'R', ZR_TEST_SS3, (uint8_t)'S',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1311,14 +1297,12 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_tilde_function_keys) {
 
   /* Common CSI ~ function keys: F5..F8. */
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'5', (uint8_t)'~', 0x1Bu,        (uint8_t)'[',
-      (uint8_t)'1', (uint8_t)'7', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'8',
-      (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'1', (uint8_t)'9', (uint8_t)'~',
+      ZR_TEST_CSI, (uint8_t)'1', (uint8_t)'5', (uint8_t)'~', ZR_TEST_CSI, (uint8_t)'1', (uint8_t)'7', (uint8_t)'~',
+      ZR_TEST_CSI, (uint8_t)'1', (uint8_t)'8', (uint8_t)'~', ZR_TEST_CSI, (uint8_t)'1', (uint8_t)'9', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1362,15 +1346,14 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_tilde_higher_function_keys_with_modif
       - F12 : ESC [ 24 ; 6 ; 77 ~   (shift+ctrl; trailing params ignored)
   */
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'2',
-      (uint8_t)'1', (uint8_t)';', (uint8_t)'2', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'3',
-      (uint8_t)';', (uint8_t)'5', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'4', (uint8_t)';',
-      (uint8_t)'6', (uint8_t)';', (uint8_t)'7', (uint8_t)'7', (uint8_t)'~',
+      ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'~', ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'1',
+      (uint8_t)';', (uint8_t)'2', (uint8_t)'~', ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'3', (uint8_t)';',
+      (uint8_t)'5', (uint8_t)'~', ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'4', (uint8_t)';', (uint8_t)'6',
+      (uint8_t)';', (uint8_t)'7', (uint8_t)'7', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1422,14 +1405,12 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_down_up) {
   zr_drain_initial_resize(ctx, e);
 
   /* Left button down then up at (x=10,y=5) (1-based in SGR). */
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'0', (uint8_t)';',
-                        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
-                        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'0', (uint8_t)';',
-                        (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'m'};
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'0', (uint8_t)';', (uint8_t)'1', (uint8_t)'0',
+                        (uint8_t)';', (uint8_t)'5', (uint8_t)'M', ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'0',
+                        (uint8_t)';', (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'m'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1468,12 +1449,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel) {
   zr_drain_initial_resize(ctx, e);
 
   /* Wheel up at (x=10,y=5): b=64 => wheel up. */
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'6', (uint8_t)'4', (uint8_t)';',
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'6', (uint8_t)'4', (uint8_t)';',
                         (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1510,12 +1490,11 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_motion_without_buttons_as_move) {
       - base=3 (no buttons)
       => b=35
   */
-  const uint8_t in[] = {0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'3', (uint8_t)'5', (uint8_t)';',
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'3', (uint8_t)'5', (uint8_t)';',
                         (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M'};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1547,16 +1526,15 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
   /* Wheel variants at (x=10,y=5): b=65 (down), b=87 (left + shift+ctrl). */
   {
     const uint8_t in[] = {
-        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'6', (uint8_t)'5', (uint8_t)';',
+        ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'6', (uint8_t)'5', (uint8_t)';',
         (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
 
-        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'8', (uint8_t)'7', (uint8_t)';',
+        ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'8', (uint8_t)'7', (uint8_t)';',
         (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
     };
     ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-    uint8_t out[512];
-    memset(out, 0, sizeof(out));
+    uint8_t out[512] = {0};
     const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
     ZR_ASSERT_TRUE(n > 0);
     ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 2u);
@@ -1592,13 +1570,12 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
   /* Motion with no buttons + shift+alt: b=47 => MOVE with buttons=0. */
   {
     const uint8_t in[] = {
-        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'4', (uint8_t)'7', (uint8_t)';',
+        ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'4', (uint8_t)'7', (uint8_t)';',
         (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
     };
     ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-    uint8_t out[256];
-    memset(out, 0, sizeof(out));
+    uint8_t out[256] = {0};
     const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
     ZR_ASSERT_TRUE(n > 0);
 
@@ -1616,13 +1593,12 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
   /* Motion with left button + ctrl: b=48 => DRAG with buttons=1. */
   {
     const uint8_t in[] = {
-        0x1Bu,        (uint8_t)'[', (uint8_t)'<', (uint8_t)'4', (uint8_t)'8', (uint8_t)';',
+        ZR_TEST_CSI,  (uint8_t)'<', (uint8_t)'4', (uint8_t)'8', (uint8_t)';',
         (uint8_t)'1', (uint8_t)'0', (uint8_t)';', (uint8_t)'5', (uint8_t)'M',
     };
     ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-    uint8_t out[256];
-    memset(out, 0, sizeof(out));
+    uint8_t out[256] = {0};
     const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
     ZR_ASSERT_TRUE(n > 0);
 
@@ -1641,6 +1617,7 @@ ZR_TEST_UNIT(engine_poll_events_parses_sgr_mouse_wheel_and_motion_modifier_varia
 }
 
 ZR_TEST_UNIT(engine_poll_events_emits_bracketed_paste_as_single_event) {
+  /* --- Arrange --- */
   mock_plat_reset();
   mock_plat_set_read_max(1u);
   mock_plat_set_size(10u, 4u);
@@ -1657,18 +1634,18 @@ ZR_TEST_UNIT(engine_poll_events_emits_bracketed_paste_as_single_event) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'e', (uint8_t)'l', (uint8_t)'l', (uint8_t)'o', 0x1Bu,
-      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'e', (uint8_t)'l',
+      (uint8_t)'l', (uint8_t)'o', ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
+  /* --- Act --- */
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
+  /* --- Assert --- */
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);
 
   const size_t off_rec0 = sizeof(zr_evbatch_header_t);
@@ -1684,6 +1661,7 @@ ZR_TEST_UNIT(engine_poll_events_emits_bracketed_paste_as_single_event) {
 }
 
 ZR_TEST_UNIT(engine_poll_events_does_not_parse_bracketed_paste_when_disabled_by_caps) {
+  /* --- Arrange --- */
   mock_plat_reset();
   mock_plat_set_read_max(1u);
   mock_plat_set_size(10u, 4u);
@@ -1717,23 +1695,25 @@ ZR_TEST_UNIT(engine_poll_events_does_not_parse_bracketed_paste_when_disabled_by_
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'e', (uint8_t)'l', (uint8_t)'l', (uint8_t)'o', 0x1Bu,
-      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'e', (uint8_t)'l',
+      (uint8_t)'l', (uint8_t)'o', ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[512];
-  memset(out, 0, sizeof(out));
+  uint8_t out[512] = {0};
+
+  /* --- Act --- */
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
+  /* --- Assert --- */
   ZR_ASSERT_TRUE(!zr_batch_contains_record_type(out, (size_t)n, (uint32_t)ZR_EV_PASTE));
 
   engine_destroy(e);
 }
 
 ZR_TEST_UNIT(engine_poll_events_does_not_parse_bracketed_paste_when_disabled_by_config) {
+  /* --- Arrange --- */
   mock_plat_reset();
   mock_plat_set_read_max(1u);
   mock_plat_set_size(10u, 4u);
@@ -1751,23 +1731,25 @@ ZR_TEST_UNIT(engine_poll_events_does_not_parse_bracketed_paste_when_disabled_by_
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'e', (uint8_t)'l', (uint8_t)'l', (uint8_t)'o', 0x1Bu,
-      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'e', (uint8_t)'l',
+      (uint8_t)'l', (uint8_t)'o', ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[512];
-  memset(out, 0, sizeof(out));
+  uint8_t out[512] = {0};
+
+  /* --- Act --- */
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
+  /* --- Assert --- */
   ZR_ASSERT_TRUE(!zr_batch_contains_record_type(out, (size_t)n, (uint32_t)ZR_EV_PASTE));
 
   engine_destroy(e);
 }
 
 ZR_TEST_UNIT(engine_poll_events_paste_payload_does_not_emit_key_events) {
+  /* --- Arrange --- */
   mock_plat_reset();
   mock_plat_set_read_max(1u);
   mock_plat_set_size(10u, 4u);
@@ -1788,19 +1770,20 @@ ZR_TEST_UNIT(engine_poll_events_paste_payload_does_not_emit_key_events) {
     While bracketed paste is active, they must be treated as payload bytes, not
     parsed into key/mouse events.
   */
-  const uint8_t payload[] = {0x1Bu, (uint8_t)'[', (uint8_t)'A'};
+  const uint8_t payload[] = {ZR_TEST_CSI, (uint8_t)'A'};
   const uint8_t in[] = {
-      0x1Bu,      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', payload[0],   payload[1],
-      payload[2], 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', payload[0],   payload[1],
+      payload[2],  ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
+  /* --- Act --- */
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
 
+  /* --- Assert --- */
   ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);
 
   const size_t off_rec0 = sizeof(zr_evbatch_header_t);
@@ -1832,14 +1815,12 @@ ZR_TEST_UNIT(engine_poll_events_paste_then_arrow_emits_two_events) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~',
-      (uint8_t)'h', (uint8_t)'i', 0x1Bu,        (uint8_t)'[', (uint8_t)'2', (uint8_t)'0',
-      (uint8_t)'1', (uint8_t)'~', 0x1Bu,        (uint8_t)'[', (uint8_t)'A',
+      ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'i',
+      ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~', ZR_TEST_CSI,  (uint8_t)'A',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1885,17 +1866,16 @@ ZR_TEST_UNIT(engine_poll_events_paste_payload_includes_end_marker_prefix_bytes) 
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t payload[] = {
-      (uint8_t)'A', 0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'X', (uint8_t)'B',
+      (uint8_t)'A', ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'X', (uint8_t)'B',
   };
   const uint8_t in[] = {
-      0x1Bu,      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', payload[0],
-      payload[1], payload[2],   payload[3],   payload[4],   payload[5],   payload[6],   payload[7],
-      0x1Bu,      (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
+      ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', payload[0],
+      payload[1],  payload[2],   payload[3],   payload[4],   payload[5],   payload[6],
+      payload[7],  ZR_TEST_CSI,  (uint8_t)'2', (uint8_t)'0', (uint8_t)'1', (uint8_t)'~',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
-  uint8_t out[256];
-  memset(out, 0, sizeof(out));
+  uint8_t out[256] = {0};
 
   const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
   ZR_ASSERT_TRUE(n > 0);
@@ -1931,7 +1911,7 @@ ZR_TEST_UNIT(engine_poll_events_flushes_incomplete_paste_on_idle) {
   zr_drain_initial_resize(ctx, e);
 
   const uint8_t in[] = {
-      0x1Bu, (uint8_t)'[', (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'i',
+      ZR_TEST_CSI, (uint8_t)'2', (uint8_t)'0', (uint8_t)'0', (uint8_t)'~', (uint8_t)'h', (uint8_t)'i',
   };
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
@@ -1980,7 +1960,7 @@ ZR_TEST_UNIT(engine_poll_events_flushes_bare_esc_on_idle_poll) {
 
   zr_drain_initial_resize(ctx, e);
 
-  const uint8_t in[] = {0x1Bu};
+  const uint8_t in[] = {ZR_TEST_ESC};
   ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
 
   uint8_t out0[128];

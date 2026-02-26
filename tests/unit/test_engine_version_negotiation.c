@@ -43,11 +43,22 @@ ZR_TEST_UNIT(engine_config_rejects_unknown_drawlist_version) {
 }
 
 ZR_TEST_UNIT(engine_config_rejects_drawlist_versions_above_v2) {
+  /* --- Arrange --- */
   zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.requested_drawlist_version = 3u;
-  ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_ERR_UNSUPPORTED);
-  cfg.requested_drawlist_version = 4u;
-  ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_ERR_UNSUPPORTED);
-  cfg.requested_drawlist_version = 5u;
-  ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_ERR_UNSUPPORTED);
+  const uint32_t v_plus_1 = ZR_DRAWLIST_VERSION_V2 + 1u;
+  const uint32_t v_plus_2 = ZR_DRAWLIST_VERSION_V2 + 2u;
+  const uint32_t v_plus_3 = ZR_DRAWLIST_VERSION_V2 + 3u;
+
+  /* --- Act --- */
+  cfg.requested_drawlist_version = v_plus_1;
+  const zr_result_t rc1 = zr_engine_config_validate(&cfg);
+  cfg.requested_drawlist_version = v_plus_2;
+  const zr_result_t rc2 = zr_engine_config_validate(&cfg);
+  cfg.requested_drawlist_version = v_plus_3;
+  const zr_result_t rc3 = zr_engine_config_validate(&cfg);
+
+  /* --- Assert --- */
+  ZR_ASSERT_EQ_U32(rc1, ZR_ERR_UNSUPPORTED);
+  ZR_ASSERT_EQ_U32(rc2, ZR_ERR_UNSUPPORTED);
+  ZR_ASSERT_EQ_U32(rc3, ZR_ERR_UNSUPPORTED);
 }

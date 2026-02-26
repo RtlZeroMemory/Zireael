@@ -197,6 +197,10 @@ static zr_result_t zr_dl_store_define(zr_dl_resource_store_t* store, uint32_t id
 
   idx = zr_dl_store_find_index(store, id);
   if (idx >= 0) {
+    if (!store->entries) {
+      free(copy);
+      return ZR_ERR_FORMAT;
+    }
     old_len = store->entries[(uint32_t)idx].len;
     if (old_len > store->total_bytes) {
       free(copy);

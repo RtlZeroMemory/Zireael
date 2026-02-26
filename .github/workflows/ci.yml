@@ -7,7 +7,17 @@ on:
 permissions:
   contents: read
 
+# Cancel previous runs on the same branch/PR to free runners on re-push.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # ── fast checks (< 1 min each) ──────────────────────────────────────
+  # These three jobs are cheap and run in parallel.  Every expensive job
+  # below gates on all three so a trivial guardrail / format / pin
+  # failure never wastes 8+ compile runners.
+
   guardrails:
     name: guardrails
     runs-on: ubuntu-latest
@@ -58,7 +68,10 @@ jobs:
           fi
           bash scripts/clang_format_check.sh --diff "${base}" "${head}"
 
+  # ── expensive jobs (gated on fast checks) ────────────────────────────
+
   clang-tidy:
+    needs: [guardrails, version-pins, clang-format]
     name: linux / clang-tidy
     runs-on: ubuntu-latest
     steps:
@@ -71,6 +84,7 @@ jobs:
         run: python3 scripts/run_clang_tidy.py --build-dir out/build/posix-clang-debug
 
   linux-clang-debug:
+    needs: [guardrails, version-pins, clang-format]
     name: linux / clang / Debug
     runs-on: ubuntu-latest
     steps:
@@ -93,6 +107,7 @@ jobs:
             out/build/posix-clang-debug/CMakeCache.txt
 
   linux-gcc-debug:
+    needs: [guardrails, version-pins, clang-format]
     name: linux / gcc / Debug
     runs-on: ubuntu-latest
     steps:
@@ -115,6 +130,7 @@ jobs:
             out/build/posix-gcc-debug/CMakeCache.txt
 
   linux-clang-asan-ubsan:
+    needs: [guardrails, version-pins, clang-format]
     name: linux / clang / Debug + ASan+UBSan
     runs-on: ubuntu-latest
     steps:
@@ -140,6 +156,7 @@ jobs:
             out/build/posix-clang-asan-ubsan/CMakeCache.txt
 
   linux-clang-fuzz-extended:
+    needs: [guardrails, version-pins, clang-format]
     name: linux / clang / fuzz extended
     runs-on: ubuntu-latest
     steps:
@@ -156,7 +173,7 @@ jobs:
         run: cmake --build --preset posix-clang-debug
       - name: Deterministic Fuzz (Extended Budget)
         env:
-          ZR_FUZZ_ITERS: 20000
+          ZR_FUZZ_ITERS: ${{ github.event_name == 'pull_request' && '5000' || '20000' }}
           ZR_FUZZ_MAX_SIZE: 2048
         run: >-
           ctest --test-dir out/build/posix-clang-debug
@@ -164,12 +181,14 @@ jobs:
           --output-on-failure
           -R '^zireael\\.fuzz\\.'
       - name: libFuzzer Smoke (Coverage-Guided)
+        env:
+          LIBFUZZ_RUNS: ${{ github.event_name == 'pull_request' && '2000' || '10000' }}
         run: |
           set -euo pipefail
-          out/build/posix-clang-debug/tests/zireael_libfuzz_drawlist_parser -runs=10000 >/dev/null
-          out/build/posix-clang-debug/tests/zireael_libfuzz_input_parser -runs=10000 >/dev/null
-          out/build/posix-clang-debug/tests/zireael_libfuzz_utf8_decode -runs=10000 >/dev/null
-          out/build/posix-clang-debug/tests/zireael_libfuzz_grapheme_iter -runs=10000 >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_drawlist_parser -runs="${LIBFUZZ_RUNS}" >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_input_parser -runs="${LIBFUZZ_RUNS}" >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_utf8_decode -runs="${LIBFUZZ_RUNS}" >/dev/null
+          out/build/posix-clang-debug/tests/zireael_libfuzz_grapheme_iter -runs="${LIBFUZZ_RUNS}" >/dev/null
       - name: Upload test logs (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -180,6 +199,7 @@ jobs:
             out/build/posix-clang-debug/CMakeCache.txt
 
   linux-clang-tsan:
+    needs: [guardrails, version-pins, clang-format]
     name: linux / clang / Debug + TSan
     runs-on: ubuntu-latest
     steps:
@@ -204,6 +224,7 @@ jobs:
             out/build/posix-clang-tsan/CMakeCache.txt
 
   macos-appleclang-debug:
+    needs: [guardrails, version-pins, clang-format]
     name: macos / AppleClang / Debug
     runs-on: macos-latest
     steps:
@@ -226,6 +247,7 @@ jobs:
             out/build/posix-clang-debug/CMakeCache.txt
 
   windows-clangcl-debug:
+    needs: [guardrails, version-pins, clang-format]
     name: windows / clang-cl / Debug
     runs-on: windows-latest
     steps:

@@ -5,6 +5,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.8-alpha.8 — 2026-02-26
+
+### Fixed
+
+- util/macros: made `ZR_ARRAYLEN` portable to MSVC by using a size-based fallback while preserving GNU/Clang compile-time pointer-argument rejection.
+
 ## 1.3.8-alpha.6 — 2026-02-20
 
 ### Changed

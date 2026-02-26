@@ -17,7 +17,7 @@ Pinned macros live in `include/zr/zr_version.h`.
 
 Current pins:
 
-- Library: v1.3.8
+- Library: v1.3.10
 - Lifecycle: alpha
 - Engine ABI: v1.2.0
 - Drawlist formats: v1

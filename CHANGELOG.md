@@ -5,6 +5,23 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## Unreleased
 
+## 1.3.10 — 2026-02-26
+
+### Fixed
+
+- util/macros: made `ZR_ARRAYLEN` portable to MSVC by using a size-based fallback while preserving GNU/Clang compile-time pointer-argument rejection.
+
+### Added
+
+- core/framebuffer: added `zr_fb_copy_damage_rects()` for allocation-free damage-based framebuffer cell copying.
+- core/drawlist: added `zr_dl_preflight_resources()` for drawlist-side preflight validation and staging-capacity planning.
+- core/image: added `zr_image_frame_reserve()` for up-front image frame command/blob capacity reservation.
+
+### Changed
+
+- core/engine: `engine_submit_drawlist()` now executes in-place on `fb_next` with rollback-to-`fb_prev` safety on failure.
+- ci: release/PR automation now uses workflow concurrency groups with a fast-check gate and a reduced PR fuzz smoke budget.
+
 ## 1.3.8-alpha.8 — 2026-02-26
 
 ### Fixed

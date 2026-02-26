@@ -1,5 +1,5 @@
 /*
-  tests/unit/test_drawlist_image.c — Unit tests for drawlist v6 DRAW_IMAGE.
+  tests/unit/test_drawlist_image.c — Unit tests for drawlist v1 DRAW_IMAGE.
 
   Why: DRAW_IMAGE has protocol/fallback branches and persistent-blob resolution;
   these
@@ -125,11 +125,11 @@ ZR_TEST_UNIT(drawlist_image_validate_v6_accepts_basic_rgba) {
   cmd.protocol = 0u;
   cmd.fit_mode = (uint8_t)ZR_IMAGE_FIT_FILL;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u);
   ZR_ASSERT_EQ_U32(zr_validate_draw_image(bytes, len, &view), ZR_OK);
 }
 
-ZR_TEST_UNIT(drawlist_image_validate_v4_rejects_protocol_version) {
+ZR_TEST_UNIT(drawlist_image_validate_version_above_v1_rejects_protocol_version) {
   uint8_t blob[4] = {9u, 8u, 7u, 255u};
   uint8_t bytes[160];
   zr_dl_cmd_draw_image_t cmd;
@@ -145,7 +145,7 @@ ZR_TEST_UNIT(drawlist_image_validate_v4_rejects_protocol_version) {
   cmd.format = (uint8_t)ZR_IMAGE_FORMAT_RGBA;
   cmd.fit_mode = (uint8_t)ZR_IMAGE_FIT_FILL;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V4, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, 4u, &cmd, blob, 4u);
   ZR_ASSERT_EQ_U32(zr_validate_draw_image(bytes, len, &view), ZR_ERR_UNSUPPORTED);
 }
 
@@ -165,7 +165,7 @@ ZR_TEST_UNIT(drawlist_image_validate_rejects_invalid_fit_mode) {
   cmd.format = (uint8_t)ZR_IMAGE_FORMAT_RGBA;
   cmd.fit_mode = 9u;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u);
   ZR_ASSERT_EQ_U32(zr_validate_draw_image(bytes, len, &view), ZR_ERR_FORMAT);
 }
 
@@ -192,7 +192,7 @@ ZR_TEST_UNIT(drawlist_image_execute_fallback_rgba_when_no_protocol) {
   cmd.protocol = 0u;
   cmd.fit_mode = (uint8_t)ZR_IMAGE_FIT_FILL;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u);
 
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &view), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
@@ -240,7 +240,7 @@ ZR_TEST_UNIT(drawlist_image_execute_png_without_protocol_is_unsupported) {
   cmd.protocol = 0u;
   cmd.fit_mode = (uint8_t)ZR_IMAGE_FIT_FILL;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u);
 
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &view), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
@@ -288,7 +288,7 @@ ZR_TEST_UNIT(drawlist_image_execute_with_kitty_profile_stages_frame) {
   memset(&profile, 0, sizeof(profile));
   profile.supports_kitty_graphics = 1u;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u);
 
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &view), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
@@ -352,7 +352,7 @@ ZR_TEST_UNIT(drawlist_image_execute_with_protocol_requires_stage_buffer) {
   memset(&profile, 0, sizeof(profile));
   profile.supports_kitty_graphics = 1u;
 
-  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u);
+  const size_t len = zr_make_draw_image_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u);
 
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &view), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);

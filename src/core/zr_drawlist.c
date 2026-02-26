@@ -1,5 +1,5 @@
 /*
-  src/core/zr_drawlist.c — Drawlist validator + executor (v6).
+  src/core/zr_drawlist.c — Drawlist validator + executor (v1).
 
   Why: Validates wrapper-provided drawlist bytes (bounds/caps/version) and
   executes deterministic drawing into the framebuffer without UB.
@@ -41,8 +41,8 @@
 #define ZR_DL_DRAW_TEXT_FIELDS_BYTES ((2u * sizeof(int32_t)) + (3u * sizeof(uint32_t)))
 #define ZR_DL_DRAW_TEXT_TRAILER_BYTES sizeof(uint32_t)
 
-/* v6 style payload (base + underline/link refs). */
-#define ZR_DL_STYLE_V6_BYTES ((uint32_t)sizeof(zr_dl_style_v3_t))
+/* v1 style payload (base + underline/link refs). */
+#define ZR_DL_STYLE_V1_BYTES ((uint32_t)sizeof(zr_dl_style_v3_t))
 
 typedef struct zr_dl_style_wire_t {
   uint32_t fg;
@@ -80,7 +80,7 @@ typedef struct zr_dl_text_run_segment_wire_t {
 } zr_dl_text_run_segment_wire_t;
 
 static uint32_t zr_dl_style_wire_bytes(void) {
-  return ZR_DL_STYLE_V6_BYTES;
+  return ZR_DL_STYLE_V1_BYTES;
 }
 
 static uint32_t zr_dl_cmd_fill_rect_size(void) {
@@ -701,7 +701,7 @@ static zr_result_t zr_dl_validate_header(const zr_dl_header_t* hdr, size_t bytes
   if (hdr->magic != ZR_DL_MAGIC) {
     return ZR_ERR_FORMAT;
   }
-  if (hdr->version != ZR_DRAWLIST_VERSION_V6) {
+  if (hdr->version != ZR_DRAWLIST_VERSION_V1) {
     return ZR_ERR_UNSUPPORTED;
   }
   if (hdr->header_size != (uint32_t)sizeof(zr_dl_header_t)) {

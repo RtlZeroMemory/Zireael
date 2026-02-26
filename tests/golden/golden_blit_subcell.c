@@ -70,7 +70,7 @@ static size_t zr_make_canvas_drawlist(uint8_t* out, const zr_dl_cmd_draw_canvas_
   memset(out, 0, (size_t)total);
 
   zr_w32(out, &at, 0x4C44525Au);
-  zr_w32(out, &at, ZR_DRAWLIST_VERSION_V6);
+  zr_w32(out, &at, ZR_DRAWLIST_VERSION_V1);
   zr_w32(out, &at, 64u);
   zr_w32(out, &at, total);
   zr_w32(out, &at, 64u);

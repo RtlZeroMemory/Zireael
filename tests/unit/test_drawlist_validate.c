@@ -1,7 +1,7 @@
 /*
-  tests/unit/test_drawlist_validate.c — Unit tests for drawlist validation (v6).
+  tests/unit/test_drawlist_validate.c — Unit tests for drawlist validation (v1).
 
-  Why: Validates parser safety guarantees for the v6 command stream format:
+  Why: Validates parser safety guarantees for the v1 command stream format:
   bounds checking, alignment validation, overlap detection, and opcode framing.
 */
 
@@ -24,7 +24,7 @@
  * Fixture 1: CLEAR + DEF_STRING("Hi") + DRAW_TEXT(string_id=1)
  */
 const uint8_t zr_test_dl_fixture1[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u),  ZR_U32LE(64u), ZR_U32LE(152u), ZR_U32LE(64u), ZR_U32LE(88u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u),  ZR_U32LE(64u), ZR_U32LE(152u), ZR_U32LE(64u), ZR_U32LE(88u),
     ZR_U32LE(3u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),   ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
 
@@ -55,7 +55,7 @@ const size_t zr_test_dl_fixture1_len = sizeof(zr_test_dl_fixture1);
  * Fixture 2: CLEAR + PUSH_CLIP + FILL_RECT (clipped) + POP_CLIP
  */
 const uint8_t zr_test_dl_fixture2[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u),  ZR_U32LE(64u), ZR_U32LE(156u), ZR_U32LE(64u), ZR_U32LE(92u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u),  ZR_U32LE(64u), ZR_U32LE(156u), ZR_U32LE(64u), ZR_U32LE(92u),
     ZR_U32LE(4u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),   ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
 
@@ -85,7 +85,7 @@ const size_t zr_test_dl_fixture2_len = sizeof(zr_test_dl_fixture2);
  * Fixture 3: CLEAR + DEF_STRING + DEF_BLOB(text-run) + DRAW_TEXT_RUN
  */
 const uint8_t zr_test_dl_fixture3[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u),  ZR_U32LE(64u), ZR_U32LE(220u), ZR_U32LE(64u), ZR_U32LE(156u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u),  ZR_U32LE(64u), ZR_U32LE(220u), ZR_U32LE(64u), ZR_U32LE(156u),
     ZR_U32LE(4u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),   ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
 
@@ -129,7 +129,7 @@ const size_t zr_test_dl_fixture3_len = sizeof(zr_test_dl_fixture3);
  * Fixture 4: Wide glyph clipping test.
  */
 const uint8_t zr_test_dl_fixture4[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u),  ZR_U32LE(64u), ZR_U32LE(184u), ZR_U32LE(64u), ZR_U32LE(120u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u),  ZR_U32LE(64u), ZR_U32LE(184u), ZR_U32LE(64u), ZR_U32LE(120u),
     ZR_U32LE(5u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),   ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
 
@@ -163,7 +163,7 @@ const size_t zr_test_dl_fixture4_len = sizeof(zr_test_dl_fixture4);
  * Fixture 5: CLEAR + SET_CURSOR
  */
 const uint8_t zr_test_dl_fixture5_v2_cursor[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u), ZR_U32LE(64u), ZR_U32LE(92u), ZR_U32LE(64u), ZR_U32LE(28u), ZR_U32LE(2u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u), ZR_U32LE(64u), ZR_U32LE(92u), ZR_U32LE(64u), ZR_U32LE(28u), ZR_U32LE(2u),
     ZR_U32LE(0u),          ZR_U32LE(0u), ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),
 
@@ -179,7 +179,7 @@ const size_t zr_test_dl_fixture5_v2_cursor_len = sizeof(zr_test_dl_fixture5_v2_c
  * Fixture 6: DRAW_TEXT slices share one persistent string.
  */
 const uint8_t zr_test_dl_fixture6_v1_draw_text_slices[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u),  ZR_U32LE(64u), ZR_U32LE(216u), ZR_U32LE(64u), ZR_U32LE(152u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u),  ZR_U32LE(64u), ZR_U32LE(216u), ZR_U32LE(64u), ZR_U32LE(152u),
     ZR_U32LE(4u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),   ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
 
@@ -225,7 +225,7 @@ const size_t zr_test_dl_fixture6_v1_draw_text_slices_len = sizeof(zr_test_dl_fix
  * Fixture 7: Extended style + hyperlink refs through persistent strings.
  */
 const uint8_t zr_test_dl_fixture7_v3_text_link[] = {
-    ZR_U32LE(0x4C44525Au), ZR_U32LE(6u),  ZR_U32LE(64u), ZR_U32LE(200u), ZR_U32LE(64u), ZR_U32LE(136u),
+    ZR_U32LE(0x4C44525Au), ZR_U32LE(1u),  ZR_U32LE(64u), ZR_U32LE(200u), ZR_U32LE(64u), ZR_U32LE(136u),
     ZR_U32LE(5u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),   ZR_U32LE(0u),  ZR_U32LE(0u),
     ZR_U32LE(0u),          ZR_U32LE(0u),  ZR_U32LE(0u),  ZR_U32LE(0u),
 
@@ -273,7 +273,7 @@ ZR_TEST_UNIT(drawlist_validate_fixture5_cursor_ok) {
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture5_v2_cursor, zr_test_dl_fixture5_v2_cursor_len, &lim, &v), ZR_OK);
-  ZR_ASSERT_EQ_U32(v.hdr.version, 6u);
+  ZR_ASSERT_EQ_U32(v.hdr.version, 1u);
 }
 
 ZR_TEST_UNIT(drawlist_validate_fixture6_draw_text_slices_ok) {
@@ -289,7 +289,7 @@ ZR_TEST_UNIT(drawlist_validate_fixture7_text_link_ok) {
   zr_dl_view_t v;
   ZR_ASSERT_EQ_U32(zr_dl_validate(zr_test_dl_fixture7_v3_text_link, zr_test_dl_fixture7_v3_text_link_len, &lim, &v),
                    ZR_OK);
-  ZR_ASSERT_EQ_U32(v.hdr.version, 6u);
+  ZR_ASSERT_EQ_U32(v.hdr.version, 1u);
 }
 
 ZR_TEST_UNIT(drawlist_validate_rejects_nonzero_reserved_table_fields) {

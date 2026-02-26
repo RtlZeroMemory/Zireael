@@ -55,7 +55,7 @@ static size_t zr_make_canvas_drawlist_auto(uint8_t* out, const uint8_t* blob, ui
 
   /*
     Drawlist byte layout used by this fixture:
-      [header v6:64][command stream]
+      [header v1:64][command stream]
     Commands:
       1) CLEAR
       2) DEF_BLOB(id=1)
@@ -64,7 +64,7 @@ static size_t zr_make_canvas_drawlist_auto(uint8_t* out, const uint8_t* blob, ui
   memset(out, 0, (size_t)total);
 
   zr_w32(out, &at, 0x4C44525Au);
-  zr_w32(out, &at, ZR_DRAWLIST_VERSION_V6);
+  zr_w32(out, &at, ZR_DRAWLIST_VERSION_V1);
   zr_w32(out, &at, 64u);
   zr_w32(out, &at, total);
   zr_w32(out, &at, 64u);
@@ -149,7 +149,7 @@ static zr_result_t zr_engine_canvas_auto_setup(zr_engine_t** out_engine) {
   }
 
   zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V6;
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
   cfg.cap_force_flags = ZR_TERM_CAP_GRAPHEME_CLUSTERS;
   return engine_create(out_engine, &cfg);
 }

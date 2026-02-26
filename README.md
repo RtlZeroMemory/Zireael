@@ -94,12 +94,12 @@ capabilities.
 
 ## Project Status
 
-Zireael is currently in **alpha**.
+Zireael is currently **pre-alpha**.
 
--   APIs and wire formats are versioned
+-   APIs and wire formats are versioned, but still evolving
 -   Pre-GA iteration is active
 -   Wrapper authors should pin exact versions
--   Expect fast-moving minor-line changes while alpha continues
+-   ABI and wire-level details may change between releases
 
 See `docs/release-model.md` for release-channel policy.
 
@@ -230,7 +230,7 @@ Current pins (from `include/zr/zr_version.h`):
 
 -   Library: 1.3.8
 -   Engine ABI: 1.2.0
--   Drawlist formats: v1, v2, v3, v4, v5
+-   Drawlist formats: v1
 -   Event batch format: v1
 
 Version pins are determinism-critical and must not be overridden.

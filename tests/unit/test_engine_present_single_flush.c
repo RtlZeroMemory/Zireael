@@ -69,7 +69,7 @@ static uint32_t zr_test_align4_u32(uint32_t n) {
 
 static void zr_test_write_cursor_image_header(uint8_t* out, size_t* at, uint32_t cmd_bytes, uint32_t total_size) {
   zr_test_write_u32le(out, at, 0x4C44525Au);
-  zr_test_write_u32le(out, at, ZR_DRAWLIST_VERSION_V6);
+  zr_test_write_u32le(out, at, ZR_DRAWLIST_VERSION_V1);
   zr_test_write_u32le(out, at, ZR_TEST_DL_HEADER_BYTES);
   zr_test_write_u32le(out, at, total_size);
 
@@ -131,7 +131,7 @@ static void zr_test_write_cursor_image_commands(uint8_t* out, size_t* at) {
 }
 
 /*
-  Build a minimal v6 drawlist with CLEAR + DEF_BLOB + SET_CURSOR + DRAW_IMAGE.
+  Build a minimal v1 drawlist with CLEAR + DEF_BLOB + SET_CURSOR + DRAW_IMAGE.
 
   Why: The regression exercises present-path cursor restoration after image
   sideband emission without relying on external fixture generation.
@@ -187,7 +187,7 @@ ZR_TEST_UNIT(engine_present_restores_cursor_after_image_sideband) {
   mock_plat_set_size(10u, 4u);
 
   zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V6;
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
   cfg.limits.out_max_bytes_per_frame = 4096u;
 
   ZR_ASSERT_TRUE(dl_len != 0u);

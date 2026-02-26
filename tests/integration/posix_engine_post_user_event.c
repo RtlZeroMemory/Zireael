@@ -215,7 +215,7 @@ int main(void) {
   cfg.requested_engine_abi_major = ZR_ENGINE_ABI_MAJOR;
   cfg.requested_engine_abi_minor = ZR_ENGINE_ABI_MINOR;
   cfg.requested_engine_abi_patch = ZR_ENGINE_ABI_PATCH;
-  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V6;
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
   cfg.requested_event_batch_version = ZR_EVENT_BATCH_VERSION_V1;
   cfg.target_fps = 0u; /* Disable periodic ZR_EV_TICK to keep wake source deterministic. */
   cfg.enable_debug_overlay = 0u;

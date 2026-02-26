@@ -23,7 +23,7 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
 
   /* Ensure the pinned version macros are usable from the public surface. */
   ZR_ASSERT_TRUE(ZR_ENGINE_ABI_MAJOR == 1u);
-  ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V6 == 6u);
+  ZR_ASSERT_TRUE(ZR_DRAWLIST_VERSION_V1 == 1u);
   ZR_ASSERT_TRUE(ZR_EVENT_BATCH_VERSION_V1 == 1u);
 
   /* Ensure the public engine symbols link and are callable. */
@@ -58,7 +58,7 @@ ZR_TEST_UNIT(public_abi_headers_compile_and_link) {
 
   zr_dl_header_t dl;
   dl.magic = 0u;
-  dl.version = ZR_DRAWLIST_VERSION_V6;
+  dl.version = ZR_DRAWLIST_VERSION_V1;
   dl.header_size = 0u;
   dl.total_size = 0u;
   dl.cmd_offset = 0u;

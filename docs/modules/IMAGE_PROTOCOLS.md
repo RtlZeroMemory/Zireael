@@ -1,6 +1,6 @@
 # Module — Image Protocols
 
-This module defines deterministic terminal image emission for drawlist v5 `DRAW_IMAGE` commands.
+This module defines deterministic terminal image emission for drawlist v1 `DRAW_IMAGE` commands.
 
 ## Scope
 
@@ -23,7 +23,7 @@ This module defines deterministic terminal image emission for drawlist v5 `DRAW_
 
 Determinism rule: identical `(requested_protocol, profile flags)` must produce the same selected protocol.
 
-## Drawlist v5 `DRAW_IMAGE`
+## Drawlist v1 `DRAW_IMAGE`
 
 `ZR_DL_OP_DRAW_IMAGE` payload (`zr_dl_cmd_draw_image_t`) carries:
 
@@ -134,5 +134,5 @@ Required deterministic coverage:
 - kitty/sixel/iTerm2 byte outputs
 - fit mode outputs
 - cache/lifecycle transitions
-- drawlist v5 `DRAW_IMAGE` validate/execute paths
+- drawlist v1 `DRAW_IMAGE` validate/execute paths
 - golden fixtures under `tests/golden/fixtures/image_*`

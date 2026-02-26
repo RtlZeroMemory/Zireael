@@ -1,7 +1,7 @@
 /*
   tests/unit/test_drawlist_canvas.c — Unit tests for DRAW_CANVAS opcode.
 
-  Why: Validates v6 opcode framing, bounds checks, and framebuffer execution.
+  Why: Validates v1 opcode framing, bounds checks, and framebuffer execution.
 */
 
 #include "zr_test.h"
@@ -167,7 +167,7 @@ ZR_TEST_UNIT(drawlist_canvas_valid_executes_and_writes_cell) {
   uint8_t blob[4] = {12u, 34u, 56u, 255u};
   uint8_t bytes[160];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
   zr_fb_t fb;
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
@@ -186,7 +186,7 @@ ZR_TEST_UNIT(drawlist_canvas_bounds_exceeded_is_invalid_argument) {
   uint8_t blob[4] = {1u, 2u, 3u, 255u};
   uint8_t bytes[160];
   zr_dl_cmd_draw_canvas_t cmd = {1, 0, 1, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
   zr_fb_t fb;
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
@@ -199,7 +199,7 @@ ZR_TEST_UNIT(drawlist_canvas_missing_blob_rejected) {
   uint8_t blob[4] = {1u, 2u, 3u, 255u};
   uint8_t bytes[160];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 2u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
   zr_fb_t fb;
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
@@ -212,7 +212,7 @@ ZR_TEST_UNIT(drawlist_canvas_blob_len_mismatch_rejected) {
   uint8_t blob[4] = {1u, 2u, 3u, 255u};
   uint8_t bytes[160];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 2, 1, 2, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
   zr_fb_t fb;
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
@@ -227,8 +227,8 @@ ZR_TEST_UNIT(drawlist_canvas_overwrite_blob_uses_latest_bytes) {
   uint8_t bytes_red[160];
   uint8_t bytes_blue[160];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  const size_t len_red = zr_make_canvas_drawlist(bytes_red, ZR_DRAWLIST_VERSION_V6, &cmd, blob_red, 4u, 0u);
-  const size_t len_blue = zr_make_canvas_drawlist(bytes_blue, ZR_DRAWLIST_VERSION_V6, &cmd, blob_blue, 4u, 0u);
+  const size_t len_red = zr_make_canvas_drawlist(bytes_red, ZR_DRAWLIST_VERSION_V1, &cmd, blob_red, 4u, 0u);
+  const size_t len_blue = zr_make_canvas_drawlist(bytes_blue, ZR_DRAWLIST_VERSION_V1, &cmd, blob_blue, 4u, 0u);
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   zr_cursor_state_t cursor = {0};
@@ -263,8 +263,8 @@ ZR_TEST_UNIT(drawlist_canvas_free_blob_invalidates_future_refs) {
   uint8_t bytes_def[160];
   uint8_t bytes_free_draw[160];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  const size_t len_def = zr_make_canvas_drawlist(bytes_def, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
-  const size_t len_free_draw = zr_make_canvas_free_drawlist(bytes_free_draw, ZR_DRAWLIST_VERSION_V6, &cmd, 1u);
+  const size_t len_def = zr_make_canvas_drawlist(bytes_def, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
+  const size_t len_free_draw = zr_make_canvas_free_drawlist(bytes_free_draw, ZR_DRAWLIST_VERSION_V1, &cmd, 1u);
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   zr_cursor_state_t cursor = {0};
@@ -297,7 +297,7 @@ ZR_TEST_UNIT(drawlist_canvas_invalid_blitter_rejected) {
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 1u, 0u, 99u, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
 
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_FORMAT);
 }
@@ -308,23 +308,20 @@ ZR_TEST_UNIT(drawlist_canvas_zero_dimensions_rejected) {
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 0, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 4u, 0u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
 
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_FORMAT);
 }
 
-ZR_TEST_UNIT(drawlist_canvas_v1_v2_v3_rejected_as_unsupported) {
+ZR_TEST_UNIT(drawlist_canvas_versions_above_v1_rejected_as_unsupported) {
   uint8_t blob[4] = {1u, 2u, 3u, 255u};
   uint8_t bytes[160];
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 4u, 0u);
-
+  size_t len = zr_make_canvas_drawlist(bytes, 2u, &cmd, blob, 4u, 0u);
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_UNSUPPORTED);
-  len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V2, &cmd, blob, 4u, 0u);
-  ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_UNSUPPORTED);
-  len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V3, &cmd, blob, 4u, 0u);
+  len = zr_make_canvas_drawlist(bytes, 3u, &cmd, blob, 4u, 0u);
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_UNSUPPORTED);
 }
 
@@ -332,7 +329,7 @@ ZR_TEST_UNIT(drawlist_canvas_respects_clip_rectangle) {
   uint8_t blob[8] = {255u, 0u, 0u, 255u, 0u, 0u, 255u, 255u};
   uint8_t bytes[192];
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 2, 1, 2, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
-  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V6, &cmd, blob, 8u, 1u);
+  size_t len = zr_make_canvas_drawlist(bytes, ZR_DRAWLIST_VERSION_V1, &cmd, blob, 8u, 1u);
   zr_fb_t fb;
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);

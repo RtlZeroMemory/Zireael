@@ -74,7 +74,7 @@ static void zr_write_cmd_header(uint8_t* out, size_t* at, uint16_t opcode, uint3
 
 static void zr_write_v6_header(uint8_t* out, size_t* at, uint32_t total_size, uint32_t cmd_bytes, uint32_t cmd_count) {
   zr_write_u32le(out, at, 0x4C44525Au);
-  zr_write_u32le(out, at, ZR_DRAWLIST_VERSION_V6);
+  zr_write_u32le(out, at, ZR_DRAWLIST_VERSION_V1);
   zr_write_u32le(out, at, 64u);
   zr_write_u32le(out, at, total_size);
   zr_write_u32le(out, at, 64u);

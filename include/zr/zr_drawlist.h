@@ -1,5 +1,5 @@
 /*
-  include/zr/zr_drawlist.h — Drawlist ABI structs (v6).
+  include/zr/zr_drawlist.h — Drawlist ABI structs (v1).
 
   Why: Defines the little-endian drawlist command stream used by wrappers to
   drive rendering through engine_submit_drawlist().
@@ -22,7 +22,7 @@ typedef struct zr_dl_header_t {
   uint32_t cmd_count;
 
   /*
-    v6 uses engine-owned persistent resources.
+    v1 uses engine-owned persistent resources.
     These drawlist-local table fields are reserved and must be 0.
   */
   uint32_t strings_span_offset;
@@ -119,7 +119,7 @@ typedef struct zr_dl_style_t {
 } zr_dl_style_t;
 
 /*
-  v6 style extension:
+  v1 style extension:
     - underline_rgb: 0x00RRGGBB underline color (0 means default underline color)
     - link_uri_ref: string resource id for URI; 0 means no hyperlink
     - link_id_ref: optional string resource id for OSC 8 id param

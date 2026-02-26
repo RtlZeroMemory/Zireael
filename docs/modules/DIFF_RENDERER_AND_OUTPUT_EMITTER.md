@@ -149,9 +149,9 @@ Cursor control is applied as part of output emission:
 - Framebuffer swap (`prev ← next`) occurs only on success.
 - When `caps.supports_sync_update == 1`, `engine_present()` may wrap the frame output in `ESC[?2026h` / `ESC[?2026l`.
 
-### Image sideband emission (v5 `DRAW_IMAGE`)
+### Image sideband emission (`DRAW_IMAGE` in v1)
 
-When drawlist v5 image commands are present, `engine_present()` appends protocol bytes to the same output buffer after
+When drawlist v1 image commands are present, `engine_present()` appends protocol bytes to the same output buffer after
 diff rendering:
 
 1. `zr_diff_render_ex(...)` emits framebuffer diff bytes.

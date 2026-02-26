@@ -181,7 +181,7 @@ ZR_TEST_UNIT(engine_get_metrics_uses_prefix_copy_contract) {
   ZR_ASSERT_EQ_U32(engine_get_metrics(e, &out), ZR_OK);
   ZR_ASSERT_EQ_U32(out.struct_size, (uint32_t)sizeof(zr_metrics_t));
   ZR_ASSERT_EQ_U32(out.negotiated_engine_abi_major, 1u);
-  ZR_ASSERT_EQ_U32(out.negotiated_drawlist_version, 6u);
+  ZR_ASSERT_EQ_U32(out.negotiated_drawlist_version, 1u);
   ZR_ASSERT_EQ_U32(out.negotiated_event_batch_version, 1u);
 
   engine_destroy(e);

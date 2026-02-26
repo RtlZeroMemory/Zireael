@@ -20,7 +20,7 @@ Current pins:
 - Library: v1.3.8
 - Lifecycle: alpha
 - Engine ABI: v1.2.0
-- Drawlist formats: v1, v2, v3, and v4
+- Drawlist formats: v1
 - Event batch format: v1
 
 ## Compatibility Expectations
@@ -31,7 +31,7 @@ Negotiation rules (v1 line):
 
 - engine ABI request must match pinned ABI exactly
 - event batch version must match pinned event version exactly
-- drawlist request must be one of supported drawlist versions
+- drawlist request must match `ZR_DRAWLIST_VERSION_V1`
 
 Unsupported requests fail with `ZR_ERR_UNSUPPORTED`.
 

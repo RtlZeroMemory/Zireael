@@ -1,57 +1,33 @@
-# Zireael — Version Pins (Locked)
+# Zireael Version Pins
 
-This document centralizes determinism-critical pins.
+This file is the human-readable mirror of `include/zr/zr_version.h`.
 
-## Library version
+## Status
 
-Pinned library version (see `include/zr/zr_version.h`):
+Zireael is pre-alpha. ABI and wire-format details may change between releases.
+
+## Library
 
 - `ZR_LIBRARY_VERSION_MAJOR = 1`
 - `ZR_LIBRARY_VERSION_MINOR = 3`
 - `ZR_LIBRARY_VERSION_PATCH = 8`
-- Lifecycle status: alpha
 
 ## Engine ABI
-
-Pinned engine ABI version (see `include/zr/zr_version.h`):
 
 - `ZR_ENGINE_ABI_MAJOR = 1`
 - `ZR_ENGINE_ABI_MINOR = 2`
 - `ZR_ENGINE_ABI_PATCH = 0`
 
+## Drawlist
+
+- `ZR_DRAWLIST_VERSION_V1 = 1`
+
+Only drawlist v1 is supported.
+
+## Event Batch
+
+- `ZR_EVENT_BATCH_VERSION_V1 = 1`
+
 ## Unicode
 
-Pinned Unicode version (see `src/unicode/zr_unicode_pins.h`):
-
-- Unicode: 15.1.0 (`ZR_UNICODE_VERSION_MAJOR=15`, `ZR_UNICODE_VERSION_MINOR=1`, `ZR_UNICODE_VERSION_PATCH=0`)
-- Default emoji width policy: `ZR_WIDTH_EMOJI_WIDE`
-
-## Binary formats
-
-All on-buffer/on-wire formats are:
-
-- little-endian
-- versioned
-- bounds-checked
-- cap-limited
-
-### Drawlist
-
-Defined in `include/zr/zr_drawlist.h` (version pins are centralized in `include/zr/zr_version.h`):
-
-- Supported drawlist header versions:
-  - v1 (`ZR_DRAWLIST_VERSION_V1 = 1`) — baseline; must remain behavior-stable.
-  - v2 (`ZR_DRAWLIST_VERSION_V2 = 2`) — adds new opcodes (e.g. cursor control) while preserving v1 layout rules.
-  - v3 (`ZR_DRAWLIST_VERSION_V3 = 3`) — extends style payloads (underline color + hyperlink URI/ID refs) while
-    preserving v1/v2 framing and opcode rules.
-  - v4 (`ZR_DRAWLIST_VERSION_V4 = 4`) — adds `DRAW_CANVAS` sub-cell RGBA blit opcode.
-  - v5 (`ZR_DRAWLIST_VERSION_V5 = 5`) — adds `DRAW_IMAGE` protocol image opcode with deterministic fallback behavior.
-
-Wrappers select the version via `zr_engine_config_t.requested_drawlist_version` at `engine_create()`.
-
-### Packed event batches
-
-Defined in `include/zr/zr_event.h` (version pins are centralized in `include/zr/zr_version.h`):
-
-- Magic: `ZR_EV_MAGIC = 0x5645525A` (`'Z''R''E''V'` in little-endian u32)
-- Version: `ZR_EVENT_BATCH_VERSION_V1 = 1`
+Pinned Unicode tables are `15.1.0`.

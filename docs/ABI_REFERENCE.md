@@ -22,7 +22,7 @@ Pinned versions:
 
 Binary formats:
 
-- `include/zr/zr_drawlist.h` (drawlist v1 + v2 + v3)
+- `include/zr/zr_drawlist.h` (drawlist v1)
 - `include/zr/zr_event.h` (packed event batch v1)
 
 ## Result / error model
@@ -75,16 +75,16 @@ Canonical source:
 - Reserved/padding fields in v1 structs **MUST be 0** when passed by the caller.
 - `ZR_EV_TEXT.codepoint` carries Unicode scalar values; invalid UTF-8 input emits U+FFFD.
 
-Drawlist v1/v2/v3 and event batch v1 are specified by:
+Drawlist v1 and event batch v1 are specified by:
 
 - `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
 - `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`
 
-## Drawlist v2
+## Drawlist v1
 
-Drawlist v2 extends v1 with the `SET_CURSOR` opcode (opcode 7). All v1 opcodes
-remain unchanged. The engine accepts both versions; version is indicated in the
-drawlist header.
+Drawlist v1 includes the `SET_CURSOR` opcode (opcode 7). All v1 opcodes remain
+unchanged. The engine accepts only drawlists whose header version is
+`ZR_DRAWLIST_VERSION_V1`.
 
 ```c
 typedef struct zr_dl_cmd_set_cursor_t {
@@ -97,9 +97,9 @@ typedef struct zr_dl_cmd_set_cursor_t {
 } zr_dl_cmd_set_cursor_t;
 ```
 
-## Drawlist v3 style extension
+## Drawlist v1 style extension
 
-Drawlist v3 keeps v1/v2 framing and opcodes but extends style payloads with:
+Drawlist v1 style payloads include:
 
 - underline color (`underline_rgb`)
 - hyperlink URI reference (`link_uri_ref`)

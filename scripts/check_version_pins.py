@@ -49,7 +49,6 @@ def main() -> int:
     "ZR_ENGINE_ABI_MINOR",
     "ZR_ENGINE_ABI_PATCH",
     "ZR_DRAWLIST_VERSION_V1",
-    "ZR_DRAWLIST_VERSION_V2",
     "ZR_EVENT_BATCH_VERSION_V1",
   ]
 
@@ -91,4 +90,3 @@ def main() -> int:
 
 if __name__ == "__main__":
   raise SystemExit(main())
-

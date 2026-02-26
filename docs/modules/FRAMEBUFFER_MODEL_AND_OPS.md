@@ -12,7 +12,7 @@ Compatibility shim: `src/core/zr_fb.h` includes `core/zr_framebuffer.h`.
 
 - `zr_rect_t { int32_t x, y, w, h; }`
 - `zr_style_t { uint32_t fg_rgb, bg_rgb, attrs, reserved, underline_rgb, link_ref; }`
-  - `reserved` low bits carry underline variant in drawlist v3/style v3 (`0` keeps legacy underline behavior).
+  - `reserved` low bits carry underline variant in drawlist v1 style payloads (`0` keeps legacy underline behavior).
   - `underline_rgb` is underline color (`0x00RRGGBB`; `0` means terminal default underline color).
   - `link_ref` is a framebuffer-owned 1-based hyperlink reference (`0` means no link).
 

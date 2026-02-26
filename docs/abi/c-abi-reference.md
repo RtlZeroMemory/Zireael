@@ -18,18 +18,17 @@ Binary format headers:
 - `zr_drawlist.h` - drawlist structs/opcodes
 - `zr_event.h` - packed event batch structs/types
 
-Drawlist v4/v5 add:
+Drawlist v1 adds:
 
 - `ZR_DL_OP_DRAW_CANVAS` command payload (`zr_dl_cmd_draw_canvas_t`)
 - sub-cell selector enum (`zr_blitter_t`)
 - `ZR_DL_OP_DRAW_IMAGE` command payload (`zr_dl_cmd_draw_image_t`)
-- drawlist v5 image numeric fields in payload:
+- drawlist v1 image numeric fields in payload:
   - `format`: `0=RGBA`, `1=PNG`
   - `protocol`: `0=auto`, `1=kitty`, `2=sixel`, `3=iterm2`
   - `fit_mode`: `0=fill`, `1=contain`, `2=cover`
 
-Current drawlist versions: `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V2`, `ZR_DRAWLIST_VERSION_V3`,
-`ZR_DRAWLIST_VERSION_V4`, `ZR_DRAWLIST_VERSION_V5`.
+Current drawlist version: `ZR_DRAWLIST_VERSION_V1`.
 
 ## Result Model
 
@@ -152,7 +151,7 @@ Fields include output feature gates used by the diff renderer:
 - `supports_colored_underlines` - enables SGR underline color (`58` / `59`)
 - `supports_hyperlinks` - enables OSC 8 hyperlink emission
 
-`engine_get_terminal_profile()` exposes additional image-protocol detection fields used by drawlist v5 image selection:
+`engine_get_terminal_profile()` exposes additional image-protocol detection fields used by drawlist v1 image selection:
 
 - `supports_kitty_graphics`
 - `supports_sixel`
@@ -192,7 +191,7 @@ Notes:
 From `zr_engine_config_t` at create time:
 
 - `requested_engine_abi_*` must match pinned ABI macros.
-- `requested_drawlist_version` must be supported (`v1`, `v2`, `v3`, `v4`, or `v5`).
+- `requested_drawlist_version` must be exactly `ZR_DRAWLIST_VERSION_V1`.
 - `requested_event_batch_version` must match pinned event version.
 - `cap_force_flags` / `cap_suppress_flags` apply deterministic capability
   overrides (`suppress` wins over `force`).
@@ -206,7 +205,7 @@ zr_engine_config_t cfg = zr_engine_config_default();
 cfg.requested_engine_abi_major = ZR_ENGINE_ABI_MAJOR;
 cfg.requested_engine_abi_minor = ZR_ENGINE_ABI_MINOR;
 cfg.requested_engine_abi_patch = ZR_ENGINE_ABI_PATCH;
-cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V5;
+cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V1;
 cfg.requested_event_batch_version = ZR_EVENT_BATCH_VERSION_V1;
 
 zr_engine_t* e = NULL;

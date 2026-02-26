@@ -31,7 +31,7 @@ Result metrics include dirty/damage counts for the last frame.
 
 ## Cursor Behavior
 
-Drawlist v2 supports explicit cursor control (`ZR_DL_OP_SET_CURSOR`).
+Drawlist v1 supports explicit cursor control (`ZR_DL_OP_SET_CURSOR`).
 
 - cursor state is part of terminal emission behavior
 - it does not mutate glyph content in framebuffer cells

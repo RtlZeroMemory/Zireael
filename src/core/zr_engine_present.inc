@@ -329,6 +329,8 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
 
   const uint64_t frame_id_presented = zr_engine_trace_frame_id(e);
   const zr_fb_t* presented_fb = presented_stage ? &e->fb_stage : &e->fb_next;
+  const bool use_damage_rect_copy =
+      (stats->path_damage_used != 0u) && (stats->damage_full_frame == 0u) && (stats->damage_rects <= e->damage_rect_cap);
 
   /*
     Resync fb_prev to the framebuffer that was actually presented.
@@ -336,17 +338,14 @@ static void zr_engine_present_commit(zr_engine_t* e, bool presented_stage, size_
     Why: Keep fb_next as the mutable next-frame target and avoid full-frame
     clones in steady-state by copying only damage rects when possible.
   */
-  if (!presented_fb || !e->fb_prev.cells || !presented_fb->cells || e->fb_prev.cols != presented_fb->cols ||
+  if (!e->fb_prev.cells || !presented_fb->cells || e->fb_prev.cols != presented_fb->cols ||
       e->fb_prev.rows != presented_fb->rows) {
     e->diff_prev_hashes_valid = 0u;
   } else {
-    if (stats->damage_full_frame != 0u || stats->damage_rects > e->damage_rect_cap) {
+    if (!use_damage_rect_copy) {
       const size_t n = zr_engine_cells_bytes(presented_fb);
       if (n != 0u) {
         memcpy(e->fb_prev.cells, presented_fb->cells, n);
-      }
-      if (stats->damage_rects > e->damage_rect_cap) {
-        e->diff_prev_hashes_valid = 0u;
       }
     } else {
       const zr_result_t rc =

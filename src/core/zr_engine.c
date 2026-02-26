@@ -1475,7 +1475,7 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
 
   zr_cursor_state_t cursor_stage = e->cursor_desired;
   zr_image_frame_reset(&e->image_frame_stage);
-  rc = zr_dl_preflight_resources(&v, &e->fb_next, &e->image_frame_stage, &e->cfg_runtime.limits);
+  rc = zr_dl_preflight_resources(&v, &e->fb_next, &e->image_frame_stage, &e->cfg_runtime.limits, &e->term_profile);
   if (rc != ZR_OK) {
     const zr_result_t rollback_rc = zr_engine_fb_copy_noalloc(&e->fb_prev, &e->fb_next);
     zr_image_frame_reset(&e->image_frame_stage);

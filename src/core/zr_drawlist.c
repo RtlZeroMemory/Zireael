@@ -1335,7 +1335,7 @@ static zr_result_t zr_dl_preflight_draw_text_run_links(const zr_dl_view_t* v, zr
 }
 
 zr_result_t zr_dl_preflight_resources(const zr_dl_view_t* v, zr_fb_t* fb, zr_image_frame_t* image_stage,
-                                      const zr_limits_t* lim) {
+                                      const zr_limits_t* lim, const zr_terminal_profile_t* term_profile) {
   zr_result_t rc = ZR_OK;
   uint32_t image_cmd_count = 0u;
   uint32_t image_blob_total_bytes = 0u;
@@ -1343,7 +1343,6 @@ zr_result_t zr_dl_preflight_resources(const zr_dl_view_t* v, zr_fb_t* fb, zr_ima
   if (!v || !fb || !image_stage || !lim) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  (void)lim;
 
   zr_byte_reader_t r;
   zr_byte_reader_init(&r, v->cmd_bytes, v->cmd_bytes_len);
@@ -1426,9 +1425,15 @@ zr_result_t zr_dl_preflight_resources(const zr_dl_view_t* v, zr_fb_t* fb, zr_ima
       if (rc != ZR_OK) {
         return rc;
       }
-      if (!zr_checked_add_u32(image_cmd_count, 1u, &image_cmd_count) ||
-          !zr_checked_add_u32(image_blob_total_bytes, cmd.blob_len, &image_blob_total_bytes)) {
-        return ZR_ERR_LIMIT;
+      const zr_image_protocol_t proto = zr_image_select_protocol(cmd.protocol, term_profile);
+      if (proto != ZR_IMG_PROTO_NONE) {
+        if (!zr_checked_add_u32(image_cmd_count, 1u, &image_cmd_count) ||
+            !zr_checked_add_u32(image_blob_total_bytes, cmd.blob_len, &image_blob_total_bytes)) {
+          return ZR_ERR_LIMIT;
+        }
+        if (image_cmd_count > lim->dl_max_cmds || image_blob_total_bytes > lim->dl_max_total_bytes) {
+          return ZR_ERR_LIMIT;
+        }
       }
       break;
     }

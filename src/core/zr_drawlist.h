@@ -60,6 +60,8 @@ typedef struct zr_dl_view_t {
 } zr_dl_view_t;
 
 zr_result_t zr_dl_validate(const uint8_t* bytes, size_t bytes_len, const zr_limits_t* lim, zr_dl_view_t* out_view);
+zr_result_t zr_dl_preflight_resources(const zr_dl_view_t* v, zr_fb_t* fb, zr_image_frame_t* image_stage,
+                                      const zr_limits_t* lim, const zr_terminal_profile_t* term_profile);
 zr_result_t zr_dl_execute(const zr_dl_view_t* v, zr_fb_t* dst, const zr_limits_t* lim, uint32_t tab_width,
                           uint32_t width_policy, const zr_blit_caps_t* blit_caps,
                           const zr_terminal_profile_t* term_profile, zr_image_frame_t* image_frame_stage,

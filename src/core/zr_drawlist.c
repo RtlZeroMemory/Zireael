@@ -1267,6 +1267,14 @@ static zr_result_t zr_dl_style_resolve_link(const zr_dl_view_t* v, zr_fb_t* fb, 
   return zr_fb_link_intern(fb, uri, (size_t)uri_span.len, id, id_len, out_fb_link_ref);
 }
 
+static zr_result_t zr_dl_preflight_style_links(const zr_dl_view_t* v, zr_fb_t* fb, const zr_dl_style_wire_t* style) {
+  uint32_t link_ref = 0u;
+  if (!v || !fb || !style) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  return zr_dl_style_resolve_link(v, fb, style->link_uri_ref, style->link_id_ref, &link_ref);
+}
+
 static zr_result_t zr_style_from_dl(const zr_dl_view_t* v, zr_fb_t* fb, const zr_dl_style_wire_t* in, zr_style_t* out) {
   zr_result_t rc = ZR_OK;
   if (!v || !fb || !in || !out) {
@@ -1285,6 +1293,159 @@ static zr_result_t zr_style_from_dl(const zr_dl_view_t* v, zr_fb_t* fb, const zr
     return rc;
   }
   return ZR_OK;
+}
+
+static zr_result_t zr_dl_preflight_draw_text_run_links(const zr_dl_view_t* v, zr_fb_t* fb, uint32_t blob_index) {
+  zr_dl_span_t bspan;
+  zr_result_t rc = ZR_OK;
+  if (!v || !fb) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  rc = zr_dl_span_table_read_checked(v->blobs_span_bytes, v->blobs_count, blob_index, &bspan);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+
+  const uint8_t* blob = v->blobs_bytes + bspan.off;
+  zr_byte_reader_t br;
+  zr_byte_reader_init(&br, blob, (size_t)bspan.len);
+
+  uint32_t seg_count = 0u;
+  if (!zr_byte_reader_read_u32le(&br, &seg_count)) {
+    return ZR_ERR_FORMAT;
+  }
+
+  for (uint32_t si = 0u; si < seg_count; si++) {
+    zr_dl_text_run_segment_wire_t seg;
+    rc = zr_dl_read_text_run_segment(&br, v->hdr.version, &seg);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+    rc = zr_dl_preflight_style_links(v, fb, &seg.style);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+  }
+
+  if (zr_byte_reader_remaining(&br) != 0u) {
+    return ZR_ERR_FORMAT;
+  }
+  return ZR_OK;
+}
+
+zr_result_t zr_dl_preflight_resources(const zr_dl_view_t* v, zr_fb_t* fb, zr_image_frame_t* image_stage,
+                                      const zr_limits_t* lim, const zr_terminal_profile_t* term_profile) {
+  zr_result_t rc = ZR_OK;
+  uint32_t image_cmd_count = 0u;
+  uint32_t image_blob_total_bytes = 0u;
+
+  if (!v || !fb || !image_stage || !lim) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_byte_reader_t r;
+  zr_byte_reader_init(&r, v->cmd_bytes, v->cmd_bytes_len);
+
+  for (uint32_t ci = 0u; ci < v->hdr.cmd_count; ci++) {
+    zr_dl_cmd_header_t ch;
+    rc = zr_dl_read_cmd_header(&r, &ch);
+    if (rc != ZR_OK) {
+      return rc;
+    }
+
+    switch ((zr_dl_opcode_t)ch.opcode) {
+    case ZR_DL_OP_CLEAR:
+      break;
+    case ZR_DL_OP_FILL_RECT: {
+      zr_dl_cmd_fill_rect_wire_t cmd;
+      rc = zr_dl_read_cmd_fill_rect(&r, v->hdr.version, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      rc = zr_dl_preflight_style_links(v, fb, &cmd.style);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_DRAW_TEXT: {
+      zr_dl_cmd_draw_text_wire_t cmd;
+      rc = zr_dl_read_cmd_draw_text(&r, v->hdr.version, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      rc = zr_dl_preflight_style_links(v, fb, &cmd.style);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_PUSH_CLIP: {
+      zr_dl_cmd_push_clip_t cmd;
+      rc = zr_dl_read_cmd_push_clip(&r, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_POP_CLIP:
+      break;
+    case ZR_DL_OP_DRAW_TEXT_RUN: {
+      zr_dl_cmd_draw_text_run_t cmd;
+      rc = zr_dl_read_cmd_draw_text_run(&r, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      rc = zr_dl_preflight_draw_text_run_links(v, fb, cmd.blob_index);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_SET_CURSOR: {
+      zr_dl_cmd_set_cursor_t cmd;
+      rc = zr_dl_read_cmd_set_cursor(&r, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_DRAW_CANVAS: {
+      zr_dl_cmd_draw_canvas_t cmd;
+      rc = zr_dl_read_cmd_draw_canvas(&r, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      break;
+    }
+    case ZR_DL_OP_DRAW_IMAGE: {
+      zr_dl_cmd_draw_image_t cmd;
+      rc = zr_dl_read_cmd_draw_image(&r, &cmd);
+      if (rc != ZR_OK) {
+        return rc;
+      }
+      const zr_image_protocol_t proto = zr_image_select_protocol(cmd.protocol, term_profile);
+      if (proto != ZR_IMG_PROTO_NONE) {
+        if (!zr_checked_add_u32(image_cmd_count, 1u, &image_cmd_count) ||
+            !zr_checked_add_u32(image_blob_total_bytes, cmd.blob_len, &image_blob_total_bytes)) {
+          return ZR_ERR_LIMIT;
+        }
+        if (image_cmd_count > lim->dl_max_cmds || image_blob_total_bytes > lim->dl_max_total_bytes) {
+          return ZR_ERR_LIMIT;
+        }
+      }
+      break;
+    }
+    default:
+      return ZR_ERR_UNSUPPORTED;
+    }
+  }
+
+  if (zr_byte_reader_remaining(&r) != 0u) {
+    return ZR_ERR_FORMAT;
+  }
+  return zr_image_frame_reserve(image_stage, image_cmd_count, image_blob_total_bytes);
 }
 
 static zr_result_t zr_dl_exec_clear(zr_fb_t* dst) {

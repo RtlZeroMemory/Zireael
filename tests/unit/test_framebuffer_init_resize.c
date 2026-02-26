@@ -45,6 +45,8 @@ static void zr_fill_ascii(zr_test_ctx_t* ctx, zr_fb_t* fb, uint8_t ch) {
 static void zr_write_ascii_row(zr_test_ctx_t* ctx, zr_fb_t* fb, uint32_t y, const char* text) {
   ZR_ASSERT_TRUE(fb != NULL);
   ZR_ASSERT_TRUE(text != NULL);
+  const size_t text_len = strlen(text);
+  ZR_ASSERT_TRUE(text_len >= fb->cols);
   for (uint32_t x = 0u; x < fb->cols; x++) {
     zr_cell_t* c = zr_fb_cell(fb, x, y);
     ZR_ASSERT_TRUE(c != NULL);

@@ -313,15 +313,17 @@ ZR_TEST_UNIT(drawlist_canvas_zero_dimensions_rejected) {
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_FORMAT);
 }
 
-ZR_TEST_UNIT(drawlist_canvas_versions_above_v1_rejected_as_unsupported) {
+ZR_TEST_UNIT(drawlist_canvas_versions_above_v2_rejected_as_unsupported) {
   uint8_t blob[4] = {1u, 2u, 3u, 255u};
   uint8_t bytes[160];
   zr_limits_t lim = zr_limits_default();
   zr_dl_view_t v;
   zr_dl_cmd_draw_canvas_t cmd = {0, 0, 1, 1, 1, 1, 1u, 0u, (uint8_t)ZR_BLIT_ASCII, 0u, 0u};
   size_t len = zr_make_canvas_drawlist(bytes, 2u, &cmd, blob, 4u, 0u);
-  ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_UNSUPPORTED);
+  ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_OK);
   len = zr_make_canvas_drawlist(bytes, 3u, &cmd, blob, 4u, 0u);
+  ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_UNSUPPORTED);
+  len = zr_make_canvas_drawlist(bytes, 4u, &cmd, blob, 4u, 0u);
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes, len, &lim, &v), ZR_ERR_UNSUPPORTED);
 }
 

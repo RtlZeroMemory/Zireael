@@ -21,8 +21,12 @@ Zireael is pre-alpha. ABI and wire-format details may change between releases.
 ## Drawlist
 
 - `ZR_DRAWLIST_VERSION_V1 = 1`
+- `ZR_DRAWLIST_VERSION_V2 = 2`
 
-Only drawlist v1 is supported.
+Supported drawlist versions are v1 and v2. `ZR_DL_OP_BLIT_RECT` is a v2
+opcode.
+Drawlist v1 remains the baseline protocol; v2 is additive and only adds
+`ZR_DL_OP_BLIT_RECT` (BLIT_RECT).
 
 ## Event Batch
 

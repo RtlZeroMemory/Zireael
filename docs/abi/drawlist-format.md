@@ -1,14 +1,14 @@
-# Drawlist Format (ZRDL v1)
+# Drawlist Format (ZRDL v1/v2)
 
-ZRDL v1 is a 64-byte header plus a command stream. String/blob tables are no
-longer carried per frame.
+ZRDL v1 and v2 share the same 64-byte header layout plus a command stream.
+String/blob tables are no longer carried per frame.
 
 ## Header
 
 All header fields are little-endian `u32`.
 
 - `magic`: `0x4C44525A` (`ZRDL`)
-- `version`: `ZR_DRAWLIST_VERSION_V1` (`1`)
+- `version`: `ZR_DRAWLIST_VERSION_V1` (`1`) or `ZR_DRAWLIST_VERSION_V2` (`2`)
 - `header_size`: `64`
 - `total_size`: full buffer size
 - `cmd_offset`: offset to command stream (normally `64`)
@@ -49,6 +49,7 @@ Commands are 4-byte aligned.
 - `11` `ZR_DL_OP_FREE_STRING` (size `12`)
 - `12` `ZR_DL_OP_DEF_BLOB` (base size `16` + aligned bytes)
 - `13` `ZR_DL_OP_FREE_BLOB` (size `12`)
+- `14` `ZR_DL_OP_BLIT_RECT` (size `32`, **v2 only**)
 
 ## Persistent Resource Semantics
 

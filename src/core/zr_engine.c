@@ -1492,7 +1492,7 @@ zr_result_t engine_submit_drawlist(zr_engine_t* e, const uint8_t* bytes, int byt
                              v.hdr.version, ZR_OK, rc);
     return rc;
   }
-  rc = zr_dl_resources_clone(&preflight_resources, &e->dl_resources_stage);
+  rc = zr_dl_resources_clone_shallow(&preflight_resources, &e->dl_resources_stage);
   if (rc != ZR_OK) {
     zr_dl_resources_release(&e->dl_resources_stage);
     zr_engine_trace_drawlist(e, ZR_DEBUG_CODE_DRAWLIST_EXECUTE, bytes, (uint32_t)bytes_len, v.hdr.cmd_count,

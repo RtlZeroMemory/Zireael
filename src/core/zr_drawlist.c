@@ -168,7 +168,9 @@ static void zr_dl_store_release(zr_dl_resource_store_t* store) {
     return;
   }
   for (uint32_t i = 0u; i < store->len; i++) {
-    free(store->entries[i].bytes);
+    if (store->entries[i].owned != 0u) {
+      free(store->entries[i].bytes);
+    }
   }
   free(store->entries);
   memset(store, 0, sizeof(*store));
@@ -205,9 +207,13 @@ static zr_result_t zr_dl_store_define(zr_dl_resource_store_t* store, uint32_t id
       free(copy);
       return ZR_ERR_LIMIT;
     }
-    free(store->entries[(uint32_t)idx].bytes);
+    if (store->entries[(uint32_t)idx].owned != 0u) {
+      free(store->entries[(uint32_t)idx].bytes);
+    }
     store->entries[(uint32_t)idx].bytes = copy;
     store->entries[(uint32_t)idx].len = byte_len;
+    store->entries[(uint32_t)idx].owned = 1u;
+    memset(store->entries[(uint32_t)idx].reserved0, 0, sizeof(store->entries[(uint32_t)idx].reserved0));
     store->total_bytes = base_total + byte_len;
     return ZR_OK;
   }
@@ -225,6 +231,8 @@ static zr_result_t zr_dl_store_define(zr_dl_resource_store_t* store, uint32_t id
   store->entries[store->len].id = id;
   store->entries[store->len].bytes = copy;
   store->entries[store->len].len = byte_len;
+  store->entries[store->len].owned = 1u;
+  memset(store->entries[store->len].reserved0, 0, sizeof(store->entries[store->len].reserved0));
   store->len += 1u;
   store->total_bytes += byte_len;
   return ZR_OK;
@@ -245,7 +253,9 @@ static zr_result_t zr_dl_store_free_id(zr_dl_resource_store_t* store, uint32_t i
     return ZR_ERR_LIMIT;
   }
   store->total_bytes -= store->entries[i].len;
-  free(store->entries[i].bytes);
+  if (store->entries[i].owned != 0u) {
+    free(store->entries[i].bytes);
+  }
   for (; i + 1u < store->len; i++) {
     store->entries[i] = store->entries[i + 1u];
   }
@@ -316,6 +326,55 @@ zr_result_t zr_dl_resources_clone(zr_dl_resources_t* dst, const zr_dl_resources_
       zr_dl_resources_release(&tmp);
       return rc;
     }
+  }
+
+  zr_dl_resources_release(dst);
+  *dst = tmp;
+  return ZR_OK;
+}
+
+static zr_result_t zr_dl_store_clone_shallow(zr_dl_resource_store_t* dst, const zr_dl_resource_store_t* src) {
+  zr_dl_resource_store_t tmp;
+  zr_result_t rc = ZR_OK;
+  if (!dst || !src) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  memset(&tmp, 0, sizeof(tmp));
+  rc = zr_dl_store_ensure_cap(&tmp, src->len);
+  if (rc != ZR_OK) {
+    return rc;
+  }
+  for (uint32_t i = 0u; i < src->len; i++) {
+    tmp.entries[i] = src->entries[i];
+    tmp.entries[i].owned = 0u;
+    memset(tmp.entries[i].reserved0, 0, sizeof(tmp.entries[i].reserved0));
+  }
+  tmp.len = src->len;
+  tmp.total_bytes = src->total_bytes;
+
+  zr_dl_store_release(dst);
+  *dst = tmp;
+  return ZR_OK;
+}
+
+zr_result_t zr_dl_resources_clone_shallow(zr_dl_resources_t* dst, const zr_dl_resources_t* src) {
+  zr_dl_resources_t tmp;
+  zr_result_t rc = ZR_OK;
+  if (!dst || !src) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+
+  zr_dl_resources_init(&tmp);
+  rc = zr_dl_store_clone_shallow(&tmp.strings, &src->strings);
+  if (rc != ZR_OK) {
+    zr_dl_resources_release(&tmp);
+    return rc;
+  }
+  rc = zr_dl_store_clone_shallow(&tmp.blobs, &src->blobs);
+  if (rc != ZR_OK) {
+    zr_dl_resources_release(&tmp);
+    return rc;
   }
 
   zr_dl_resources_release(dst);
@@ -1287,6 +1346,7 @@ static zr_result_t zr_dl_resolve_string_slice(const zr_dl_resource_store_t* stri
                                               uint32_t byte_len, const uint8_t** out_bytes) {
   const uint8_t* bytes = NULL;
   uint32_t total_len = 0u;
+  static const uint8_t kEmptySlice[1] = {0u};
   zr_result_t rc = ZR_OK;
   if (!strings || !out_bytes) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1298,6 +1358,13 @@ static zr_result_t zr_dl_resolve_string_slice(const zr_dl_resource_store_t* stri
   rc = zr_dl_validate_span_slice_u32(byte_off, byte_len, total_len);
   if (rc != ZR_OK) {
     return rc;
+  }
+  if (byte_len == 0u) {
+    *out_bytes = kEmptySlice;
+    return ZR_OK;
+  }
+  if (!bytes) {
+    return ZR_ERR_FORMAT;
   }
   *out_bytes = bytes + byte_off;
   return ZR_OK;
@@ -1962,7 +2029,7 @@ static zr_result_t zr_dl_exec_draw_canvas(zr_byte_reader_t* r, const zr_dl_resou
   }
   rc = zr_dl_store_lookup(&resources->blobs, cmd.blob_id, &blob, &blob_len);
   if (rc != ZR_OK) {
-    return ZR_ERR_INVALID_ARGUMENT;
+    return rc;
   }
   if (!zr_checked_mul_u32((uint32_t)cmd.px_width, (uint32_t)cmd.px_height, &px_count) ||
       !zr_checked_mul_u32(px_count, ZR_BLIT_RGBA_BYTES_PER_PIXEL, &expected_len) ||
@@ -2081,7 +2148,7 @@ static zr_result_t zr_dl_exec_draw_image(zr_byte_reader_t* r, const zr_dl_resour
 
   rc = zr_dl_store_lookup(&resources->blobs, cmd.blob_id, &blob, &blob_len);
   if (rc != ZR_OK) {
-    return ZR_ERR_INVALID_ARGUMENT;
+    return rc;
   }
   proto = zr_image_select_protocol(cmd.protocol, term_profile);
 

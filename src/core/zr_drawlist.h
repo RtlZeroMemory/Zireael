@@ -28,6 +28,14 @@ typedef struct zr_dl_resource_entry_t {
   uint32_t id;
   uint8_t* bytes;
   uint32_t len;
+  /*
+    Ownership tag for `bytes`.
+
+    Why: preflight uses shallow snapshots that borrow `bytes` pointers from the
+    stage store to avoid deep-copying persistent payloads every submit.
+  */
+  uint8_t owned;
+  uint8_t reserved0[3];
 } zr_dl_resource_entry_t;
 
 typedef struct zr_dl_resource_store_t {
@@ -90,5 +98,6 @@ void zr_dl_resources_init(zr_dl_resources_t* resources);
 void zr_dl_resources_release(zr_dl_resources_t* resources);
 void zr_dl_resources_swap(zr_dl_resources_t* a, zr_dl_resources_t* b);
 zr_result_t zr_dl_resources_clone(zr_dl_resources_t* dst, const zr_dl_resources_t* src);
+zr_result_t zr_dl_resources_clone_shallow(zr_dl_resources_t* dst, const zr_dl_resources_t* src);
 
 #endif /* ZR_CORE_ZR_DRAWLIST_H_INCLUDED */

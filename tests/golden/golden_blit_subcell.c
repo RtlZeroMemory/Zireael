@@ -17,6 +17,16 @@
 
 #include <string.h>
 
+enum {
+  ZR_TEST_DL_MAGIC = 0x4C44525Au,
+  ZR_TEST_DL_HEADER_BYTES = 64u,
+  ZR_TEST_DL_CMD_HEADER_BYTES = 8u,
+  ZR_TEST_DL_DEF_RESOURCE_META_BYTES = 8u,
+  ZR_TEST_DL_DRAW_CANVAS_BYTES = 32u,
+  ZR_TEST_DL_CMD_COUNT = 3u,
+  ZR_TEST_DL_RESERVED_HEADER_WORDS = 9u,
+};
+
 static size_t zr_cell_serialize(const zr_cell_t* c, uint8_t* out, size_t cap) {
   size_t at = 0u;
   if (!c || !out || cap < (size_t)c->glyph_len + 10u) {
@@ -63,30 +73,24 @@ static uint32_t zr_align4_u32(uint32_t n) {
 static size_t zr_make_canvas_drawlist(uint8_t* out, const zr_dl_cmd_draw_canvas_t* cmd, const uint8_t* blob,
                                       uint32_t blob_len) {
   const uint32_t blob_padded = zr_align4_u32(blob_len);
-  const uint32_t def_blob_size = 8u + 8u + blob_padded;
-  const uint32_t cmd_bytes = 8u + def_blob_size + 32u;
-  const uint32_t total = 64u + cmd_bytes;
+  const uint32_t def_blob_size = ZR_TEST_DL_CMD_HEADER_BYTES + ZR_TEST_DL_DEF_RESOURCE_META_BYTES + blob_padded;
+  const uint32_t cmd_bytes = ZR_TEST_DL_CMD_HEADER_BYTES + def_blob_size + ZR_TEST_DL_DRAW_CANVAS_BYTES;
+  const uint32_t total = ZR_TEST_DL_HEADER_BYTES + cmd_bytes;
   size_t at = 0u;
   memset(out, 0, (size_t)total);
 
-  zr_w32(out, &at, 0x4C44525Au);
+  zr_w32(out, &at, ZR_TEST_DL_MAGIC);
   zr_w32(out, &at, ZR_DRAWLIST_VERSION_V1);
-  zr_w32(out, &at, 64u);
+  zr_w32(out, &at, ZR_TEST_DL_HEADER_BYTES);
   zr_w32(out, &at, total);
-  zr_w32(out, &at, 64u);
+  zr_w32(out, &at, ZR_TEST_DL_HEADER_BYTES);
   zr_w32(out, &at, cmd_bytes);
-  zr_w32(out, &at, 3u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 0u);
+  zr_w32(out, &at, ZR_TEST_DL_CMD_COUNT);
+  for (uint32_t i = 0u; i < ZR_TEST_DL_RESERVED_HEADER_WORDS; i++) {
+    zr_w32(out, &at, 0u);
+  }
 
-  zr_cmd_header(out, &at, ZR_DL_OP_CLEAR, 8u);
+  zr_cmd_header(out, &at, ZR_DL_OP_CLEAR, ZR_TEST_DL_CMD_HEADER_BYTES);
   zr_cmd_header(out, &at, ZR_DL_OP_DEF_BLOB, def_blob_size);
   zr_w32(out, &at, 1u);
   zr_w32(out, &at, blob_len);
@@ -95,7 +99,7 @@ static size_t zr_make_canvas_drawlist(uint8_t* out, const zr_dl_cmd_draw_canvas_
   for (uint32_t i = blob_len; i < blob_padded; i++) {
     out[at++] = 0u;
   }
-  zr_cmd_header(out, &at, ZR_DL_OP_DRAW_CANVAS, 32u);
+  zr_cmd_header(out, &at, ZR_DL_OP_DRAW_CANVAS, ZR_TEST_DL_DRAW_CANVAS_BYTES);
   zr_w16(out, &at, cmd->dst_col);
   zr_w16(out, &at, cmd->dst_row);
   zr_w16(out, &at, cmd->dst_cols);

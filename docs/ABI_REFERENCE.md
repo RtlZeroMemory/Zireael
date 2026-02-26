@@ -82,9 +82,9 @@ Drawlist v1 and event batch v1 are specified by:
 
 ## Drawlist v1
 
-Drawlist v1 extends v1 with the `SET_CURSOR` opcode (opcode 7). All v1 opcodes
-remain unchanged. The engine accepts both versions; version is indicated in the
-drawlist header.
+Drawlist v1 includes the `SET_CURSOR` opcode (opcode 7). All v1 opcodes remain
+unchanged. The engine accepts only drawlists whose header version is
+`ZR_DRAWLIST_VERSION_V1`.
 
 ```c
 typedef struct zr_dl_cmd_set_cursor_t {
@@ -99,7 +99,7 @@ typedef struct zr_dl_cmd_set_cursor_t {
 
 ## Drawlist v1 style extension
 
-Drawlist v1 keeps v1 framing and opcodes but extends style payloads with:
+Drawlist v1 style payloads include:
 
 - underline color (`underline_rgb`)
 - hyperlink URI reference (`link_uri_ref`)

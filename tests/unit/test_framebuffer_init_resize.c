@@ -26,6 +26,47 @@ static zr_style_t zr_style0(void) {
   return s;
 }
 
+static void zr_fill_ascii(zr_test_ctx_t* ctx, zr_fb_t* fb, uint8_t ch) {
+  ZR_ASSERT_TRUE(fb != NULL);
+  const zr_style_t s = zr_style0();
+  for (uint32_t y = 0u; y < fb->rows; y++) {
+    for (uint32_t x = 0u; x < fb->cols; x++) {
+      zr_cell_t* c = zr_fb_cell(fb, x, y);
+      ZR_ASSERT_TRUE(c != NULL);
+      memset(c->glyph, 0, sizeof(c->glyph));
+      c->glyph[0] = ch;
+      c->glyph_len = 1u;
+      c->width = 1u;
+      c->style = s;
+    }
+  }
+}
+
+static void zr_write_ascii_row(zr_test_ctx_t* ctx, zr_fb_t* fb, uint32_t y, const char* text) {
+  ZR_ASSERT_TRUE(fb != NULL);
+  ZR_ASSERT_TRUE(text != NULL);
+  for (uint32_t x = 0u; x < fb->cols; x++) {
+    zr_cell_t* c = zr_fb_cell(fb, x, y);
+    ZR_ASSERT_TRUE(c != NULL);
+    memset(c->glyph, 0, sizeof(c->glyph));
+    c->glyph[0] = (uint8_t)text[x];
+    c->glyph_len = 1u;
+    c->width = 1u;
+  }
+}
+
+static uint8_t zr_cell_ascii(zr_test_ctx_t* ctx, const zr_fb_t* fb, uint32_t x, uint32_t y) {
+  (void)ctx;
+  const zr_cell_t* c = zr_fb_cell_const(fb, x, y);
+  if (!c) {
+    return 0u;
+  }
+  if (c->glyph_len == 0u) {
+    return 0u;
+  }
+  return c->glyph[0];
+}
+
 /*
  * Test: framebuffer_init_release_basics
  *
@@ -104,4 +145,60 @@ ZR_TEST_UNIT(framebuffer_resize_failure_has_no_partial_effects) {
 
   /* --- Cleanup --- */
   zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(framebuffer_copy_damage_rects_copies_clamped_inclusive_spans) {
+  zr_fb_t src;
+  zr_fb_t dst;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&src, 5u, 3u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&dst, 5u, 3u), ZR_OK);
+
+  zr_fill_ascii(ctx, &src, (uint8_t)'?');
+  zr_fill_ascii(ctx, &dst, (uint8_t)'.');
+  zr_write_ascii_row(ctx, &src, 0u, "ABCDE");
+  zr_write_ascii_row(ctx, &src, 1u, "FGHIJ");
+  zr_write_ascii_row(ctx, &src, 2u, "KLMNO");
+
+  const zr_damage_rect_t rects[] = {
+      {1u, 0u, 3u, 1u},  /* middle block, two rows */
+      {4u, 2u, 99u, 9u}, /* clamped to one bottom-right cell */
+      {3u, 2u, 1u, 2u},  /* invalid (x0 > x1), ignored */
+      {9u, 0u, 12u, 2u}, /* fully out of bounds, ignored */
+  };
+
+  ZR_ASSERT_EQ_U32(zr_fb_copy_damage_rects(&dst, &src, rects, (uint32_t)(sizeof(rects) / sizeof(rects[0]))), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 0u, 0u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 1u, 0u), (uint8_t)'B');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 2u, 0u), (uint8_t)'C');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 3u, 0u), (uint8_t)'D');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 4u, 0u), (uint8_t)'.');
+
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 0u, 1u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 1u, 1u), (uint8_t)'G');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 2u, 1u), (uint8_t)'H');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 3u, 1u), (uint8_t)'I');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 4u, 1u), (uint8_t)'.');
+
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 0u, 2u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 1u, 2u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 2u, 2u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 3u, 2u), (uint8_t)'.');
+  ZR_ASSERT_EQ_U32(zr_cell_ascii(ctx, &dst, 4u, 2u), (uint8_t)'O');
+
+  zr_fb_release(&src);
+  zr_fb_release(&dst);
+}
+
+ZR_TEST_UNIT(framebuffer_copy_damage_rects_rejects_dimension_mismatch) {
+  zr_fb_t a;
+  zr_fb_t b;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&a, 2u, 2u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&b, 3u, 2u), ZR_OK);
+
+  const zr_damage_rect_t r = {0u, 0u, 1u, 1u};
+  ZR_ASSERT_EQ_U32(zr_fb_copy_damage_rects(&a, &b, &r, 1u), ZR_ERR_INVALID_ARGUMENT);
+
+  zr_fb_release(&a);
+  zr_fb_release(&b);
 }

@@ -23,6 +23,7 @@ Drawlist v1 adds:
 - `ZR_DL_OP_DRAW_CANVAS` command payload (`zr_dl_cmd_draw_canvas_t`)
 - sub-cell selector enum (`zr_blitter_t`)
 - `ZR_DL_OP_DRAW_IMAGE` command payload (`zr_dl_cmd_draw_image_t`)
+- `ZR_DL_OP_BLIT_RECT` command payload (`zr_dl_cmd_blit_rect_t`)
 - drawlist v1 image numeric fields in payload:
   - `format`: `0=RGBA`, `1=PNG`
   - `protocol`: `0=auto`, `1=kitty`, `2=sixel`, `3=iterm2`

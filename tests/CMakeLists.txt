@@ -90,6 +90,7 @@ add_executable(zireael_unit_tests
         unit/test_blit_sampling.c
         unit/test_blit_selector.c
         unit/test_blit_sextant.c
+        unit/test_drawlist_blit_rect.c
         unit/test_drawlist_canvas.c
         unit/test_drawlist_image.c
         unit/test_framebuffer_text.c

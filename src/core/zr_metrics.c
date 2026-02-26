@@ -20,7 +20,7 @@ zr_metrics_t zr_metrics__default_snapshot(void) {
   m.negotiated_engine_abi_major = (uint32_t)ZR_ENGINE_ABI_MAJOR;
   m.negotiated_engine_abi_minor = (uint32_t)ZR_ENGINE_ABI_MINOR;
   m.negotiated_engine_abi_patch = (uint32_t)ZR_ENGINE_ABI_PATCH;
-  m.negotiated_drawlist_version = (uint32_t)ZR_DRAWLIST_VERSION_V1;
+  m.negotiated_drawlist_version = (uint32_t)ZR_DRAWLIST_VERSION_V6;
   m.negotiated_event_batch_version = (uint32_t)ZR_EVENT_BATCH_VERSION_V1;
   return m;
 }

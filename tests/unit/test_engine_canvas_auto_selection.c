@@ -41,23 +41,30 @@ static void zr_cmd_header(uint8_t* p, size_t* at, uint16_t opcode, uint32_t size
   zr_w32(p, at, size);
 }
 
+static uint32_t zr_align4_u32(uint32_t n) {
+  return (n + 3u) & ~3u;
+}
+
 static size_t zr_make_canvas_drawlist_auto(uint8_t* out, const uint8_t* blob, uint32_t blob_len) {
-  const uint32_t cmd_bytes = 40u;
-  const uint32_t cmd_count = 2u;
-  const uint32_t total = 64u + cmd_bytes + 8u + blob_len;
+  const uint32_t blob_padded = zr_align4_u32(blob_len);
+  const uint32_t def_blob_size = 8u + 8u + blob_padded;
+  const uint32_t cmd_bytes = 8u + def_blob_size + 32u;
+  const uint32_t cmd_count = 3u;
+  const uint32_t total = 64u + cmd_bytes;
   size_t at = 0u;
 
   /*
     Drawlist byte layout used by this fixture:
-      [header v4:64][command stream:40][blob table:8][blob bytes:N]
+      [header v6:64][command stream]
     Commands:
       1) CLEAR
-      2) DRAW_CANVAS (blitter=AUTO) referencing blob[0]
+      2) DEF_BLOB(id=1)
+      3) DRAW_CANVAS (blitter=AUTO) referencing blob id 1
   */
   memset(out, 0, (size_t)total);
 
   zr_w32(out, &at, 0x4C44525Au);
-  zr_w32(out, &at, ZR_DRAWLIST_VERSION_V4);
+  zr_w32(out, &at, ZR_DRAWLIST_VERSION_V6);
   zr_w32(out, &at, 64u);
   zr_w32(out, &at, total);
   zr_w32(out, &at, 64u);
@@ -67,13 +74,21 @@ static size_t zr_make_canvas_drawlist_auto(uint8_t* out, const uint8_t* blob, ui
   zr_w32(out, &at, 0u);
   zr_w32(out, &at, 0u);
   zr_w32(out, &at, 0u);
-  zr_w32(out, &at, 64u + cmd_bytes);
-  zr_w32(out, &at, 1u);
-  zr_w32(out, &at, 64u + cmd_bytes + 8u);
-  zr_w32(out, &at, blob_len);
+  zr_w32(out, &at, 0u);
+  zr_w32(out, &at, 0u);
+  zr_w32(out, &at, 0u);
+  zr_w32(out, &at, 0u);
   zr_w32(out, &at, 0u);
 
   zr_cmd_header(out, &at, ZR_DL_OP_CLEAR, 8u);
+  zr_cmd_header(out, &at, ZR_DL_OP_DEF_BLOB, def_blob_size);
+  zr_w32(out, &at, 1u);
+  zr_w32(out, &at, blob_len);
+  memcpy(out + at, blob, blob_len);
+  at += blob_len;
+  for (uint32_t i = blob_len; i < blob_padded; i++) {
+    out[at++] = 0u;
+  }
 
   zr_cmd_header(out, &at, ZR_DL_OP_DRAW_CANVAS, 32u);
   zr_w16(out, &at, 0u);
@@ -82,16 +97,11 @@ static size_t zr_make_canvas_drawlist_auto(uint8_t* out, const uint8_t* blob, ui
   zr_w16(out, &at, 1u);
   zr_w16(out, &at, 2u);
   zr_w16(out, &at, 2u);
+  zr_w32(out, &at, 1u);
   zr_w32(out, &at, 0u);
-  zr_w32(out, &at, blob_len);
   out[at++] = (uint8_t)ZR_BLIT_AUTO;
   out[at++] = 0u;
   zr_w16(out, &at, 0u);
-
-  zr_w32(out, &at, 0u);
-  zr_w32(out, &at, blob_len);
-  memcpy(out + at, blob, blob_len);
-  at += blob_len;
 
   return at;
 }
@@ -139,7 +149,7 @@ static zr_result_t zr_engine_canvas_auto_setup(zr_engine_t** out_engine) {
   }
 
   zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V4;
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V6;
   cfg.cap_force_flags = ZR_TERM_CAP_GRAPHEME_CLUSTERS;
   return engine_create(out_engine, &cfg);
 }

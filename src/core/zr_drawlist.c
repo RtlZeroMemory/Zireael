@@ -89,8 +89,8 @@ static uint32_t zr_dl_cmd_fill_rect_size(void) {
 }
 
 static uint32_t zr_dl_cmd_draw_text_size(void) {
-  const uint32_t payload = (uint32_t)ZR_DL_DRAW_TEXT_FIELDS_BYTES + zr_dl_style_wire_bytes() +
-                           (uint32_t)ZR_DL_DRAW_TEXT_TRAILER_BYTES;
+  const uint32_t payload =
+      (uint32_t)ZR_DL_DRAW_TEXT_FIELDS_BYTES + zr_dl_style_wire_bytes() + (uint32_t)ZR_DL_DRAW_TEXT_TRAILER_BYTES;
   return (uint32_t)sizeof(zr_dl_cmd_header_t) + payload;
 }
 
@@ -197,6 +197,10 @@ static zr_result_t zr_dl_store_define(zr_dl_resource_store_t* store, uint32_t id
 
   idx = zr_dl_store_find_index(store, id);
   if (idx >= 0) {
+    if (!store->entries) {
+      free(copy);
+      return ZR_ERR_FORMAT;
+    }
     old_len = store->entries[(uint32_t)idx].len;
     if (old_len > store->total_bytes) {
       free(copy);
@@ -1073,7 +1077,8 @@ static zr_result_t zr_dl_validate_cmd_draw_canvas(const zr_dl_view_t* view, cons
   }
 
   if (cmd.flags != 0u || cmd.reserved != 0u || cmd.reserved0 != 0u || cmd.blob_id == 0u || cmd.dst_cols == 0u ||
-      cmd.dst_rows == 0u || cmd.px_width == 0u || cmd.px_height == 0u || zr_dl_canvas_blitter_valid(cmd.blitter) == 0u) {
+      cmd.dst_rows == 0u || cmd.px_width == 0u || cmd.px_height == 0u ||
+      zr_dl_canvas_blitter_valid(cmd.blitter) == 0u) {
     return ZR_ERR_FORMAT;
   }
 
@@ -1342,8 +1347,8 @@ static zr_result_t zr_dl_validate_span_slice_u32(uint32_t byte_off, uint32_t byt
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_resolve_string_slice(const zr_dl_resource_store_t* strings, uint32_t string_id, uint32_t byte_off,
-                                              uint32_t byte_len, const uint8_t** out_bytes) {
+static zr_result_t zr_dl_resolve_string_slice(const zr_dl_resource_store_t* strings, uint32_t string_id,
+                                              uint32_t byte_off, uint32_t byte_len, const uint8_t** out_bytes) {
   const uint8_t* bytes = NULL;
   uint32_t total_len = 0u;
   static const uint8_t kEmptySlice[1] = {0u};
@@ -1408,7 +1413,7 @@ static zr_result_t zr_dl_style_resolve_link(const zr_dl_resource_store_t* string
 }
 
 static zr_result_t zr_dl_preflight_style_links(const zr_dl_resource_store_t* strings, zr_fb_t* fb,
-                                                const zr_dl_style_wire_t* style) {
+                                               const zr_dl_style_wire_t* style) {
   uint32_t link_ref = 0u;
   if (!strings || !fb || !style) {
     return ZR_ERR_INVALID_ARGUMENT;
@@ -1438,9 +1443,9 @@ static zr_result_t zr_style_from_dl(const zr_dl_resource_store_t* strings, zr_fb
 }
 
 static zr_result_t zr_dl_preflight_draw_text_run_links(const zr_dl_view_t* v, zr_fb_t* fb,
-                                                        const zr_dl_resource_store_t* strings,
-                                                        const zr_dl_resource_store_t* blobs, uint32_t blob_id,
-                                                        const zr_limits_t* lim) {
+                                                       const zr_dl_resource_store_t* strings,
+                                                       const zr_dl_resource_store_t* blobs, uint32_t blob_id,
+                                                       const zr_limits_t* lim) {
   const uint8_t* blob = NULL;
   uint32_t blob_len = 0u;
   zr_byte_reader_t br;
@@ -1834,8 +1839,8 @@ static zr_result_t zr_dl_draw_text_utf8(zr_fb_painter_t* p, int32_t y, int32_t* 
   return ZR_OK;
 }
 
-static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, const zr_dl_view_t* v, const zr_dl_resource_store_t* strings,
-                                        zr_fb_painter_t* p) {
+static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, const zr_dl_view_t* v,
+                                        const zr_dl_resource_store_t* strings, zr_fb_painter_t* p) {
   zr_dl_cmd_fill_rect_wire_t cmd;
   zr_result_t rc = zr_dl_read_cmd_fill_rect(r, v->hdr.version, &cmd);
   if (rc != ZR_OK) {
@@ -1850,8 +1855,8 @@ static zr_result_t zr_dl_exec_fill_rect(zr_byte_reader_t* r, const zr_dl_view_t*
   return zr_fb_fill_rect(p, rr, &s);
 }
 
-static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v, const zr_dl_resource_store_t* strings,
-                                        zr_fb_painter_t* p) {
+static zr_result_t zr_dl_exec_draw_text(zr_byte_reader_t* r, const zr_dl_view_t* v,
+                                        const zr_dl_resource_store_t* strings, zr_fb_painter_t* p) {
   zr_dl_cmd_draw_text_wire_t cmd;
   zr_result_t rc = zr_dl_read_cmd_draw_text(r, v->hdr.version, &cmd);
   if (rc != ZR_OK) {
@@ -1913,8 +1918,9 @@ static zr_result_t zr_dl_exec_draw_text_run_segment(const zr_dl_view_t* v, const
   return zr_dl_draw_text_utf8(p, y, inout_x, sbytes, (size_t)seg.byte_len, v->text.tab_width, v->text.width_policy, &s);
 }
 
-static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v, const zr_dl_resources_t* resources,
-                                            const zr_limits_t* lim, zr_fb_painter_t* p) {
+static zr_result_t zr_dl_exec_draw_text_run(zr_byte_reader_t* r, const zr_dl_view_t* v,
+                                            const zr_dl_resources_t* resources, const zr_limits_t* lim,
+                                            zr_fb_painter_t* p) {
   zr_dl_cmd_draw_text_run_t cmd;
   const uint8_t* blob = NULL;
   uint32_t blob_len = 0u;

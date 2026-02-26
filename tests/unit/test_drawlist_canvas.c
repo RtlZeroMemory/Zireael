@@ -204,7 +204,7 @@ ZR_TEST_UNIT(drawlist_canvas_missing_blob_rejected) {
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 1u, 1u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
-  ZR_ASSERT_EQ_U32(zr_exec_canvas(bytes, len, &fb), ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(zr_exec_canvas(bytes, len, &fb), ZR_ERR_FORMAT);
   zr_fb_release(&fb);
 }
 
@@ -285,7 +285,7 @@ ZR_TEST_UNIT(drawlist_canvas_free_blob_invalidates_future_refs) {
   ZR_ASSERT_EQ_U32(zr_dl_validate(bytes_free_draw, len_free_draw, &lim, &v), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_dl_execute(&v, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &resources,
                                  &cursor),
-                   ZR_ERR_INVALID_ARGUMENT);
+                   ZR_ERR_FORMAT);
 
   zr_dl_resources_release(&resources);
   zr_fb_release(&fb);

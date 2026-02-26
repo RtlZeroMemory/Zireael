@@ -30,16 +30,20 @@ ZR_TEST_UNIT(engine_config_accepts_drawlist_v1) {
   ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_OK);
 }
 
+ZR_TEST_UNIT(engine_config_accepts_drawlist_v2) {
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V2;
+  ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_OK);
+}
+
 ZR_TEST_UNIT(engine_config_rejects_unknown_drawlist_version) {
   zr_engine_config_t cfg = zr_engine_config_default();
   cfg.requested_drawlist_version = 999u;
   ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_ERR_UNSUPPORTED);
 }
 
-ZR_TEST_UNIT(engine_config_rejects_drawlist_versions_above_v1) {
+ZR_TEST_UNIT(engine_config_rejects_drawlist_versions_above_v2) {
   zr_engine_config_t cfg = zr_engine_config_default();
-  cfg.requested_drawlist_version = 2u;
-  ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_ERR_UNSUPPORTED);
   cfg.requested_drawlist_version = 3u;
   ZR_ASSERT_EQ_U32(zr_engine_config_validate(&cfg), ZR_ERR_UNSUPPORTED);
   cfg.requested_drawlist_version = 4u;

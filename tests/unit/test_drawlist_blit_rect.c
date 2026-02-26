@@ -212,7 +212,7 @@ ZR_TEST_UNIT(drawlist_blit_rect_non_overlap_copy) {
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 1, 1, 1u, 0u, 3u, &s0) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 1, 2, 2u, 0u, 3u, &s1) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 1, 1, 3, 2, 4, 0) != 0u);
-  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V2);
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 8u, 4u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
@@ -227,6 +227,22 @@ ZR_TEST_UNIT(drawlist_blit_rect_non_overlap_copy) {
 
   zr_assert_cell_ascii(ctx, &fb, 1u, 1u, (uint8_t)'a', 0x11111111u);
   zr_assert_cell_ascii(ctx, &fb, 1u, 2u, (uint8_t)'d', 0x22222222u);
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(drawlist_blit_rect_rejected_in_v1) {
+  uint8_t bytes[256];
+  zr_dl_builder_t b;
+  zr_fb_t fb;
+
+  zr_builder_init(&b, bytes, sizeof(bytes));
+  ZR_ASSERT_TRUE(zr_builder_cmd_clear(&b) != 0u);
+  ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 0, 0, 1, 1, 1, 1) != 0u);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 4u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_exec_drawlist(bytes, len, &fb), ZR_ERR_UNSUPPORTED);
   zr_fb_release(&fb);
 }
 
@@ -254,7 +270,7 @@ ZR_TEST_UNIT(drawlist_blit_rect_overlap_vertical_scroll_down) {
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 1, 2, 3u, 0u, 3u, &s2) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 1, 3, 4u, 0u, 3u, &s3) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 1, 0, 3, 4, 1, 1) != 0u);
-  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V2);
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 5u, 5u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
@@ -291,7 +307,7 @@ ZR_TEST_UNIT(drawlist_blit_rect_overlap_vertical_scroll_up) {
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 1, 3, 3u, 0u, 3u, &s2) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 1, 4, 4u, 0u, 3u, &s3) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 1, 1, 3, 4, 1, 0) != 0u);
-  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V2);
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 5u, 5u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
@@ -316,7 +332,7 @@ ZR_TEST_UNIT(drawlist_blit_rect_overlap_horizontal_shift) {
   ZR_ASSERT_TRUE(zr_builder_cmd_def_string(&b, 1u, row, 5u) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 0, 0, 1u, 0u, 5u, &s) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 0, 0, 5, 1, 1, 0) != 0u);
-  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V2);
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 6u, 1u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
@@ -350,7 +366,7 @@ ZR_TEST_UNIT(drawlist_blit_rect_preserves_hyperlink_metadata) {
   ZR_ASSERT_TRUE(zr_builder_cmd_def_string(&b, 3u, id, (uint32_t)sizeof(id) - 1u) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 0, 0, 1u, 0u, 3u, &s) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 0, 0, 3, 1, 0, 1) != 0u);
-  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V2);
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 2u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
@@ -397,7 +413,7 @@ ZR_TEST_UNIT(drawlist_blit_rect_handles_border_aligned_rectangles) {
   ZR_ASSERT_TRUE(zr_builder_cmd_draw_text(&b, 0, 1, 2u, 0u, 2u, &s1) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 0, 0, 2, 2, 2, 1) != 0u);
   ZR_ASSERT_TRUE(zr_builder_cmd_blit_rect(&b, 2, 1, 2, 2, 0, 0) != 0u);
-  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V1);
+  const size_t len = zr_builder_finish(&b, ZR_DRAWLIST_VERSION_V2);
 
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 3u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_clear(&fb, NULL), ZR_OK);
@@ -413,4 +429,3 @@ ZR_TEST_UNIT(drawlist_blit_rect_handles_border_aligned_rectangles) {
   zr_assert_cell_ascii(ctx, &fb, 1u, 1u, (uint8_t)'d', 0x22u);
   zr_fb_release(&fb);
 }
-

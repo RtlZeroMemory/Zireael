@@ -21,6 +21,7 @@
 #include "unicode/zr_width.h"
 #include "util/zr_caps.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -211,56 +212,57 @@ ZR_TEST_UNIT(limits_diff_max_damage_rects_forces_full_frame_when_cap_exceeded) {
   zr_fb_release(&next);
 }
 
-ZR_TEST_UNIT(limits_link_intern_enforces_link_entry_cap) {
+ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
   zr_fb_t fb;
   memset(&fb, 0, sizeof(fb));
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
 
-  fb.links_cap = ZR_FB_LINK_TABLE_MAX_ENTRIES;
-  fb.links_len = ZR_FB_LINK_TABLE_MAX_ENTRIES;
-  fb.links = (zr_fb_link_t*)calloc((size_t)fb.links_cap, sizeof(zr_fb_link_t));
-  ZR_ASSERT_TRUE(fb.links != NULL);
+  const uint8_t persistent_uri[] = "https://example.test/persistent";
+  uint32_t persistent_ref = 0u;
+  ZR_ASSERT_EQ_U32(
+      zr_fb_link_intern(&fb, persistent_uri, sizeof(persistent_uri) - 1u, NULL, 0u, &persistent_ref), ZR_OK);
+  ZR_ASSERT_TRUE(persistent_ref != 0u);
 
-  fb.link_bytes_cap = 1u;
-  fb.link_bytes_len = 1u;
-  fb.link_bytes = (uint8_t*)malloc(1u);
-  ZR_ASSERT_TRUE(fb.link_bytes != NULL);
-  fb.link_bytes[0] = (uint8_t)'a';
+  zr_cell_t* left = zr_fb_cell(&fb, 0u, 0u);
+  zr_cell_t* right = zr_fb_cell(&fb, 1u, 0u);
+  ZR_ASSERT_TRUE(left != NULL);
+  ZR_ASSERT_TRUE(right != NULL);
+  left->style.link_ref = persistent_ref;
 
-  for (uint32_t i = 0u; i < fb.links_len; i++) {
-    fb.links[i].uri_off = 0u;
-    fb.links[i].uri_len = 1u;
-    fb.links[i].id_off = 1u;
-    fb.links[i].id_len = 0u;
+  uint32_t peak_links_len = fb.links_len;
+  uint32_t peak_link_bytes_len = fb.link_bytes_len;
+
+  char uri_buf[96];
+  for (uint32_t i = 0u; i < 64u; i++) {
+    const int n = snprintf(uri_buf, sizeof(uri_buf), "https://example.test/ephemeral/%u", i);
+    ZR_ASSERT_TRUE(n > 0 && (size_t)n < sizeof(uri_buf));
+
+    uint32_t ref_i = 0u;
+    ZR_ASSERT_EQ_U32(zr_fb_link_intern(&fb, (const uint8_t*)uri_buf, (size_t)n, NULL, 0u, &ref_i), ZR_OK);
+    ZR_ASSERT_TRUE(ref_i >= 1u && ref_i <= fb.links_len);
+    right->style.link_ref = ref_i;
+
+    ZR_ASSERT_TRUE(left->style.link_ref >= 1u && left->style.link_ref <= fb.links_len);
+    ZR_ASSERT_TRUE(right->style.link_ref >= 1u && right->style.link_ref <= fb.links_len);
+
+    peak_links_len = ZR_MAX(peak_links_len, fb.links_len);
+    peak_link_bytes_len = ZR_MAX(peak_link_bytes_len, fb.link_bytes_len);
   }
 
-  uint32_t out_ref = 0u;
-  const zr_result_t rc = zr_fb_link_intern(&fb, (const uint8_t*)"b", 1u, NULL, 0u, &out_ref);
-  ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
-  ZR_ASSERT_EQ_U32(fb.links_len, ZR_FB_LINK_TABLE_MAX_ENTRIES);
-  ZR_ASSERT_EQ_U32(fb.link_bytes_len, 1u);
+  ZR_ASSERT_TRUE(peak_links_len <= 5u);
+  ZR_ASSERT_TRUE(peak_link_bytes_len <= (5u * (ZR_FB_LINK_URI_MAX_BYTES + ZR_FB_LINK_ID_MAX_BYTES)));
 
-  zr_fb_release(&fb);
-}
-
-ZR_TEST_UNIT(limits_link_intern_enforces_link_bytes_cap) {
-  zr_fb_t fb;
-  memset(&fb, 0, sizeof(fb));
-
-  fb.links_cap = 1u;
-  fb.links_len = 0u;
-  fb.links = (zr_fb_link_t*)calloc(1u, sizeof(zr_fb_link_t));
-  ZR_ASSERT_TRUE(fb.links != NULL);
-
-  fb.link_bytes_cap = ZR_FB_LINK_TABLE_MAX_BYTES;
-  fb.link_bytes_len = ZR_FB_LINK_TABLE_MAX_BYTES;
-  fb.link_bytes = (uint8_t*)malloc((size_t)fb.link_bytes_cap);
-  ZR_ASSERT_TRUE(fb.link_bytes != NULL);
-
-  uint32_t out_ref = 0u;
-  const zr_result_t rc = zr_fb_link_intern(&fb, (const uint8_t*)"u", 1u, NULL, 0u, &out_ref);
-  ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
-  ZR_ASSERT_EQ_U32(fb.links_len, 0u);
-  ZR_ASSERT_EQ_U32(fb.link_bytes_len, ZR_FB_LINK_TABLE_MAX_BYTES);
+  const uint8_t* out_uri = NULL;
+  size_t out_uri_len = 0u;
+  const uint8_t* out_id = NULL;
+  size_t out_id_len = 0u;
+  ZR_ASSERT_EQ_U32(
+      zr_fb_link_lookup(&fb, left->style.link_ref, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_OK);
+  ZR_ASSERT_TRUE(out_uri != NULL);
+  ZR_ASSERT_EQ_U32((uint32_t)out_uri_len, (uint32_t)(sizeof(persistent_uri) - 1u));
+  ZR_ASSERT_TRUE(memcmp(out_uri, persistent_uri, out_uri_len) == 0);
+  ZR_ASSERT_EQ_U32((uint32_t)out_id_len, 0u);
+  ZR_ASSERT_TRUE(out_id == NULL);
 
   zr_fb_release(&fb);
 }

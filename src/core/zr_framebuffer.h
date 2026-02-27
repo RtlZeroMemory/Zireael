@@ -41,18 +41,7 @@ typedef struct zr_style_t {
 } zr_style_t;
 
 /* Cell model (LOCKED v1). */
-enum {
-  ZR_CELL_GLYPH_MAX = 32,
-  ZR_FB_LINK_URI_MAX_BYTES = 2083,
-  ZR_FB_LINK_ID_MAX_BYTES = 2083,
-  /*
-    Hard ceilings for intern tables.
-    Why: prevents unbounded growth when workloads keep introducing unique links
-    without clearing the framebuffer.
-  */
-  ZR_FB_LINK_TABLE_MAX_ENTRIES = 65535,
-  ZR_FB_LINK_TABLE_MAX_BYTES = 64u * 1024u * 1024u
-};
+enum { ZR_CELL_GLYPH_MAX = 32, ZR_FB_LINK_URI_MAX_BYTES = 2083, ZR_FB_LINK_ID_MAX_BYTES = 2083 };
 
 typedef struct zr_fb_link_t {
   uint32_t uri_off;

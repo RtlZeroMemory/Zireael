@@ -226,7 +226,8 @@ jobs:
   macos-appleclang-debug:
     needs: [guardrails, version-pins, clang-format]
     name: macos / AppleClang / Debug
-    runs-on: macos-latest
+    runs-on: macos-14
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install tools

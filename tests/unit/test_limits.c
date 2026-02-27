@@ -219,8 +219,8 @@ ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
 
   const uint8_t persistent_uri[] = "https://example.test/persistent";
   uint32_t persistent_ref = 0u;
-  ZR_ASSERT_EQ_U32(
-      zr_fb_link_intern(&fb, persistent_uri, sizeof(persistent_uri) - 1u, NULL, 0u, &persistent_ref), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&fb, persistent_uri, sizeof(persistent_uri) - 1u, NULL, 0u, &persistent_ref),
+                   ZR_OK);
   ZR_ASSERT_TRUE(persistent_ref != 0u);
 
   zr_cell_t* left = zr_fb_cell(&fb, 0u, 0u);
@@ -256,8 +256,7 @@ ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
   size_t out_uri_len = 0u;
   const uint8_t* out_id = NULL;
   size_t out_id_len = 0u;
-  ZR_ASSERT_EQ_U32(
-      zr_fb_link_lookup(&fb, left->style.link_ref, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_link_lookup(&fb, left->style.link_ref, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_OK);
   ZR_ASSERT_TRUE(out_uri != NULL);
   ZR_ASSERT_EQ_U32((uint32_t)out_uri_len, (uint32_t)(sizeof(persistent_uri) - 1u));
   ZR_ASSERT_TRUE(memcmp(out_uri, persistent_uri, out_uri_len) == 0);

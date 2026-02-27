@@ -413,4 +413,3 @@ ZR_TEST_UNIT(drawlist_blit_rect_handles_border_aligned_rectangles) {
   zr_assert_cell_ascii(ctx, &fb, 1u, 1u, (uint8_t)'d', 0x22u);
   zr_fb_release(&fb);
 }
-

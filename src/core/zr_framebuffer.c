@@ -191,10 +191,6 @@ zr_result_t zr_fb_links_clone_from(zr_fb_t* dst, const zr_fb_t* src) {
   if (!src->links || (src->link_bytes_len != 0u && !src->link_bytes)) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  if (src->links_len > ZR_FB_LINK_TABLE_MAX_ENTRIES || src->link_bytes_len > ZR_FB_LINK_TABLE_MAX_BYTES) {
-    return ZR_ERR_LIMIT;
-  }
-
   zr_result_t rc = zr_fb_links_ensure_cap(dst, src->links_len);
   if (rc != ZR_OK) {
     return rc;

@@ -20,7 +20,7 @@ Current pins:
 - Library: v1.3.8
 - Lifecycle: alpha
 - Engine ABI: v1.2.0
-- Drawlist formats: v1
+- Drawlist formats: v1, v2
 - Event batch format: v1
 
 ## Compatibility Expectations
@@ -31,7 +31,7 @@ Negotiation rules (v1 line):
 
 - engine ABI request must match pinned ABI exactly
 - event batch version must match pinned event version exactly
-- drawlist request must match `ZR_DRAWLIST_VERSION_V1`
+- drawlist request must be `ZR_DRAWLIST_VERSION_V1` or `ZR_DRAWLIST_VERSION_V2`
 
 Unsupported requests fail with `ZR_ERR_UNSUPPORTED`.
 
@@ -48,6 +48,10 @@ Recent ABI-minor additions in `v1.2.0`:
 - `engine_get_terminal_profile()` public getter
 - extended `zr_terminal_caps_t` fields (`terminal_id`, cap flags/masks)
 - create/runtime capability override masks (`cap_force_flags`, `cap_suppress_flags`)
+
+Recent drawlist-format addition in `v2`:
+
+- `ZR_DL_OP_BLIT_RECT` opcode for overlap-safe cell rectangle copies
 
 Breaking examples:
 

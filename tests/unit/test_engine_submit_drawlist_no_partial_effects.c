@@ -72,9 +72,10 @@ static void zr_write_cmd_header(uint8_t* out, size_t* at, uint16_t opcode, uint3
   zr_write_u32le(out, at, size);
 }
 
-static void zr_write_v6_header(uint8_t* out, size_t* at, uint32_t total_size, uint32_t cmd_bytes, uint32_t cmd_count) {
+static void zr_write_v6_header(uint8_t* out, size_t* at, uint32_t version, uint32_t total_size, uint32_t cmd_bytes,
+                               uint32_t cmd_count) {
   zr_write_u32le(out, at, 0x4C44525Au);
-  zr_write_u32le(out, at, ZR_DRAWLIST_VERSION_V1);
+  zr_write_u32le(out, at, version);
   zr_write_u32le(out, at, 64u);
   zr_write_u32le(out, at, total_size);
   zr_write_u32le(out, at, 64u);
@@ -101,7 +102,7 @@ static size_t zr_make_dl_def_string(uint8_t* out, size_t out_cap, uint32_t id, c
     return 0u;
   }
   memset(out, 0, out_cap);
-  zr_write_v6_header(out, &at, total_size, cmd_bytes, 2u);
+  zr_write_v6_header(out, &at, ZR_DRAWLIST_VERSION_V1, total_size, cmd_bytes, 2u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_CLEAR, 8u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_DEF_STRING, def_size);
   zr_write_u32le(out, &at, id);
@@ -122,7 +123,7 @@ static size_t zr_make_dl_free_string(uint8_t* out, size_t out_cap, uint32_t id) 
     return 0u;
   }
   memset(out, 0, out_cap);
-  zr_write_v6_header(out, &at, total_size, cmd_bytes, 2u);
+  zr_write_v6_header(out, &at, ZR_DRAWLIST_VERSION_V1, total_size, cmd_bytes, 2u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_CLEAR, 8u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_FREE_STRING, 12u);
   zr_write_u32le(out, &at, id);
@@ -137,7 +138,7 @@ static size_t zr_make_dl_draw_text(uint8_t* out, size_t out_cap, uint32_t id, ui
     return 0u;
   }
   memset(out, 0, out_cap);
-  zr_write_v6_header(out, &at, total_size, cmd_bytes, 2u);
+  zr_write_v6_header(out, &at, ZR_DRAWLIST_VERSION_V1, total_size, cmd_bytes, 2u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_CLEAR, 8u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_DRAW_TEXT, 60u);
   zr_write_u32le(out, &at, 0u);
@@ -164,7 +165,7 @@ static size_t zr_make_dl_invalid_blit_rect(uint8_t* out, size_t out_cap) {
     return 0u;
   }
   memset(out, 0, out_cap);
-  zr_write_v6_header(out, &at, total_size, cmd_bytes, 2u);
+  zr_write_v6_header(out, &at, ZR_DRAWLIST_VERSION_V2, total_size, cmd_bytes, 2u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_CLEAR, 8u);
   zr_write_cmd_header(out, &at, ZR_DL_OP_BLIT_RECT, 32u);
   zr_write_u32le(out, &at, 9u); /* src_x: out-of-bounds for 10x4 framebuffer with w=2 */
@@ -295,6 +296,7 @@ ZR_TEST_UNIT(engine_submit_drawlist_invalid_blit_rect_has_no_partial_effects) {
 
   zr_engine_config_t cfg = zr_engine_config_default();
   cfg.limits.out_max_bytes_per_frame = 4096u;
+  cfg.requested_drawlist_version = ZR_DRAWLIST_VERSION_V2;
 
   zr_engine_t* e1 = NULL;
   ZR_ASSERT_TRUE(engine_create(&e1, &cfg) == ZR_OK);
@@ -308,7 +310,7 @@ ZR_TEST_UNIT(engine_submit_drawlist_invalid_blit_rect_has_no_partial_effects) {
   zr_engine_t* e2 = NULL;
   ZR_ASSERT_TRUE(engine_create(&e2, &cfg) == ZR_OK);
   ZR_ASSERT_TRUE(e2 != NULL);
-  ZR_ASSERT_TRUE(engine_submit_drawlist(e2, bad_blit, (int)bad_blit_len) == ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_TRUE(engine_submit_drawlist(e2, bad_blit, (int)bad_blit_len) == ZR_ERR_FORMAT);
   ZR_ASSERT_TRUE(zr_capture_present_bytes(e2, b_bytes, sizeof(b_bytes), &b_len) != 0u);
   engine_destroy(e2);
 

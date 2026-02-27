@@ -80,11 +80,12 @@ Drawlist v1 and event batch v1 are specified by:
 - `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
 - `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`
 
-## Drawlist v1
+## Drawlist v1/v2
 
 Drawlist v1 includes the `SET_CURSOR` opcode (opcode 7). All v1 opcodes remain
-unchanged. The engine accepts only drawlists whose header version is
-`ZR_DRAWLIST_VERSION_V1`.
+unchanged. Drawlist v2 adds `ZR_DL_OP_BLIT_RECT` (opcode 14). The engine
+accepts drawlists whose header version is `ZR_DRAWLIST_VERSION_V1` or
+`ZR_DRAWLIST_VERSION_V2`.
 
 ```c
 typedef struct zr_dl_cmd_set_cursor_t {

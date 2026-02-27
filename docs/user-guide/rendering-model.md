@@ -36,8 +36,8 @@ Drawlist v1 supports explicit cursor control (`ZR_DL_OP_SET_CURSOR`).
 - cursor state is part of terminal emission behavior
 - it does not mutate glyph content in framebuffer cells
 
-Drawlist v1 also supports overlap-safe framebuffer rectangle copies
-(`ZR_DL_OP_BLIT_RECT`) to express scroll/move style updates without redraw.
+Drawlist v2 adds overlap-safe framebuffer rectangle copies
+(`ZR_DL_OP_BLIT_RECT`) to express scroll/move-style updates without redraw.
 
 ## Output Buffering and Flush
 

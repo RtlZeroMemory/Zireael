@@ -82,6 +82,37 @@ ZR_TEST_UNIT(engine_present_wait_for_output_drain_succeeds_when_writable) {
   engine_destroy(e);
 }
 
+ZR_TEST_UNIT(engine_present_wait_for_output_drain_skips_wait_when_no_flush_needed) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_output_writable(1u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+  cfg.wait_for_output_drain = 1u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  ZR_ASSERT_EQ_U32(engine_submit_drawlist(e, zr_test_dl_fixture1, (int)zr_test_dl_fixture1_len), ZR_OK);
+  ZR_ASSERT_EQ_U32(engine_present(e), ZR_OK);
+  ZR_ASSERT_EQ_U32(mock_plat_wait_output_call_count(), 1u);
+
+  /*
+    No drawlist/event changes for the second present => no terminal flush bytes.
+    wait_for_output_drain should not gate this no-op frame.
+  */
+  mock_plat_clear_writes();
+  mock_plat_set_output_writable(0u);
+
+  ZR_ASSERT_EQ_U32(engine_present(e), ZR_OK);
+  ZR_ASSERT_EQ_U32(mock_plat_wait_output_call_count(), 1u);
+  ZR_ASSERT_EQ_U32((uint32_t)mock_plat_bytes_written_total(), 0u);
+
+  engine_destroy(e);
+}
+
 ZR_TEST_UNIT(engine_create_wait_for_output_drain_unsupported_fails_early) {
   mock_plat_reset();
   mock_plat_set_size(10u, 4u);

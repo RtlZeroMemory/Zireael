@@ -213,6 +213,11 @@ ZR_TEST_UNIT(limits_diff_max_damage_rects_forces_full_frame_when_cap_exceeded) {
 }
 
 ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
+  enum {
+    ZR_TEST_URI_BUF_BYTES = 96,
+    ZR_TEST_EPHEMERAL_LINK_ITERS = 64,
+    ZR_TEST_PEAK_LINKS_BOUND = 5,
+  };
   zr_fb_t fb;
   memset(&fb, 0, sizeof(fb));
   ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
@@ -225,15 +230,15 @@ ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
 
   zr_cell_t* left = zr_fb_cell(&fb, 0u, 0u);
   zr_cell_t* right = zr_fb_cell(&fb, 1u, 0u);
-  ZR_ASSERT_TRUE(left != NULL);
-  ZR_ASSERT_TRUE(right != NULL);
+  ZR_ASSERT_TRUE(left);
+  ZR_ASSERT_TRUE(right);
   left->style.link_ref = persistent_ref;
 
   uint32_t peak_links_len = fb.links_len;
   uint32_t peak_link_bytes_len = fb.link_bytes_len;
 
-  char uri_buf[96];
-  for (uint32_t i = 0u; i < 64u; i++) {
+  char uri_buf[ZR_TEST_URI_BUF_BYTES];
+  for (uint32_t i = 0u; i < ZR_TEST_EPHEMERAL_LINK_ITERS; i++) {
     const int n = snprintf(uri_buf, sizeof(uri_buf), "https://example.test/ephemeral/%u", i);
     ZR_ASSERT_TRUE(n > 0 && (size_t)n < sizeof(uri_buf));
 
@@ -249,19 +254,20 @@ ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
     peak_link_bytes_len = ZR_MAX(peak_link_bytes_len, fb.link_bytes_len);
   }
 
-  ZR_ASSERT_TRUE(peak_links_len <= 5u);
-  ZR_ASSERT_TRUE(peak_link_bytes_len <= (5u * (ZR_FB_LINK_URI_MAX_BYTES + ZR_FB_LINK_ID_MAX_BYTES)));
+  ZR_ASSERT_TRUE(peak_links_len <= ZR_TEST_PEAK_LINKS_BOUND);
+  ZR_ASSERT_TRUE(peak_link_bytes_len <=
+                 (ZR_TEST_PEAK_LINKS_BOUND * (ZR_FB_LINK_URI_MAX_BYTES + ZR_FB_LINK_ID_MAX_BYTES)));
 
   const uint8_t* out_uri = NULL;
   size_t out_uri_len = 0u;
   const uint8_t* out_id = NULL;
   size_t out_id_len = 0u;
   ZR_ASSERT_EQ_U32(zr_fb_link_lookup(&fb, left->style.link_ref, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_OK);
-  ZR_ASSERT_TRUE(out_uri != NULL);
+  ZR_ASSERT_TRUE(out_uri);
   ZR_ASSERT_EQ_U32((uint32_t)out_uri_len, (uint32_t)(sizeof(persistent_uri) - 1u));
   ZR_ASSERT_TRUE(memcmp(out_uri, persistent_uri, out_uri_len) == 0);
   ZR_ASSERT_EQ_U32((uint32_t)out_id_len, 0u);
-  ZR_ASSERT_TRUE(out_id == NULL);
+  ZR_ASSERT_TRUE(!out_id);
 
   zr_fb_release(&fb);
 }

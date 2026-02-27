@@ -149,3 +149,57 @@ ZR_TEST_UNIT(blit_preserves_wide_glyph_invariants) {
   zr_assert_no_orphan_continuations(ctx, &fb);
   zr_fb_release(&fb);
 }
+
+ZR_TEST_UNIT(blit_wide_glyph_lead_does_not_write_outside_rect) {
+  zr_fb_t fb;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 4u, 1u), ZR_OK);
+  const zr_style_t s0 = zr_style0();
+  (void)zr_fb_clear(&fb, &s0);
+
+  /* Seed: wide glyph at (1,0). */
+  const uint8_t emoji[4] = {0xF0u, 0x9Fu, 0x99u, 0x82u};
+  zr_cell_t* lead = zr_fb_cell(&fb, 1u, 0u);
+  zr_cell_t* cont = zr_fb_cell(&fb, 2u, 0u);
+  ZR_ASSERT_TRUE(lead != NULL && cont != NULL);
+  memset(lead->glyph, 0, sizeof(lead->glyph));
+  memcpy(lead->glyph, emoji, sizeof(emoji));
+  lead->glyph_len = 4u;
+  lead->width = 2u;
+  lead->style = s0;
+  memset(cont->glyph, 0, sizeof(cont->glyph));
+  cont->glyph_len = 0u;
+  cont->width = 0u;
+  cont->style = s0;
+
+  zr_rect_t stack[2];
+  zr_fb_painter_t p;
+  ZR_ASSERT_EQ_U32(zr_fb_painter_begin(&p, &fb, stack, 2u), ZR_OK);
+
+  /*
+    Copy only the lead cell into a 1x1 destination rect.
+
+    Expectation: the blit must not touch cell (1,0) outside the destination,
+    so wide glyphs that cannot fully fit are replaced deterministically.
+  */
+  zr_rect_t src = {1, 0, 1, 1};
+  zr_rect_t dst = {0, 0, 1, 1};
+  ZR_ASSERT_EQ_U32(zr_fb_blit_rect(&p, dst, src), ZR_OK);
+
+  const uint8_t repl[3] = {0xEFu, 0xBFu, 0xBDu};
+  const zr_cell_t* d0 = zr_fb_cell_const(&fb, 0u, 0u);
+  const zr_cell_t* s1 = zr_fb_cell_const(&fb, 1u, 0u);
+  const zr_cell_t* s2 = zr_fb_cell_const(&fb, 2u, 0u);
+  ZR_ASSERT_TRUE(d0 != NULL && s1 != NULL && s2 != NULL);
+  ZR_ASSERT_EQ_U32(d0->width, 1u);
+  ZR_ASSERT_EQ_U32(d0->glyph_len, 3u);
+  ZR_ASSERT_MEMEQ(d0->glyph, repl, 3u);
+
+  ZR_ASSERT_EQ_U32(s1->width, 2u);
+  ZR_ASSERT_EQ_U32(s1->glyph_len, 4u);
+  ZR_ASSERT_MEMEQ(s1->glyph, emoji, 4u);
+  ZR_ASSERT_EQ_U32(s2->width, 0u);
+  ZR_ASSERT_EQ_U32(s2->glyph_len, 0u);
+
+  zr_assert_no_orphan_continuations(ctx, &fb);
+  zr_fb_release(&fb);
+}

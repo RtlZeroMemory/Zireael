@@ -21,6 +21,7 @@
 #include "unicode/zr_width.h"
 #include "util/zr_caps.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 /* Fixtures defined in test_drawlist_validate.c */
@@ -156,8 +157,8 @@ ZR_TEST_UNIT(limits_execute_clip_depth_over_64_fails_without_partial_effects) {
   zr_limits_t execute_lim = zr_limits_default();
   execute_lim.dl_max_clip_depth = 65u;
 
-  const zr_result_t rc = zr_dl_execute(&v, &fb, &execute_lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL,
-                                       &resources, &cursor);
+  const zr_result_t rc =
+      zr_dl_execute(&v, &fb, &execute_lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &resources, &cursor);
   ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
   ZR_ASSERT_TRUE(memcmp(before_cells, fb.cells, sizeof(before_cells)) == 0);
   ZR_ASSERT_TRUE(memcmp(&before_cursor, &cursor, sizeof(before_cursor)) == 0);
@@ -208,4 +209,58 @@ ZR_TEST_UNIT(limits_diff_max_damage_rects_forces_full_frame_when_cap_exceeded) {
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(limits_link_intern_enforces_link_entry_cap) {
+  zr_fb_t fb;
+  memset(&fb, 0, sizeof(fb));
+
+  fb.links_cap = ZR_FB_LINK_TABLE_MAX_ENTRIES;
+  fb.links_len = ZR_FB_LINK_TABLE_MAX_ENTRIES;
+  fb.links = (zr_fb_link_t*)calloc((size_t)fb.links_cap, sizeof(zr_fb_link_t));
+  ZR_ASSERT_TRUE(fb.links != NULL);
+
+  fb.link_bytes_cap = 1u;
+  fb.link_bytes_len = 1u;
+  fb.link_bytes = (uint8_t*)malloc(1u);
+  ZR_ASSERT_TRUE(fb.link_bytes != NULL);
+  fb.link_bytes[0] = (uint8_t)'a';
+
+  for (uint32_t i = 0u; i < fb.links_len; i++) {
+    fb.links[i].uri_off = 0u;
+    fb.links[i].uri_len = 1u;
+    fb.links[i].id_off = 1u;
+    fb.links[i].id_len = 0u;
+  }
+
+  uint32_t out_ref = 0u;
+  const zr_result_t rc = zr_fb_link_intern(&fb, (const uint8_t*)"b", 1u, NULL, 0u, &out_ref);
+  ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
+  ZR_ASSERT_EQ_U32(fb.links_len, ZR_FB_LINK_TABLE_MAX_ENTRIES);
+  ZR_ASSERT_EQ_U32(fb.link_bytes_len, 1u);
+
+  zr_fb_release(&fb);
+}
+
+ZR_TEST_UNIT(limits_link_intern_enforces_link_bytes_cap) {
+  zr_fb_t fb;
+  memset(&fb, 0, sizeof(fb));
+
+  fb.links_cap = 1u;
+  fb.links_len = 0u;
+  fb.links = (zr_fb_link_t*)calloc(1u, sizeof(zr_fb_link_t));
+  ZR_ASSERT_TRUE(fb.links != NULL);
+
+  fb.link_bytes_cap = ZR_FB_LINK_TABLE_MAX_BYTES;
+  fb.link_bytes_len = ZR_FB_LINK_TABLE_MAX_BYTES;
+  fb.link_bytes = (uint8_t*)malloc((size_t)fb.link_bytes_cap);
+  ZR_ASSERT_TRUE(fb.link_bytes != NULL);
+
+  uint32_t out_ref = 0u;
+  const zr_result_t rc = zr_fb_link_intern(&fb, (const uint8_t*)"u", 1u, NULL, 0u, &out_ref);
+  ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
+  ZR_ASSERT_EQ_U32(fb.links_len, 0u);
+  ZR_ASSERT_EQ_U32(fb.link_bytes_len, ZR_FB_LINK_TABLE_MAX_BYTES);
+
+  zr_fb_release(&fb);
 }

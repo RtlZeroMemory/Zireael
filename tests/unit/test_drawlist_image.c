@@ -252,9 +252,9 @@ ZR_TEST_UNIT(drawlist_image_execute_png_without_protocol_is_unsupported) {
   cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
   zr_dl_resources_init(&resources);
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &resources,
-                                 &cursor),
-                   ZR_ERR_UNSUPPORTED);
+  ZR_ASSERT_EQ_U32(
+      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &resources, &cursor),
+      ZR_ERR_UNSUPPORTED);
 
   zr_dl_resources_release(&resources);
   zr_fb_release(&fb);
@@ -302,9 +302,9 @@ ZR_TEST_UNIT(drawlist_image_execute_with_kitty_profile_stages_frame) {
 
   zr_image_frame_init(&stage);
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, &stage,
-                                 &resources, &cursor),
-                   ZR_OK);
+  ZR_ASSERT_EQ_U32(
+      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, &stage, &resources, &cursor),
+      ZR_OK);
 
   ZR_ASSERT_EQ_U32(stage.cmds_len, 1u);
   ZR_ASSERT_EQ_U32(stage.blob_len, 4u);
@@ -364,9 +364,9 @@ ZR_TEST_UNIT(drawlist_image_execute_with_protocol_requires_stage_buffer) {
   cursor.shape = ZR_CURSOR_SHAPE_BLOCK;
   zr_dl_resources_init(&resources);
 
-  ZR_ASSERT_EQ_U32(zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, NULL, &resources,
-                                 &cursor),
-                   ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_EQ_U32(
+      zr_dl_execute(&view, &fb, &lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, &profile, NULL, &resources, &cursor),
+      ZR_ERR_INVALID_ARGUMENT);
 
   zr_dl_resources_release(&resources);
   zr_fb_release(&fb);

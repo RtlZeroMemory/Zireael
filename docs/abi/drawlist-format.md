@@ -49,6 +49,7 @@ Commands are 4-byte aligned.
 - `11` `ZR_DL_OP_FREE_STRING` (size `12`)
 - `12` `ZR_DL_OP_DEF_BLOB` (base size `16` + aligned bytes)
 - `13` `ZR_DL_OP_FREE_BLOB` (size `12`)
+- `14` `ZR_DL_OP_BLIT_RECT` (size `32`)
 
 ## Persistent Resource Semantics
 

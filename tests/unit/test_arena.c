@@ -190,4 +190,3 @@ ZR_TEST_UNIT(arena_reset_reuses_first_block) {
   /* --- Cleanup --- */
   zr_arena_release(&a);
 }
-

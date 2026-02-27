@@ -15,4 +15,3 @@ int main(void) {
   fprintf(stdout, "SKIP: integration backends not implemented yet (EPIC-007/#29, EPIC-008/#30)\n");
   return 77;
 }
-

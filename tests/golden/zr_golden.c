@@ -75,12 +75,8 @@ static uint8_t* zr_golden_read_file(const char* path, size_t* out_len) {
   return buf;
 }
 
-static void zr_golden_print_hex_context(FILE* out,
-                                        const uint8_t* expected,
-                                        size_t expected_len,
-                                        const uint8_t* actual,
-                                        size_t actual_len,
-                                        size_t mismatch_off) {
+static void zr_golden_print_hex_context(FILE* out, const uint8_t* expected, size_t expected_len, const uint8_t* actual,
+                                        size_t actual_len, size_t mismatch_off) {
   const size_t ctx_before = 16;
   const size_t ctx_after = 16;
 
@@ -129,13 +125,11 @@ int zr_golden_compare_fixture(const char* fixture_id, const uint8_t* actual, siz
     /* Differentiate missing vs read error best-effort. */
     FILE* probe = fopen(path, "rb");
     if (!probe) {
-      fprintf(stderr, "GOLDEN: missing fixture id=%s expected=%s\n",
-              fixture_id ? fixture_id : "(null)", path);
+      fprintf(stderr, "GOLDEN: missing fixture id=%s expected=%s\n", fixture_id ? fixture_id : "(null)", path);
       return 2;
     }
     fclose(probe);
-    fprintf(stderr, "GOLDEN: failed to read fixture id=%s expected=%s\n",
-            fixture_id ? fixture_id : "(null)", path);
+    fprintf(stderr, "GOLDEN: failed to read fixture id=%s expected=%s\n", fixture_id ? fixture_id : "(null)", path);
     return 3;
   }
 

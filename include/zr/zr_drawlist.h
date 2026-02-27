@@ -8,6 +8,10 @@
 #ifndef ZR_ZR_DRAWLIST_H_INCLUDED
 #define ZR_ZR_DRAWLIST_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 /* ABI-facing types (little-endian on-wire). */
@@ -63,7 +67,8 @@ typedef enum zr_dl_opcode_t {
   ZR_DL_OP_DEF_STRING = 10,
   ZR_DL_OP_FREE_STRING = 11,
   ZR_DL_OP_DEF_BLOB = 12,
-  ZR_DL_OP_FREE_BLOB = 13
+  ZR_DL_OP_FREE_BLOB = 13,
+  ZR_DL_OP_BLIT_RECT = 14
 } zr_dl_opcode_t;
 
 /*
@@ -178,6 +183,15 @@ typedef struct zr_dl_cmd_push_clip_t {
   int32_t h;
 } zr_dl_cmd_push_clip_t;
 
+typedef struct zr_dl_cmd_blit_rect_t {
+  int32_t src_x;
+  int32_t src_y;
+  int32_t w;
+  int32_t h;
+  int32_t dst_x;
+  int32_t dst_y;
+} zr_dl_cmd_blit_rect_t;
+
 typedef struct zr_dl_cmd_draw_text_run_t {
   int32_t x;
   int32_t y;
@@ -249,5 +263,9 @@ typedef struct zr_dl_cmd_def_resource_t {
 typedef struct zr_dl_cmd_free_resource_t {
   uint32_t id;
 } zr_dl_cmd_free_resource_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ZR_ZR_DRAWLIST_H_INCLUDED */

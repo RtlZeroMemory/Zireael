@@ -183,10 +183,15 @@ zr_result_t zr_fb_links_clone_from(zr_fb_t* dst, const zr_fb_t* src) {
   if (!dst || !src) {
     return ZR_ERR_INVALID_ARGUMENT;
   }
-  zr_fb_links_reset(dst);
-
   if (src->links_len == 0u) {
+    zr_fb_links_reset(dst);
     return ZR_OK;
+  }
+  if (!src->links || (src->link_bytes_len != 0u && !src->link_bytes)) {
+    return ZR_ERR_INVALID_ARGUMENT;
+  }
+  if (src->links_len > ZR_FB_LINK_TABLE_MAX_ENTRIES || src->link_bytes_len > ZR_FB_LINK_TABLE_MAX_BYTES) {
+    return ZR_ERR_LIMIT;
   }
 
   zr_result_t rc = zr_fb_links_ensure_cap(dst, src->links_len);
@@ -226,7 +231,6 @@ zr_result_t zr_fb_copy_damage_rects(zr_fb_t* dst, const zr_fb_t* src, const zr_d
     return ZR_ERR_INVALID_ARGUMENT;
   }
   /* Copying cells also copies link_ref indices, so sync intern tables first. */
-  zr_fb_links_reset(dst);
   {
     const zr_result_t links_rc = zr_fb_links_clone_from(dst, src);
     if (links_rc != ZR_OK) {
@@ -513,6 +517,9 @@ zr_result_t zr_fb_link_intern(zr_fb_t* fb, const uint8_t* uri, size_t uri_len, c
   }
   if (!zr_checked_add_u32(fb->link_bytes_len, (uint32_t)uri_len, &need_bytes) ||
       !zr_checked_add_u32(need_bytes, (uint32_t)id_len, &need_bytes)) {
+    return ZR_ERR_LIMIT;
+  }
+  if (need_links > ZR_FB_LINK_TABLE_MAX_ENTRIES || need_bytes > ZR_FB_LINK_TABLE_MAX_BYTES) {
     return ZR_ERR_LIMIT;
   }
 
@@ -1241,6 +1248,19 @@ zr_result_t zr_fb_blit_rect(zr_fb_painter_t* p, zr_rect_t dst, zr_rect_t src) {
 
       /* Continuations are written by their lead cell. */
       if (zr_cell_is_continuation(c)) {
+        continue;
+      }
+
+      /*
+       * Prevent wide-glyph leads from writing outside the effective rectangle.
+       *
+       * Why: BLIT_RECT is specified as a rectangle copy. Wide glyphs must be
+       * kept invariant-safe, so when a wide lead does not fully fit inside the
+       * src/dst effective span, replace deterministically rather than touching
+       * a neighbor cell outside the rectangle.
+       */
+      if (c->width == 2u && (ox + 1) >= w) {
+        (void)zr_fb_put_grapheme(p, dx, dy, ZR_UTF8_REPLACEMENT, ZR_UTF8_REPLACEMENT_LEN, 1u, &c->style);
         continue;
       }
 

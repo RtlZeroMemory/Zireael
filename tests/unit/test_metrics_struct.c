@@ -16,17 +16,14 @@
 #include <stddef.h>
 #include <string.h>
 
-#define ZR_TEST_ASSERT_U32_FIELD_(field)                                                        \
-  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint32_t : 1, default : 0),                  \
-                 "zr_metrics_t field must be uint32_t")
+#define ZR_TEST_ASSERT_U32_FIELD_(field)                                                                               \
+  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint32_t: 1, default: 0), "zr_metrics_t field must be uint32_t")
 
-#define ZR_TEST_ASSERT_U64_FIELD_(field)                                                        \
-  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint64_t : 1, default : 0),                  \
-                 "zr_metrics_t field must be uint64_t")
+#define ZR_TEST_ASSERT_U64_FIELD_(field)                                                                               \
+  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint64_t: 1, default: 0), "zr_metrics_t field must be uint64_t")
 
-#define ZR_TEST_ASSERT_U8_FIELD_(field)                                                         \
-  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint8_t : 1, default : 0),                  \
-                 "zr_metrics_t field must be uint8_t")
+#define ZR_TEST_ASSERT_U8_FIELD_(field)                                                                                \
+  _Static_assert(_Generic(((zr_metrics_t*)0)->field, uint8_t: 1, default: 0), "zr_metrics_t field must be uint8_t")
 
 ZR_TEST_ASSERT_U32_FIELD_(struct_size);
 ZR_TEST_ASSERT_U32_FIELD_(negotiated_engine_abi_major);

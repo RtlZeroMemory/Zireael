@@ -18,9 +18,13 @@
 #include <stddef.h>
 #include <string.h>
 
-static size_t zr_align4(size_t v) { return (v + 3u) & ~(size_t)3u; }
+static size_t zr_align4(size_t v) {
+  return (v + 3u) & ~(size_t)3u;
+}
 
-static uint32_t zr_u32le_at(const uint8_t* p) { return zr_load_u32le(p); }
+static uint32_t zr_u32le_at(const uint8_t* p) {
+  return zr_load_u32le(p);
+}
 
 ZR_TEST_UNIT(engine_poll_events_emits_tick_with_nonzero_dt) {
   mock_plat_reset();

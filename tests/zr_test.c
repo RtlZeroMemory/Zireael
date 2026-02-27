@@ -109,10 +109,7 @@ void zr_test_skip(zr_test_ctx_t* ctx, const char* file, int line, const char* re
   fprintf(stdout, "SKIP: %s:%d: %s\n", file ? file : "?", line, reason ? reason : "(null)");
 }
 
-static void zr_hex_dump_context(FILE* out,
-                                const uint8_t* expected,
-                                const uint8_t* actual,
-                                size_t len,
+static void zr_hex_dump_context(FILE* out, const uint8_t* expected, const uint8_t* actual, size_t len,
                                 size_t mismatch_off) {
   /* Print up to 16 bytes before and after mismatch (32 total). */
   const size_t ctx_before = 16;
@@ -148,8 +145,8 @@ int zr_test_memeq(const void* actual, const void* expected, size_t len) {
   }
   for (size_t i = 0; i < len; i++) {
     if (a[i] != e[i]) {
-      fprintf(stderr, "memeq: first mismatch at offset=%zu expected=%02X actual=%02X\n",
-              i, (unsigned)e[i], (unsigned)a[i]);
+      fprintf(stderr, "memeq: first mismatch at offset=%zu expected=%02X actual=%02X\n", i, (unsigned)e[i],
+              (unsigned)a[i]);
       zr_hex_dump_context(stderr, e, a, len, i);
       return 0;
     }

@@ -21,11 +21,11 @@ static int zr_test_skip(const char* reason) {
 }
 
 typedef struct zr_wait_thread_args_t {
-  plat_t*  plat;
-  int32_t  timeout_ms;
-  int32_t  result;
+  plat_t* plat;
+  int32_t timeout_ms;
+  int32_t result;
   zr_result_t wake_rc;
-  HANDLE   ready_event;
+  HANDLE ready_event;
 } zr_wait_thread_args_t;
 
 static DWORD WINAPI zr_wait_thread(LPVOID user) {
@@ -130,7 +130,8 @@ int main(int argc, char** argv) {
   char skip_reason[256];
   memset(skip_reason, 0, sizeof(skip_reason));
 
-  zr_result_t r = zr_win32_conpty_run_self_capture("--child", out, sizeof(out), &out_len, &exit_code, skip_reason, sizeof(skip_reason));
+  zr_result_t r = zr_win32_conpty_run_self_capture("--child", out, sizeof(out), &out_len, &exit_code, skip_reason,
+                                                   sizeof(skip_reason));
   if (r == ZR_ERR_UNSUPPORTED) {
     return zr_test_skip(skip_reason[0] ? skip_reason : "ConPTY unavailable");
   }

@@ -10,4 +10,3 @@
 int main(int argc, char** argv) {
   return zr_test_run_all(argc, argv);
 }
-

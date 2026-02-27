@@ -21,6 +21,8 @@
 #include "unicode/zr_width.h"
 #include "util/zr_caps.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Fixtures defined in test_drawlist_validate.c */
@@ -156,8 +158,8 @@ ZR_TEST_UNIT(limits_execute_clip_depth_over_64_fails_without_partial_effects) {
   zr_limits_t execute_lim = zr_limits_default();
   execute_lim.dl_max_clip_depth = 65u;
 
-  const zr_result_t rc = zr_dl_execute(&v, &fb, &execute_lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL,
-                                       &resources, &cursor);
+  const zr_result_t rc =
+      zr_dl_execute(&v, &fb, &execute_lim, 4u, (uint32_t)ZR_WIDTH_EMOJI_WIDE, NULL, NULL, NULL, &resources, &cursor);
   ZR_ASSERT_EQ_U32(rc, ZR_ERR_LIMIT);
   ZR_ASSERT_TRUE(memcmp(before_cells, fb.cells, sizeof(before_cells)) == 0);
   ZR_ASSERT_TRUE(memcmp(&before_cursor, &cursor, sizeof(before_cursor)) == 0);
@@ -208,4 +210,68 @@ ZR_TEST_UNIT(limits_diff_max_damage_rects_forces_full_frame_when_cap_exceeded) {
 
   zr_fb_release(&prev);
   zr_fb_release(&next);
+}
+
+ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
+  enum {
+    ZR_TEST_URI_BUF_BYTES = 96,
+    ZR_TEST_EPHEMERAL_LINK_ITERS = 64,
+    ZR_TEST_PEAK_LINKS_BOUND = 5,
+  };
+  zr_fb_t fb;
+  memset(&fb, 0, sizeof(fb));
+  ZR_ASSERT_EQ_U32(zr_fb_init(&fb, 2u, 1u), ZR_OK);
+
+  const uint8_t persistent_uri[] = "https://example.test/persistent";
+  uint32_t persistent_ref = 0u;
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&fb, persistent_uri, sizeof(persistent_uri) - 1u, NULL, 0u, &persistent_ref),
+                   ZR_OK);
+  ZR_ASSERT_TRUE(persistent_ref != 0u);
+
+  zr_cell_t* left = zr_fb_cell(&fb, 0u, 0u);
+  zr_cell_t* right = zr_fb_cell(&fb, 1u, 0u);
+  ZR_ASSERT_TRUE(left);
+  ZR_ASSERT_TRUE(right);
+  left->style.link_ref = persistent_ref;
+
+  uint32_t peak_links_len = fb.links_len;
+  uint32_t peak_link_bytes_len = fb.link_bytes_len;
+
+  char uri_buf[ZR_TEST_URI_BUF_BYTES];
+  for (uint32_t i = 0u; i < ZR_TEST_EPHEMERAL_LINK_ITERS; i++) {
+    const int n = snprintf(uri_buf, sizeof(uri_buf), "https://example.test/ephemeral/%u", i);
+    ZR_ASSERT_TRUE(n > 0 && (size_t)n < sizeof(uri_buf));
+
+    uint32_t ref_i = 0u;
+    ZR_ASSERT_EQ_U32(zr_fb_link_intern(&fb, (const uint8_t*)uri_buf, (size_t)n, NULL, 0u, &ref_i), ZR_OK);
+    ZR_ASSERT_TRUE(ref_i >= 1u && ref_i <= fb.links_len);
+    right->style.link_ref = ref_i;
+
+    ZR_ASSERT_TRUE(left->style.link_ref >= 1u && left->style.link_ref <= fb.links_len);
+    ZR_ASSERT_TRUE(right->style.link_ref >= 1u && right->style.link_ref <= fb.links_len);
+
+    if (fb.links_len > peak_links_len) {
+      peak_links_len = fb.links_len;
+    }
+    if (fb.link_bytes_len > peak_link_bytes_len) {
+      peak_link_bytes_len = fb.link_bytes_len;
+    }
+  }
+
+  ZR_ASSERT_TRUE(peak_links_len <= ZR_TEST_PEAK_LINKS_BOUND);
+  ZR_ASSERT_TRUE(peak_link_bytes_len <=
+                 (ZR_TEST_PEAK_LINKS_BOUND * (ZR_FB_LINK_URI_MAX_BYTES + ZR_FB_LINK_ID_MAX_BYTES)));
+
+  const uint8_t* out_uri = NULL;
+  size_t out_uri_len = 0u;
+  const uint8_t* out_id = NULL;
+  size_t out_id_len = 0u;
+  ZR_ASSERT_EQ_U32(zr_fb_link_lookup(&fb, left->style.link_ref, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_OK);
+  ZR_ASSERT_TRUE(out_uri);
+  ZR_ASSERT_EQ_U32((uint32_t)out_uri_len, (uint32_t)(sizeof(persistent_uri) - 1u));
+  ZR_ASSERT_TRUE(memcmp(out_uri, persistent_uri, out_uri_len) == 0);
+  ZR_ASSERT_EQ_U32((uint32_t)out_id_len, 0u);
+  ZR_ASSERT_TRUE(!out_id);
+
+  zr_fb_release(&fb);
 }

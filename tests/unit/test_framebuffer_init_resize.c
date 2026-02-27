@@ -162,10 +162,10 @@ ZR_TEST_UNIT(framebuffer_copy_damage_rects_copies_clamped_inclusive_spans) {
   zr_write_ascii_row(ctx, &src, 2u, "KLMNO");
 
   const zr_damage_rect_t rects[] = {
-      {1u, 0u, 3u, 1u},  /* middle block, two rows */
-      {4u, 2u, 99u, 9u}, /* clamped to one bottom-right cell */
-      {3u, 2u, 1u, 2u},  /* invalid (x0 > x1), ignored */
-      {9u, 0u, 12u, 2u}, /* fully out of bounds, ignored */
+      {1u, 0u, 3u, 1u, 0u},  /* middle block, two rows */
+      {4u, 2u, 99u, 9u, 0u}, /* clamped to one bottom-right cell */
+      {3u, 2u, 1u, 2u, 0u},  /* invalid (x0 > x1), ignored */
+      {9u, 0u, 12u, 2u, 0u}, /* fully out of bounds, ignored */
   };
 
   ZR_ASSERT_EQ_U32(zr_fb_copy_damage_rects(&dst, &src, rects, (uint32_t)(sizeof(rects) / sizeof(rects[0]))), ZR_OK);
@@ -198,9 +198,47 @@ ZR_TEST_UNIT(framebuffer_copy_damage_rects_rejects_dimension_mismatch) {
   ZR_ASSERT_EQ_U32(zr_fb_init(&a, 2u, 2u), ZR_OK);
   ZR_ASSERT_EQ_U32(zr_fb_init(&b, 3u, 2u), ZR_OK);
 
-  const zr_damage_rect_t r = {0u, 0u, 1u, 1u};
+  const zr_damage_rect_t r = {0u, 0u, 1u, 1u, 0u};
   ZR_ASSERT_EQ_U32(zr_fb_copy_damage_rects(&a, &b, &r, 1u), ZR_ERR_INVALID_ARGUMENT);
 
   zr_fb_release(&a);
   zr_fb_release(&b);
+}
+
+ZR_TEST_UNIT(framebuffer_links_clone_from_smaller_source_hides_stale_links) {
+  zr_fb_t src;
+  zr_fb_t dst;
+  ZR_ASSERT_EQ_U32(zr_fb_init(&src, 1u, 1u), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_init(&dst, 1u, 1u), ZR_OK);
+
+  const uint8_t dst_uri_a[] = "https://dst-a.example";
+  const uint8_t dst_uri_b[] = "https://dst-b.example";
+  const uint8_t src_uri[] = "https://src-only.example";
+
+  uint32_t link_ref = 0u;
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&dst, dst_uri_a, sizeof(dst_uri_a) - 1u, NULL, 0u, &link_ref), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&dst, dst_uri_b, sizeof(dst_uri_b) - 1u, NULL, 0u, &link_ref), ZR_OK);
+  ZR_ASSERT_EQ_U32(zr_fb_link_intern(&src, src_uri, sizeof(src_uri) - 1u, NULL, 0u, &link_ref), ZR_OK);
+  ZR_ASSERT_EQ_U32(dst.links_len, 2u);
+  ZR_ASSERT_EQ_U32(src.links_len, 1u);
+
+  ZR_ASSERT_EQ_U32(zr_fb_links_clone_from(&dst, &src), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(dst.links_len, 1u);
+  ZR_ASSERT_EQ_U32(dst.link_bytes_len, src.link_bytes_len);
+
+  const uint8_t* out_uri = NULL;
+  size_t out_uri_len = 0u;
+  const uint8_t* out_id = NULL;
+  size_t out_id_len = 0u;
+  ZR_ASSERT_EQ_U32(zr_fb_link_lookup(&dst, 1u, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_OK);
+  ZR_ASSERT_EQ_U32((uint32_t)out_uri_len, (uint32_t)(sizeof(src_uri) - 1u));
+  ZR_ASSERT_TRUE(memcmp(out_uri, src_uri, sizeof(src_uri) - 1u) == 0);
+  ZR_ASSERT_TRUE(out_id == NULL);
+  ZR_ASSERT_EQ_U32((uint32_t)out_id_len, 0u);
+
+  ZR_ASSERT_EQ_U32(zr_fb_link_lookup(&dst, 2u, &out_uri, &out_uri_len, &out_id, &out_id_len), ZR_ERR_FORMAT);
+
+  zr_fb_release(&src);
+  zr_fb_release(&dst);
 }

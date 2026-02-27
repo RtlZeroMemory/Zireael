@@ -87,4 +87,3 @@ ZR_TEST_UNIT(checked_align_up) {
   /* --- Act & Assert: Invalid alignment (not power-of-two) --- */
   ZR_ASSERT_TRUE(!zr_checked_align_up_size(1u, 3u, &out));
 }
-

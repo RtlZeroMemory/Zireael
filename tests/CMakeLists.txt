@@ -75,6 +75,7 @@ add_executable(zireael_unit_tests
         unit/test_engine_present_backpressure.c
         unit/test_engine_restore_hooks.c
         unit/test_engine_present_single_flush.c
+        unit/test_engine_present_damage_resync_hyperlinks.c
         unit/test_engine_submit_drawlist_no_partial_effects.c
         unit/test_engine_canvas_auto_selection.c
         unit/test_engine_version_negotiation.c

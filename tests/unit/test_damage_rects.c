@@ -55,4 +55,3 @@ ZR_TEST_UNIT(damage_marks_full_frame_on_rect_cap_overflow) {
   ZR_ASSERT_EQ_U32(d.rects[0].y1, 3u);
   ZR_ASSERT_EQ_U32(zr_damage_cells(&d), 20u);
 }
-

@@ -310,7 +310,7 @@ ZR_TEST_UNIT(engine_submit_drawlist_invalid_blit_rect_has_no_partial_effects) {
   zr_engine_t* e2 = NULL;
   ZR_ASSERT_TRUE(engine_create(&e2, &cfg) == ZR_OK);
   ZR_ASSERT_TRUE(e2 != NULL);
-  ZR_ASSERT_TRUE(engine_submit_drawlist(e2, bad_blit, (int)bad_blit_len) == ZR_ERR_INVALID_ARGUMENT);
+  ZR_ASSERT_TRUE(engine_submit_drawlist(e2, bad_blit, (int)bad_blit_len) == ZR_ERR_FORMAT);
   ZR_ASSERT_TRUE(zr_capture_present_bytes(e2, b_bytes, sizeof(b_bytes), &b_len) != 0u);
   engine_destroy(e2);
 

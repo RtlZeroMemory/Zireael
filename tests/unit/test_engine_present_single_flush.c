@@ -112,22 +112,22 @@ static void zr_test_write_cursor_image_commands(uint8_t* out, size_t* at) {
   out[(*at)++] = 0u;                /* reserved */
 
   zr_test_write_cmd_header(out, at, ZR_DL_OP_DRAW_IMAGE, ZR_TEST_DL_CMD_DRAW_IMAGE_BYTES);
-  zr_test_write_u16le(out, at, 0u);                       /* dst_col */
-  zr_test_write_u16le(out, at, 0u);                       /* dst_row */
-  zr_test_write_u16le(out, at, 1u);                       /* dst_cols */
-  zr_test_write_u16le(out, at, 1u);                       /* dst_rows */
-  zr_test_write_u16le(out, at, 1u);                       /* px_width */
-  zr_test_write_u16le(out, at, 1u);                       /* px_height */
-  zr_test_write_u32le(out, at, 1u);                       /* blob_id */
-  zr_test_write_u32le(out, at, 0u);                       /* reserved_blob */
-  zr_test_write_u32le(out, at, 7u);                       /* image_id */
-  out[(*at)++] = 0u;                                      /* format=RGBA */
-  out[(*at)++] = ZR_TEST_IMAGE_PROTOCOL_KITTY;            /* protocol=kitty */
-  out[(*at)++] = 0u;                                      /* z_layer=0 */
-  out[(*at)++] = 0u;                                      /* fit=fill */
-  out[(*at)++] = 0u;                                      /* flags */
-  out[(*at)++] = 0u;                                      /* reserved0 */
-  zr_test_write_u16le(out, at, 0u);                       /* reserved1 */
+  zr_test_write_u16le(out, at, 0u);            /* dst_col */
+  zr_test_write_u16le(out, at, 0u);            /* dst_row */
+  zr_test_write_u16le(out, at, 1u);            /* dst_cols */
+  zr_test_write_u16le(out, at, 1u);            /* dst_rows */
+  zr_test_write_u16le(out, at, 1u);            /* px_width */
+  zr_test_write_u16le(out, at, 1u);            /* px_height */
+  zr_test_write_u32le(out, at, 1u);            /* blob_id */
+  zr_test_write_u32le(out, at, 0u);            /* reserved_blob */
+  zr_test_write_u32le(out, at, 7u);            /* image_id */
+  out[(*at)++] = 0u;                           /* format=RGBA */
+  out[(*at)++] = ZR_TEST_IMAGE_PROTOCOL_KITTY; /* protocol=kitty */
+  out[(*at)++] = 0u;                           /* z_layer=0 */
+  out[(*at)++] = 0u;                           /* fit=fill */
+  out[(*at)++] = 0u;                           /* flags */
+  out[(*at)++] = 0u;                           /* reserved0 */
+  zr_test_write_u16le(out, at, 0u);            /* reserved1 */
 }
 
 /*

@@ -21,4 +21,3 @@
 int zr_golden_compare_fixture(const char* fixture_id, const uint8_t* actual, size_t actual_len);
 
 #endif /* ZR_GOLDEN_H_INCLUDED */
-

@@ -31,7 +31,9 @@ static inline uint32_t zr_ex_le32_read(const uint8_t* p) {
 
 /* --- Alignment --- */
 
-static inline uint32_t zr_ex_align4_u32(uint32_t x) { return (x + 3u) & ~3u; }
+static inline uint32_t zr_ex_align4_u32(uint32_t x) {
+  return (x + 3u) & ~3u;
+}
 
 /* --- Color --- */
 
@@ -40,4 +42,3 @@ static inline uint32_t zr_ex_rgb_u32(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 #endif /* ZR_EXAMPLE_COMMON_H_INCLUDED */
-

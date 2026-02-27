@@ -250,8 +250,12 @@ ZR_TEST_UNIT(limits_link_intern_compacts_stale_refs_and_bounds_growth) {
     ZR_ASSERT_TRUE(left->style.link_ref >= 1u && left->style.link_ref <= fb.links_len);
     ZR_ASSERT_TRUE(right->style.link_ref >= 1u && right->style.link_ref <= fb.links_len);
 
-    peak_links_len = ZR_MAX(peak_links_len, fb.links_len);
-    peak_link_bytes_len = ZR_MAX(peak_link_bytes_len, fb.link_bytes_len);
+    if (fb.links_len > peak_links_len) {
+      peak_links_len = fb.links_len;
+    }
+    if (fb.link_bytes_len > peak_link_bytes_len) {
+      peak_link_bytes_len = fb.link_bytes_len;
+    }
   }
 
   ZR_ASSERT_TRUE(peak_links_len <= ZR_TEST_PEAK_LINKS_BOUND);

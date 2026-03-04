@@ -20,6 +20,7 @@
 #include "platform/zr_platform.h"
 #include "unicode/zr_width.h"
 #include "util/zr_caps.h"
+#include "util/zr_macros.h"
 
 #include <stdio.h>
 #include <stdlib.h>

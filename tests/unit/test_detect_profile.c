@@ -254,6 +254,26 @@ ZR_TEST_UNIT(detect_profile_waits_multiple_timeout_slices) {
   zr_test_close_mock_platform(plat);
 }
 
+ZR_TEST_UNIT(detect_profile_da1_reply_limits_final_drain_wait) {
+  mock_plat_reset();
+
+  plat_t* plat = NULL;
+  plat_caps_t baseline;
+  ZR_ASSERT_EQ_U32(zr_test_open_mock_platform(&plat, &baseline), ZR_OK);
+
+  static const uint8_t kResponses[] = "\x1b[?1;2c";
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(kResponses, sizeof(kResponses) - 1u), ZR_OK);
+
+  zr_terminal_profile_t profile;
+  plat_caps_t out_caps;
+  ZR_ASSERT_EQ_U32(zr_detect_probe_terminal(plat, &baseline, &profile, &out_caps, NULL, 0u, NULL), ZR_OK);
+
+  ZR_ASSERT_EQ_U32(profile.da1_responded, 1u);
+  ZR_ASSERT_EQ_U32(mock_plat_timed_read_call_count(), 2u);
+
+  zr_test_close_mock_platform(plat);
+}
+
 ZR_TEST_UNIT(detect_profile_returns_non_probe_passthrough) {
   mock_plat_reset();
 

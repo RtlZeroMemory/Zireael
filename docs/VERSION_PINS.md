@@ -4,7 +4,7 @@ This file is the human-readable mirror of `include/zr/zr_version.h`.
 
 ## Status
 
-Zireael is pre-alpha. ABI and wire-format details may change between releases.
+Zireael is alpha. ABI and wire-format details may change between releases.
 
 ## Library
 

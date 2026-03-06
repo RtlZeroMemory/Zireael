@@ -21,18 +21,23 @@ See also:
 `engine_create()` takes `zr_engine_config_t`, which includes requested versions for:
 
 - engine ABI (`ZR_ENGINE_ABI_*`)
-- drawlist format (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V1`, or
-  `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V1`)
+- drawlist format (`ZR_DRAWLIST_VERSION_V1` or `ZR_DRAWLIST_VERSION_V2`)
 - packed event batch format (`ZR_EVENT_BATCH_VERSION_V1`)
 
 Negotiation rules:
 
 - Requested engine ABI and event batch versions MUST match pinned versions exactly.
-- Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V1`,
-  `ZR_DRAWLIST_VERSION_V1`, `ZR_DRAWLIST_VERSION_V1`, or `ZR_DRAWLIST_VERSION_V1`).
+- Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1` or
+  `ZR_DRAWLIST_VERSION_V2`).
 - If any requested version is not supported, `engine_create()` fails with `ZR_ERR_UNSUPPORTED` and performs no partial effects.
 
 Pinned versions are defined in `include/zr/zr_version.h`.
+
+Current drawlist-version behavior:
+
+- `ZR_DRAWLIST_VERSION_V1` is the baseline format.
+- `ZR_DRAWLIST_VERSION_V2` is additive and enables `ZR_DL_OP_BLIT_RECT`.
+- Versions above the current pins are rejected at config validation time.
 
 ## Config structs (public ABI)
 

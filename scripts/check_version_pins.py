@@ -35,8 +35,11 @@ def require(pins: dict[str, int], name: str) -> int:
 def main() -> int:
   repo_root = pathlib.Path(__file__).resolve().parents[1]
   header = repo_root / "include" / "zr" / "zr_version.h"
+  readme = repo_root / "README.md"
   docs_pins = repo_root / "docs" / "VERSION_PINS.md"
   docs_versioning = repo_root / "docs" / "abi" / "versioning.md"
+  docs_config_module = repo_root / "docs" / "modules" / "CONFIG_AND_ABI_VERSIONING.md"
+  docs_drawlist_module = repo_root / "docs" / "modules" / "DRAWLIST_FORMAT_AND_PARSER.md"
 
   header_text = header.read_text(encoding="utf-8")
   pins = parse_pins(header_text)
@@ -85,6 +88,40 @@ def main() -> int:
   if f"Engine ABI: v{abi_ver[0]}.{abi_ver[1]}.{abi_ver[2]}" not in versioning_text:
     print(f"{docs_versioning}: missing engine ABI version v{abi_ver[0]}.{abi_ver[1]}.{abi_ver[2]}", file=sys.stderr)
     return 1
+
+  # --- README.md must reflect the current lifecycle and drawlist snapshot ---
+  readme_text = readme.read_text(encoding="utf-8")
+  if "status-alpha" not in readme_text:
+    print(f"{readme}: missing alpha status badge", file=sys.stderr)
+    return 1
+  if "Zireael is currently **alpha**." not in readme_text:
+    print(f"{readme}: missing alpha lifecycle status text", file=sys.stderr)
+    return 1
+  if "Drawlist formats: v1, v2" not in readme_text:
+    print(f"{readme}: missing drawlist version snapshot for v1, v2", file=sys.stderr)
+    return 1
+
+  # --- docs/modules/CONFIG_AND_ABI_VERSIONING.md must describe current drawlist pins ---
+  config_module_text = docs_config_module.read_text(encoding="utf-8")
+  expected_config_snippets = [
+    "drawlist format (`ZR_DRAWLIST_VERSION_V1` or `ZR_DRAWLIST_VERSION_V2`)",
+    "Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1` or\n  `ZR_DRAWLIST_VERSION_V2`).",
+  ]
+  for snippet in expected_config_snippets:
+    if snippet not in config_module_text:
+      print(f"{docs_config_module}: missing current drawlist-version wording: {snippet!r}", file=sys.stderr)
+      return 1
+
+  # --- docs/modules/DRAWLIST_FORMAT_AND_PARSER.md must describe current parser support ---
+  drawlist_module_text = docs_drawlist_module.read_text(encoding="utf-8")
+  expected_drawlist_snippets = [
+    "`ZR_DRAWLIST_VERSION_V1` and `ZR_DRAWLIST_VERSION_V2` are accepted.",
+    "`ZR_DRAWLIST_VERSION_V2`\nis additive and only gates `ZR_DL_OP_BLIT_RECT`;",
+  ]
+  for snippet in expected_drawlist_snippets:
+    if snippet not in drawlist_module_text:
+      print(f"{docs_drawlist_module}: missing current parser-version wording: {snippet!r}", file=sys.stderr)
+      return 1
 
   return 0
 

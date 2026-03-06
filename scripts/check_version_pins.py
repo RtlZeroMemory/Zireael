@@ -38,6 +38,7 @@ def main() -> int:
   readme = repo_root / "README.md"
   docs_pins = repo_root / "docs" / "VERSION_PINS.md"
   docs_versioning = repo_root / "docs" / "abi" / "versioning.md"
+  docs_abi_reference = repo_root / "docs" / "ABI_REFERENCE.md"
   docs_config_module = repo_root / "docs" / "modules" / "CONFIG_AND_ABI_VERSIONING.md"
   docs_drawlist_module = repo_root / "docs" / "modules" / "DRAWLIST_FORMAT_AND_PARSER.md"
 
@@ -74,6 +75,9 @@ def main() -> int:
 
   # --- docs/VERSION_PINS.md must mention exact macro values ---
   pins_text = docs_pins.read_text(encoding="utf-8")
+  if "Zireael is alpha." not in pins_text:
+    print(f"{docs_pins}: missing alpha lifecycle status text", file=sys.stderr)
+    return 1
   for k in required:
     v = pins[k]
     if re.search(rf"\b{re.escape(k)}\s*=\s*{v}\b", pins_text) is None:
@@ -88,6 +92,12 @@ def main() -> int:
   if f"Engine ABI: v{abi_ver[0]}.{abi_ver[1]}.{abi_ver[2]}" not in versioning_text:
     print(f"{docs_versioning}: missing engine ABI version v{abi_ver[0]}.{abi_ver[1]}.{abi_ver[2]}", file=sys.stderr)
     return 1
+  if "Lifecycle: alpha" not in versioning_text:
+    print(f"{docs_versioning}: missing alpha lifecycle status text", file=sys.stderr)
+    return 1
+  if "Drawlist formats: v1, v2" not in versioning_text:
+    print(f"{docs_versioning}: missing drawlist version snapshot for v1, v2", file=sys.stderr)
+    return 1
 
   # --- README.md must reflect the current lifecycle and drawlist snapshot ---
   readme_text = readme.read_text(encoding="utf-8")
@@ -100,6 +110,17 @@ def main() -> int:
   if "Drawlist formats: v1, v2" not in readme_text:
     print(f"{readme}: missing drawlist version snapshot for v1, v2", file=sys.stderr)
     return 1
+
+  # --- docs/ABI_REFERENCE.md must describe the current public drawlist header scope ---
+  abi_reference_text = docs_abi_reference.read_text(encoding="utf-8")
+  expected_abi_reference_snippets = [
+    "`include/zr/zr_drawlist.h` (drawlist v1/v2)",
+    "Drawlist v1/v2 and event batch v1 are specified by:",
+  ]
+  for snippet in expected_abi_reference_snippets:
+    if snippet not in abi_reference_text:
+      print(f"{docs_abi_reference}: missing current ABI drawlist wording: {snippet!r}", file=sys.stderr)
+      return 1
 
   # --- docs/modules/CONFIG_AND_ABI_VERSIONING.md must describe current drawlist pins ---
   config_module_text = docs_config_module.read_text(encoding="utf-8")

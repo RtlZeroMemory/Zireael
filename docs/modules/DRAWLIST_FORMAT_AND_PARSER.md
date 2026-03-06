@@ -4,7 +4,11 @@ This module documents ZRDL ingestion in the engine.
 
 ## Supported Version
 
-Only `ZR_DRAWLIST_VERSION_V1` is accepted.
+`ZR_DRAWLIST_VERSION_V1` and `ZR_DRAWLIST_VERSION_V2` are accepted.
+
+`ZR_DRAWLIST_VERSION_V1` is the baseline format. `ZR_DRAWLIST_VERSION_V2`
+is additive and only gates `ZR_DL_OP_BLIT_RECT`; the other currently pinned
+opcodes, including `DRAW_CANVAS` and `DRAW_IMAGE`, remain valid in v1.
 
 ## Frame Structure
 
@@ -38,7 +42,8 @@ persistent stores:
 
 If a draw command references an unknown ID, execution fails.
 
-## No Backward Compatibility
+## Version-Rejection Behavior
 
-Legacy multi-version paths were removed. The parser/executor are single-version
-(v1) by design.
+Versions outside the current pinned set are rejected. The parser/executor share
+the same core path for v1/v2 and do not retain legacy experimental negotiation
+paths beyond the current public pins.

@@ -22,7 +22,7 @@ Pinned versions:
 
 Binary formats:
 
-- `include/zr/zr_drawlist.h` (drawlist v1)
+- `include/zr/zr_drawlist.h` (drawlist v1/v2)
 - `include/zr/zr_event.h` (packed event batch v1)
 
 ## Result / error model
@@ -75,7 +75,7 @@ Canonical source:
 - Reserved/padding fields in v1 structs **MUST be 0** when passed by the caller.
 - `ZR_EV_TEXT.codepoint` carries Unicode scalar values; invalid UTF-8 input emits U+FFFD.
 
-Drawlist v1 and event batch v1 are specified by:
+Drawlist v1/v2 and event batch v1 are specified by:
 
 - `docs/modules/DRAWLIST_FORMAT_AND_PARSER.md`
 - `docs/modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md`

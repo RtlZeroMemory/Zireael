@@ -145,6 +145,8 @@ nav:
           - Events + Packed ABI: modules/EVENT_SYSTEM_AND_PACKED_EVENT_ABI.md
           - Framebuffer: modules/FRAMEBUFFER_MODEL_AND_OPS.md
           - Diff + Output: modules/DIFF_RENDERER_AND_OUTPUT_EMITTER.md
+          - Sub-Cell Blitter: modules/SUB_CELL_BLITTER.md
+          - Image Protocols: modules/IMAGE_PROTOCOLS.md
           - Platform Interface: modules/PLATFORM_INTERFACE.md
           - Terminal Detection: modules/TERMINAL_DETECTION.md
           - Unicode/Text: modules/UNICODE_TEXT.md

@@ -14,6 +14,7 @@ import sys
 
 
 RE_DEFINE_U = re.compile(r"^\s*#define\s+(ZR_[A-Z0-9_]+)\s+\((\d+)u\)\s*$")
+RE_WS = re.compile(r"\s+")
 
 
 def parse_pins(text: str) -> dict[str, int]:
@@ -30,6 +31,10 @@ def require(pins: dict[str, int], name: str) -> int:
   if name not in pins:
     raise KeyError(name)
   return pins[name]
+
+
+def normalize_ws(text: str) -> str:
+  return RE_WS.sub(" ", text).strip()
 
 
 def main() -> int:
@@ -128,8 +133,9 @@ def main() -> int:
     "drawlist format (`ZR_DRAWLIST_VERSION_V1` or `ZR_DRAWLIST_VERSION_V2`)",
     "Drawlist version MUST be one of the supported pinned versions (`ZR_DRAWLIST_VERSION_V1` or\n  `ZR_DRAWLIST_VERSION_V2`).",
   ]
+  config_module_text_normalized = normalize_ws(config_module_text)
   for snippet in expected_config_snippets:
-    if snippet not in config_module_text:
+    if normalize_ws(snippet) not in config_module_text_normalized:
       print(f"{docs_config_module}: missing current drawlist-version wording: {snippet!r}", file=sys.stderr)
       return 1
 
@@ -139,8 +145,9 @@ def main() -> int:
     "`ZR_DRAWLIST_VERSION_V1` and `ZR_DRAWLIST_VERSION_V2` are accepted.",
     "`ZR_DRAWLIST_VERSION_V2`\nis additive and only gates `ZR_DL_OP_BLIT_RECT`;",
   ]
+  drawlist_module_text_normalized = normalize_ws(drawlist_module_text)
   for snippet in expected_drawlist_snippets:
-    if snippet not in drawlist_module_text:
+    if normalize_ws(snippet) not in drawlist_module_text_normalized:
       print(f"{docs_drawlist_module}: missing current parser-version wording: {snippet!r}", file=sys.stderr)
       return 1
 

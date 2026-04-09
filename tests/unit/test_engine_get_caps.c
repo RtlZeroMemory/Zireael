@@ -13,6 +13,13 @@
 
 #include <string.h>
 
+static void zr_assert_last_write_equals(zr_test_ctx_t* ctx, const uint8_t* want, size_t want_len) {
+  uint8_t actual[32] = {0};
+  const size_t actual_len = mock_plat_last_write_copy(actual, sizeof(actual));
+  ZR_ASSERT_EQ_U32((uint32_t)actual_len, (uint32_t)want_len);
+  ZR_ASSERT_TRUE(memcmp(actual, want, want_len) == 0);
+}
+
 static zr_engine_runtime_config_t zr_caps_runtime_from_create(const zr_engine_config_t* cfg) {
   zr_engine_runtime_config_t runtime = {0};
   if (!cfg) {
@@ -122,6 +129,70 @@ ZR_TEST_UNIT(engine_set_config_updates_cap_overrides_in_caps_snapshot) {
   ZR_ASSERT_EQ_U32(engine_get_caps(e, &caps_after_force), ZR_OK);
   ZR_ASSERT_EQ_U32(caps_after_force.supports_mouse, 1u);
   ZR_ASSERT_EQ_U32(caps_after_force.cap_force_flags, ZR_TERM_CAP_MOUSE);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_create_enables_and_destroy_disables_kitty_keyboard_when_supported) {
+  static const uint8_t ZR_TEST_KITTY_PUSH[] = "\x1b[>1u";
+  static const uint8_t ZR_TEST_KITTY_POP[] = "\x1b[<u";
+
+  mock_plat_reset();
+  mock_plat_set_size(80u, 24u);
+  mock_plat_set_terminal_query_support(0u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.cap_force_flags = ZR_TERM_CAP_KITTY_KEYBOARD;
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
+  zr_assert_last_write_equals(ctx, ZR_TEST_KITTY_PUSH, sizeof(ZR_TEST_KITTY_PUSH) - 1u);
+
+  mock_plat_clear_writes();
+  engine_destroy(e);
+
+  ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 1u);
+  zr_assert_last_write_equals(ctx, ZR_TEST_KITTY_POP, sizeof(ZR_TEST_KITTY_POP) - 1u);
+}
+
+ZR_TEST_UNIT(engine_set_config_syncs_kitty_keyboard_overrides) {
+  static const uint8_t ZR_TEST_KITTY_PUSH[] = "\x1b[>1u";
+  static const uint8_t ZR_TEST_KITTY_POP[] = "\x1b[<u";
+
+  mock_plat_reset();
+  mock_plat_set_size(80u, 24u);
+  mock_plat_set_terminal_query_support(0u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+  ZR_ASSERT_EQ_U32(mock_plat_write_call_count(), 0u);
+
+  zr_engine_runtime_config_t runtime = zr_caps_runtime_from_create(&cfg);
+  runtime.cap_force_flags = ZR_TERM_CAP_KITTY_KEYBOARD;
+  ZR_ASSERT_EQ_U32(engine_set_config(e, &runtime), ZR_OK);
+  zr_assert_last_write_equals(ctx, ZR_TEST_KITTY_PUSH, sizeof(ZR_TEST_KITTY_PUSH) - 1u);
+
+  zr_terminal_caps_t caps_after_force;
+  memset(&caps_after_force, 0, sizeof(caps_after_force));
+  ZR_ASSERT_EQ_U32(engine_get_caps(e, &caps_after_force), ZR_OK);
+  ZR_ASSERT_TRUE((caps_after_force.cap_flags & ZR_TERM_CAP_KITTY_KEYBOARD) != 0u);
+  ZR_ASSERT_EQ_U32((uint32_t)engine_get_terminal_profile(e)->supports_kitty_keyboard, 1u);
+
+  mock_plat_clear_writes();
+  runtime.cap_force_flags = 0u;
+  runtime.cap_suppress_flags = ZR_TERM_CAP_KITTY_KEYBOARD;
+  ZR_ASSERT_EQ_U32(engine_set_config(e, &runtime), ZR_OK);
+  zr_assert_last_write_equals(ctx, ZR_TEST_KITTY_POP, sizeof(ZR_TEST_KITTY_POP) - 1u);
+
+  zr_terminal_caps_t caps_after_suppress;
+  memset(&caps_after_suppress, 0, sizeof(caps_after_suppress));
+  ZR_ASSERT_EQ_U32(engine_get_caps(e, &caps_after_suppress), ZR_OK);
+  ZR_ASSERT_TRUE((caps_after_suppress.cap_flags & ZR_TERM_CAP_KITTY_KEYBOARD) == 0u);
+  ZR_ASSERT_EQ_U32((uint32_t)engine_get_terminal_profile(e)->supports_kitty_keyboard, 0u);
 
   engine_destroy(e);
 }

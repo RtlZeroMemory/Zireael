@@ -464,6 +464,21 @@ static bool zr__extended_key_from_codepoint(uint32_t codepoint, zr_key_t* out_ke
   }
 }
 
+static bool zr__ascii_letter_key_from_codepoint(uint32_t codepoint, zr_key_t* out_key) {
+  if (!out_key) {
+    return false;
+  }
+  if (codepoint >= (uint32_t)'a' && codepoint <= (uint32_t)'z') {
+    *out_key = (zr_key_t)(codepoint - ((uint32_t)'a' - (uint32_t)'A'));
+    return true;
+  }
+  if (codepoint >= (uint32_t)'A' && codepoint <= (uint32_t)'Z') {
+    *out_key = (zr_key_t)codepoint;
+    return true;
+  }
+  return false;
+}
+
 /*
   Emit a normalized event from an extended key protocol codepoint+modifier pair.
 
@@ -480,6 +495,20 @@ static bool zr__emit_extended_codepoint(zr_event_queue_t* q, uint32_t time_ms, u
   if (zr__extended_key_from_codepoint(codepoint, &key)) {
     zr__push_key(q, time_ms, key, mods, ZR_KEY_ACTION_DOWN);
     return true;
+  }
+
+  zr_key_t letter_key = ZR_KEY_UNKNOWN;
+  const uint32_t text_mods = mods & (ZR_MOD_ALT | ZR_MOD_META);
+  if (text_mods == 0u && zr__ascii_letter_key_from_codepoint(codepoint, &letter_key)) {
+    if ((mods & ZR_MOD_CTRL) != 0u) {
+      zr__push_key(q, time_ms, letter_key, mods, ZR_KEY_ACTION_DOWN);
+      return true;
+    }
+    if (mods == ZR_MOD_SHIFT) {
+      zr__push_key(q, time_ms, letter_key, mods, ZR_KEY_ACTION_DOWN);
+      zr__push_text_scalar(q, time_ms, codepoint);
+      return true;
+    }
   }
 
   if (zr__is_valid_unicode_scalar(codepoint)) {

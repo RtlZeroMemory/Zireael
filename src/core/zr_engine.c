@@ -1157,11 +1157,9 @@ static zr_result_t zr_engine_sync_kitty_keyboard(zr_engine_t* e, const zr_termin
     return ZR_OK;
   }
 
-  const uint8_t* bytes =
-      want_active != 0u ? ZR_ENGINE_KITTY_KEYBOARD_PUSH : ZR_ENGINE_KITTY_KEYBOARD_POP;
-  const size_t len = want_active != 0u
-                         ? (sizeof(ZR_ENGINE_KITTY_KEYBOARD_PUSH) - 1u)
-                         : (sizeof(ZR_ENGINE_KITTY_KEYBOARD_POP) - 1u);
+  const uint8_t* bytes = want_active != 0u ? ZR_ENGINE_KITTY_KEYBOARD_PUSH : ZR_ENGINE_KITTY_KEYBOARD_POP;
+  const size_t len =
+      want_active != 0u ? (sizeof(ZR_ENGINE_KITTY_KEYBOARD_PUSH) - 1u) : (sizeof(ZR_ENGINE_KITTY_KEYBOARD_POP) - 1u);
   const zr_result_t rc = plat_write_output(e->plat, bytes, (int32_t)len);
   if (rc != ZR_OK) {
     return rc;

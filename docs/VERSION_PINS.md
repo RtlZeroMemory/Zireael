@@ -10,7 +10,7 @@ Zireael is alpha. ABI and wire-format details may change between releases.
 
 - `ZR_LIBRARY_VERSION_MAJOR = 1`
 - `ZR_LIBRARY_VERSION_MINOR = 3`
-- `ZR_LIBRARY_VERSION_PATCH = 8`
+- `ZR_LIBRARY_VERSION_PATCH = 14`
 
 ## Engine ABI
 

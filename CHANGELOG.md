@@ -9,6 +9,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - docs/versioning: clarified that the current public drawlist pins are v1 and v2 only; older alpha entries below do not override the current pins in `include/zr/zr_version.h`.
 
+## 1.3.14 - 2026-04-14
+
+### Added
+
+- input/parser: added explicit CSI-u coverage for ctrl+shift letters so shifted and unshifted bindings remain distinct.
+
+### Fixed
+
+- core/engine: cleanup paths now reliably unwind kitty keyboard push/pop state after assert and exit hooks.
+
+### Tests
+
+- tests: added/updated unit coverage for shifted CSI-u parsing and restore-hook cleanup behavior.
+
 ## 1.3.8-alpha.8 — 2026-02-26
 
 ### Fixed

@@ -13,6 +13,7 @@
 #include "unit/mock_platform.h"
 
 #include <stdint.h>
+#include <string.h>
 
 /* Unit-only hooks exported by zr_engine.c when ZR_ENGINE_TESTING=1. */
 extern void zr_engine_test_reset_restore_counters(void);
@@ -21,14 +22,27 @@ extern uint32_t zr_engine_test_restore_abort_calls(void);
 extern uint32_t zr_engine_test_restore_exit_calls(void);
 extern void zr_engine_test_invoke_exit_restore_hook(void);
 
+static const uint8_t ZR_TEST_KITTY_POP[] = "\x1b[<u";
+
+static void zr_assert_last_write_equals(zr_test_ctx_t* ctx, const uint8_t* want, size_t want_len) {
+  uint8_t actual[32] = {0};
+  const size_t actual_len = mock_plat_last_write_copy(actual, sizeof(actual));
+  ZR_ASSERT_EQ_U32((uint32_t)actual_len, (uint32_t)want_len);
+  ZR_ASSERT_TRUE(memcmp(actual, want, want_len) == 0);
+}
+
 ZR_TEST_UNIT(engine_restore_hook_runs_on_assert_cleanup_path) {
   mock_plat_reset();
+  mock_plat_set_size(80u, 24u);
+  mock_plat_set_terminal_query_support(0u);
 
   zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.cap_force_flags = ZR_TERM_CAP_KITTY_KEYBOARD;
   zr_engine_t* e = NULL;
   ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
   ZR_ASSERT_TRUE(e != NULL);
 
+  mock_plat_clear_writes();
   zr_engine_test_reset_restore_counters();
 
   zr_assert_invoke_cleanup_hook_for_test();
@@ -36,18 +50,23 @@ ZR_TEST_UNIT(engine_restore_hook_runs_on_assert_cleanup_path) {
   ZR_ASSERT_EQ_U32(zr_engine_test_restore_abort_calls(), 1u);
   ZR_ASSERT_EQ_U32(zr_engine_test_restore_exit_calls(), 0u);
   ZR_ASSERT_EQ_U32(zr_engine_test_restore_attempts(), 1u);
+  zr_assert_last_write_equals(ctx, ZR_TEST_KITTY_POP, sizeof(ZR_TEST_KITTY_POP) - 1u);
 
   engine_destroy(e);
 }
 
 ZR_TEST_UNIT(engine_restore_hook_runs_on_exit_path) {
   mock_plat_reset();
+  mock_plat_set_size(80u, 24u);
+  mock_plat_set_terminal_query_support(0u);
 
   zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.cap_force_flags = ZR_TERM_CAP_KITTY_KEYBOARD;
   zr_engine_t* e = NULL;
   ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
   ZR_ASSERT_TRUE(e != NULL);
 
+  mock_plat_clear_writes();
   zr_engine_test_reset_restore_counters();
 
   zr_engine_test_invoke_exit_restore_hook();
@@ -55,6 +74,7 @@ ZR_TEST_UNIT(engine_restore_hook_runs_on_exit_path) {
   ZR_ASSERT_EQ_U32(zr_engine_test_restore_abort_calls(), 0u);
   ZR_ASSERT_EQ_U32(zr_engine_test_restore_exit_calls(), 1u);
   ZR_ASSERT_EQ_U32(zr_engine_test_restore_attempts(), 1u);
+  zr_assert_last_write_equals(ctx, ZR_TEST_KITTY_POP, sizeof(ZR_TEST_KITTY_POP) - 1u);
 
   engine_destroy(e);
 }

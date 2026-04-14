@@ -166,6 +166,7 @@ enum {
 
 /* Forward declaration for cleanup helper. */
 static void zr_engine_debug_free(zr_engine_t* e);
+static zr_result_t zr_engine_sync_kitty_keyboard(zr_engine_t* e, const zr_terminal_profile_t* profile);
 
 static const uint8_t ZR_SYNC_BEGIN[] = "\x1b[?2026h";
 static const uint8_t ZR_SYNC_END[] = "\x1b[?2026l";
@@ -202,6 +203,15 @@ static void zr_engine_restore_sync_assert_hook_locked(void) {
   zr_assert_clear_cleanup_hook(zr_engine_restore_from_assert);
 }
 
+static void zr_engine_restore_platform_state(zr_engine_t* e) {
+  if (!e || !e->plat) {
+    return;
+  }
+
+  (void)zr_engine_sync_kitty_keyboard(e, &(zr_terminal_profile_t){0});
+  (void)plat_leave_raw(e->plat);
+}
+
 /*
   Restore active platforms to non-raw mode.
 
@@ -221,7 +231,7 @@ static uint32_t zr_engine_restore_active_platforms(void) {
       continue;
     }
     attempts++;
-    (void)plat_leave_raw(it->plat);
+    zr_engine_restore_platform_state(it);
   }
   zr_engine_restore_lock_release();
 
@@ -1147,8 +1157,11 @@ static zr_result_t zr_engine_sync_kitty_keyboard(zr_engine_t* e, const zr_termin
     return ZR_OK;
   }
 
-  const uint8_t* bytes = want_active ? ZR_ENGINE_KITTY_KEYBOARD_PUSH : ZR_ENGINE_KITTY_KEYBOARD_POP;
-  const size_t len = want_active ? (sizeof(ZR_ENGINE_KITTY_KEYBOARD_PUSH) - 1u) : (sizeof(ZR_ENGINE_KITTY_KEYBOARD_POP) - 1u);
+  const uint8_t* bytes =
+      want_active != 0u ? ZR_ENGINE_KITTY_KEYBOARD_PUSH : ZR_ENGINE_KITTY_KEYBOARD_POP;
+  const size_t len = want_active != 0u
+                         ? (sizeof(ZR_ENGINE_KITTY_KEYBOARD_PUSH) - 1u)
+                         : (sizeof(ZR_ENGINE_KITTY_KEYBOARD_POP) - 1u);
   const zr_result_t rc = plat_write_output(e->plat, bytes, (int32_t)len);
   if (rc != ZR_OK) {
     return rc;
@@ -1409,8 +1422,7 @@ void engine_destroy(zr_engine_t* e) {
 
   if (e->plat) {
     zr_engine_restore_unregister(e);
-    (void)zr_engine_sync_kitty_keyboard(e, &(zr_terminal_profile_t){0});
-    (void)plat_leave_raw(e->plat);
+    zr_engine_restore_platform_state(e);
     plat_destroy(e->plat);
     e->plat = NULL;
   } else {

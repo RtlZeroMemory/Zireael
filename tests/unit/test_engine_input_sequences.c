@@ -390,6 +390,108 @@ ZR_TEST_UNIT(engine_poll_events_parses_csi_u_tab_with_ctrl) {
   engine_destroy(e);
 }
 
+ZR_TEST_UNIT(engine_poll_events_parses_csi_u_shift_letter_as_key_and_text) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'7', (uint8_t)'4', (uint8_t)';', (uint8_t)'2', (uint8_t)'u'};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[256] = {0};
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 2u);
+  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_KEY);
+  const size_t off_payload0 = off_rec0 + sizeof(zr_ev_record_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 0u), (uint32_t)'J');
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload0 + 4u), (uint32_t)ZR_MOD_SHIFT);
+
+  const size_t off_rec1 = off_rec0 + sizeof(zr_ev_record_header_t) + sizeof(zr_ev_key_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec1 + 0u), (uint32_t)ZR_EV_TEXT);
+  const size_t off_payload1 = off_rec1 + sizeof(zr_ev_record_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload1 + 0u), (uint32_t)'J');
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_poll_events_parses_csi_u_ctrl_letter_as_key_only) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  const uint8_t in[] = {ZR_TEST_CSI,  (uint8_t)'1', (uint8_t)'0', (uint8_t)'6',
+                        (uint8_t)';', (uint8_t)'5', (uint8_t)'u'};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128] = {0};
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);
+  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_KEY);
+  const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 0u), (uint32_t)'J');
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 4u), (uint32_t)ZR_MOD_CTRL);
+
+  engine_destroy(e);
+}
+
+ZR_TEST_UNIT(engine_poll_events_parses_csi_u_ctrl_shift_letter_as_key_only) {
+  mock_plat_reset();
+  mock_plat_set_size(10u, 4u);
+  mock_plat_set_now_ms(1000u);
+
+  zr_engine_config_t cfg = zr_engine_config_default();
+  cfg.target_fps = 20u;
+  cfg.limits.out_max_bytes_per_frame = 4096u;
+
+  zr_engine_t* e = NULL;
+  ZR_ASSERT_EQ_U32(engine_create(&e, &cfg), ZR_OK);
+  ZR_ASSERT_TRUE(e != NULL);
+
+  zr_drain_initial_resize(ctx, e);
+
+  const uint8_t in[] = {ZR_TEST_CSI, (uint8_t)'7', (uint8_t)'4', (uint8_t)';', (uint8_t)'6', (uint8_t)'u'};
+  ZR_ASSERT_EQ_U32(mock_plat_push_input(in, sizeof(in)), ZR_OK);
+
+  uint8_t out[128] = {0};
+  const int n = engine_poll_events(e, 0, out, (int)sizeof(out));
+  ZR_ASSERT_TRUE(n > 0);
+
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + 12u), 1u);
+  const size_t off_rec0 = sizeof(zr_evbatch_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_rec0 + 0u), (uint32_t)ZR_EV_KEY);
+  const size_t off_payload = off_rec0 + sizeof(zr_ev_record_header_t);
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 0u), (uint32_t)'J');
+  ZR_ASSERT_EQ_U32(zr_u32le_at(out + off_payload + 4u), (uint32_t)(ZR_MOD_CTRL | ZR_MOD_SHIFT));
+
+  engine_destroy(e);
+}
+
 ZR_TEST_UNIT(engine_poll_events_parses_modify_other_keys_alt_text) {
   mock_plat_reset();
   mock_plat_set_size(10u, 4u);
